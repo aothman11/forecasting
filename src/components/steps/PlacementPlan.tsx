@@ -1,9 +1,9 @@
 "use client";
 
-import { useRef } from "react";
+import { useRef, useState } from "react";
 import { format } from "date-fns";
 import { usePlanStore } from "@/lib/store";
-import { parsePlacementCSV } from "@/lib/csv";
+import { isExcelFile, parsePlacementCSV, parsePlacementExcel, type ParsedPlacementRow } from "@/lib/placementImport";
 import { DataTable, type DataTableColumn } from "../shared/DataTable";
 import { SummaryCard } from "../shared/SummaryCard";
 import type { PlacementDayRow } from "@/lib/types";
@@ -17,29 +17,43 @@ export function PlacementPlan() {
   const quickFillPlacementPlan = usePlanStore((s) => s.quickFillPlacementPlan);
   const setHorizonWeeks = usePlanStore((s) => s.setHorizonWeeks);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [importMessage, setImportMessage] = useState<string | null>(null);
 
   const runningTotal = placementDays.reduce((s, r) => s + r.farmsPlacing * r.chicksPerFarm, 0);
   const totalFarmsUsed = placementDays.reduce((s, r) => s + r.farmsPlacing, 0);
 
-  const handleCSV = (file: File) => {
-    const reader = new FileReader();
-    reader.onload = () => {
-      const parsed = parsePlacementCSV(String(reader.result));
-      const byDate = new Map(parsed.map((p) => [p.date, p]));
-      setPlacementDays(
-        placementDays.map((row) => {
-          const patch = byDate.get(row.date);
-          return patch
-            ? {
-                ...row,
-                farmsPlacing: patch.farmsPlacing ?? row.farmsPlacing,
-                chicksPerFarm: patch.chicksPerFarm ?? row.chicksPerFarm,
-              }
-            : row;
-        })
-      );
-    };
-    reader.readAsText(file);
+  const applyParsedRows = (parsed: ParsedPlacementRow[]) => {
+    const byDate = new Map(parsed.map((p) => [p.date, p]));
+    let matched = 0;
+    setPlacementDays(
+      placementDays.map((row) => {
+        const patch = byDate.get(row.date);
+        if (!patch) return row;
+        matched++;
+        return {
+          ...row,
+          farmsPlacing: patch.farmsPlacing ?? row.farmsPlacing,
+          chicksPerFarm: patch.chicksPerFarm ?? row.chicksPerFarm,
+        };
+      })
+    );
+    setImportMessage(
+      matched === 0
+        ? `No rows matched — check the "Date" column uses yyyy-mm-dd and falls within the current ${placementDays.length}-day horizon.`
+        : `Matched ${matched} of ${parsed.length} imported rows to the current horizon.`
+    );
+  };
+
+  const handleImportFile = (file: File) => {
+    if (isExcelFile(file)) {
+      const reader = new FileReader();
+      reader.onload = () => applyParsedRows(parsePlacementExcel(reader.result as ArrayBuffer));
+      reader.readAsArrayBuffer(file);
+    } else {
+      const reader = new FileReader();
+      reader.onload = () => applyParsedRows(parsePlacementCSV(String(reader.result)));
+      reader.readAsText(file);
+    }
   };
 
   const columns: DataTableColumn<PlacementDayRow>[] = [
@@ -138,19 +152,31 @@ export function PlacementPlan() {
           onClick={() => fileInputRef.current?.click()}
           className="text-xs font-medium px-3 py-1.5 rounded-md border border-[var(--border-subtle)] hover:border-brand-green hover:text-brand-green transition-colors"
         >
-          Import CSV
+          Import from Excel / CSV
         </button>
         <input
           ref={fileInputRef}
           type="file"
-          accept=".csv"
+          accept=".csv,.xlsx,.xls"
           className="hidden"
           onChange={(e) => {
             const file = e.target.files?.[0];
-            if (file) handleCSV(file);
+            if (file) handleImportFile(file);
             e.target.value = "";
           }}
         />
+      </div>
+
+      {importMessage && (
+        <div className="text-xs text-brand-green-dark bg-brand-green-tint rounded-md px-3 py-1.5 -mt-1">
+          {importMessage}
+        </div>
+      )}
+
+      <div className="text-xs text-neutral-400">
+        Expected columns: <span className="font-medium text-neutral-500">Date</span> (yyyy-mm-dd),{" "}
+        <span className="font-medium text-neutral-500">Farms Placing</span>,{" "}
+        <span className="font-medium text-neutral-500">Chicks per Farm</span>.
       </div>
 
       <DataTable columns={columns} rows={placementDays} rowKey={(r) => r.dayIndex} />
