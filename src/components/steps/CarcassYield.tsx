@@ -11,6 +11,10 @@ function pct(v: number) {
   return Math.round(v * 1000) / 10;
 }
 
+function kg(n: number) {
+  return Math.round(n).toLocaleString();
+}
+
 export function CarcassYield() {
   const { result, params } = usePipeline();
   const setParam = usePlanStore((s) => s.setParam);
@@ -18,13 +22,14 @@ export function CarcassYield() {
 
   const totals = rows.reduce(
     (acc, r) => {
-      acc.carcass += r.carcassWeightTons;
-      acc.a += r.gradeATons;
-      acc.b += r.gradeBTons;
-      acc.c += r.gradeCTons;
+      acc.count += r.carcassCountPc;
+      acc.carcass += r.carcassWeightKg;
+      acc.a += r.gradeAKg;
+      acc.b += r.gradeBKg;
+      acc.c += r.gradeCKg;
       return acc;
     },
-    { carcass: 0, a: 0, b: 0, c: 0 }
+    { count: 0, carcass: 0, a: 0, b: 0, c: 0 }
   );
 
   const sum = params.gradeSplit.A + params.gradeSplit.B + params.gradeSplit.C;
@@ -32,32 +37,39 @@ export function CarcassYield() {
   const columns: DataTableColumn<CarcassYieldWeek>[] = [
     { key: "week", header: "Week", render: (r) => `W${r.week}` },
     {
-      key: "carcass",
-      header: "Carcass Weight (tons)",
+      key: "count",
+      header: "Carcass (PC)",
       align: "right",
-      render: (r) => r.carcassWeightTons.toFixed(1),
-      footer: totals.carcass.toFixed(1),
+      render: (r) => Math.round(r.carcassCountPc).toLocaleString(),
+      footer: Math.round(totals.count).toLocaleString(),
+    },
+    {
+      key: "carcass",
+      header: "Carcass Weight (kg)",
+      align: "right",
+      render: (r) => kg(r.carcassWeightKg),
+      footer: kg(totals.carcass),
     },
     {
       key: "a",
-      header: "Grade A (tons)",
+      header: "Grade A (kg)",
       align: "right",
-      render: (r) => r.gradeATons.toFixed(1),
-      footer: totals.a.toFixed(1),
+      render: (r) => kg(r.gradeAKg),
+      footer: kg(totals.a),
     },
     {
       key: "b",
-      header: "Grade B (tons)",
+      header: "Grade B (kg)",
       align: "right",
-      render: (r) => r.gradeBTons.toFixed(1),
-      footer: totals.b.toFixed(1),
+      render: (r) => kg(r.gradeBKg),
+      footer: kg(totals.b),
     },
     {
       key: "c",
-      header: "Grade C (tons)",
+      header: "Grade C (kg)",
       align: "right",
-      render: (r) => r.gradeCTons.toFixed(1),
-      footer: totals.c.toFixed(1),
+      render: (r) => kg(r.gradeCKg),
+      footer: kg(totals.c),
     },
   ];
 
@@ -71,10 +83,11 @@ export function CarcassYield() {
       </div>
 
       <div className="flex flex-wrap items-end gap-3">
-        <SummaryCard label="Total Carcass" value={`${totals.carcass.toFixed(0)} t`} accent="green" />
-        <SummaryCard label="Grade A" value={`${totals.a.toFixed(0)} t`} />
-        <SummaryCard label="Grade B" value={`${totals.b.toFixed(0)} t`} />
-        <SummaryCard label="Grade C / Reject" value={`${totals.c.toFixed(0)} t`} />
+        <SummaryCard label="Total Carcass" value={Math.round(totals.count).toLocaleString()} sublabel="pc" accent="green" />
+        <SummaryCard label="Total Carcass Weight" value={`${kg(totals.carcass)} kg`} accent="green" />
+        <SummaryCard label="Grade A" value={`${kg(totals.a)} kg`} />
+        <SummaryCard label="Grade B" value={`${kg(totals.b)} kg`} />
+        <SummaryCard label="Grade C / Reject" value={`${kg(totals.c)} kg`} />
 
         <div className="flex-1" />
 

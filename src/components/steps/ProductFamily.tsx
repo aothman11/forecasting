@@ -11,6 +11,10 @@ function pct(v: number) {
   return Math.round(v * 1000) / 10;
 }
 
+function kg(n: number) {
+  return Math.round(n).toLocaleString();
+}
+
 export function ProductFamily() {
   const { result, params } = usePipeline();
   const setParam = usePlanStore((s) => s.setParam);
@@ -18,10 +22,10 @@ export function ProductFamily() {
 
   const totals = rows.reduce(
     (acc, r) => {
-      acc.fresh += r.wcFreshTons;
-      acc.frozen += r.wcFrozenTons;
-      acc.fpp += r.fppTons;
-      acc.total += r.totalTons;
+      acc.fresh += r.wcFreshKg;
+      acc.frozen += r.wcFrozenKg;
+      acc.fpp += r.fppKg;
+      acc.total += r.totalKg;
       return acc;
     },
     { fresh: 0, frozen: 0, fpp: 0, total: 0 }
@@ -31,31 +35,31 @@ export function ProductFamily() {
     { key: "week", header: "Week", render: (r) => `W${r.week}` },
     {
       key: "fresh",
-      header: "WC Fresh (tons)",
+      header: "WC Fresh (kg)",
       align: "right",
-      render: (r) => r.wcFreshTons.toFixed(1),
-      footer: totals.fresh.toFixed(1),
+      render: (r) => kg(r.wcFreshKg),
+      footer: kg(totals.fresh),
     },
     {
       key: "frozen",
-      header: "WC Frozen (tons)",
+      header: "WC Frozen (kg)",
       align: "right",
-      render: (r) => r.wcFrozenTons.toFixed(1),
-      footer: totals.frozen.toFixed(1),
+      render: (r) => kg(r.wcFrozenKg),
+      footer: kg(totals.frozen),
     },
     {
       key: "fpp",
-      header: "FPP (tons)",
+      header: "FPP (kg)",
       align: "right",
-      render: (r) => r.fppTons.toFixed(1),
-      footer: totals.fpp.toFixed(1),
+      render: (r) => kg(r.fppKg),
+      footer: kg(totals.fpp),
     },
     {
       key: "total",
-      header: "Total (tons)",
+      header: "Total (kg)",
       align: "right",
-      render: (r) => r.totalTons.toFixed(1),
-      footer: totals.total.toFixed(1),
+      render: (r) => kg(r.totalKg),
+      footer: kg(totals.total),
     },
   ];
 
@@ -69,10 +73,10 @@ export function ProductFamily() {
       </div>
 
       <div className="flex flex-wrap gap-3">
-        <SummaryCard label="Whole Chicken Fresh" value={`${totals.fresh.toFixed(0)} t`} accent="green" />
-        <SummaryCard label="Whole Chicken Frozen" value={`${totals.frozen.toFixed(0)} t`} accent="gold" />
-        <SummaryCard label="FPP" value={`${totals.fpp.toFixed(0)} t`} />
-        <SummaryCard label="Total" value={`${totals.total.toFixed(0)} t`} />
+        <SummaryCard label="Whole Chicken Fresh" value={`${kg(totals.fresh)} kg`} accent="green" />
+        <SummaryCard label="Whole Chicken Frozen" value={`${kg(totals.frozen)} kg`} accent="gold" />
+        <SummaryCard label="FPP" value={`${kg(totals.fpp)} kg`} />
+        <SummaryCard label="Total" value={`${kg(totals.total)} kg`} />
       </div>
 
       <div className="border border-[var(--border-subtle)] rounded-lg p-3 overflow-x-auto">

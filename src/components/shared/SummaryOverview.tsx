@@ -18,15 +18,15 @@ export function SummaryOverview({ result }: { result: PipelineResult }) {
       <div className="grid grid-cols-4 gap-3 mb-5">
         <SummaryCard label="Total Chicks Placed" value={Math.round(m.totalChicksPlaced).toLocaleString()} accent="green" />
         <SummaryCard label="Total Harvestable Birds" value={Math.round(m.totalHarvestableBirds).toLocaleString()} accent="green" />
-        <SummaryCard label="Total Carcass" value={`${Math.round(m.totalCarcassTons).toLocaleString()} t`} accent="gold" />
+        <SummaryCard label="Total Carcass" value={`${Math.round(m.totalCarcassKg).toLocaleString()} kg`} accent="gold" />
         <SummaryCard
           label="Weeks Over Capacity"
           value={String(m.weeksWithCapacityBreach)}
           accent={m.weeksWithCapacityBreach > 0 ? "alert" : "neutral"}
         />
-        <SummaryCard label="WC Fresh" value={`${Math.round(m.totalWcFreshTons).toLocaleString()} t`} />
-        <SummaryCard label="WC Frozen" value={`${Math.round(m.totalWcFrozenTons).toLocaleString()} t`} />
-        <SummaryCard label="FPP" value={`${Math.round(m.totalFppTons).toLocaleString()} t`} />
+        <SummaryCard label="WC Fresh" value={`${Math.round(m.totalWcFreshKg).toLocaleString()} kg`} />
+        <SummaryCard label="WC Frozen" value={`${Math.round(m.totalWcFrozenKg).toLocaleString()} kg`} />
+        <SummaryCard label="FPP" value={`${Math.round(m.totalFppKg).toLocaleString()} kg`} />
         <SummaryCard label="Avg Plant Utilization" value={`${m.avgUtilizationPct.toFixed(1)}%`} />
       </div>
 

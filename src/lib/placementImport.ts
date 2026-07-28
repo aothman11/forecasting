@@ -7,14 +7,20 @@ export interface ParsedPlacementRow {
   chicksPerFarm?: number;
 }
 
-/** Parses a CSV with headers Date,Farms Placing,Chicks per Farm (order-insensitive). */
+// Matches "House Placing" (current label) and "Farms Placing" (older templates), but never the
+// "Chicks per Farm" column, which also contains the substring "farm".
+function isHouseColumnHeader(h: string): boolean {
+  return h.includes("house") || (h.includes("farm") && !h.includes("chick"));
+}
+
+/** Parses a CSV with headers Placement Date, House Placing, Chicks per Farm (order-insensitive). */
 export function parsePlacementCSV(text: string): ParsedPlacementRow[] {
   const lines = text.trim().split(/\r?\n/);
   if (lines.length < 2) return [];
   const headers = lines[0].split(",").map((h) => h.trim().toLowerCase());
   const idx = {
     date: headers.findIndex((h) => h.includes("date")),
-    farmsPlacing: headers.findIndex((h) => h.includes("farm")),
+    farmsPlacing: headers.findIndex(isHouseColumnHeader),
     chicksPerFarm: headers.findIndex((h) => h.includes("chick")),
   };
   if (idx.date < 0) return [];
@@ -36,7 +42,7 @@ function normalizeDateCell(value: unknown): string {
   return String(value ?? "").trim();
 }
 
-/** Parses the first sheet of an .xlsx/.xls workbook with headers Date, Farms Placing, Chicks per Farm. */
+/** Parses the first sheet of an .xlsx/.xls workbook with headers Placement Date, House Placing, Chicks per Farm. */
 export function parsePlacementExcel(buffer: ArrayBuffer): ParsedPlacementRow[] {
   const workbook = XLSX.read(buffer, { type: "array", cellDates: true });
   const sheet = workbook.Sheets[workbook.SheetNames[0]];
@@ -48,7 +54,7 @@ export function parsePlacementExcel(buffer: ArrayBuffer): ParsedPlacementRow[] {
     .map((row): ParsedPlacementRow => {
       const keys = Object.keys(row);
       const dateKey = keys.find((k) => k.toLowerCase().includes("date"));
-      const farmsKey = keys.find((k) => k.toLowerCase().includes("farm"));
+      const farmsKey = keys.find((k) => isHouseColumnHeader(k.toLowerCase()));
       const chicksKey = keys.find((k) => k.toLowerCase().includes("chick"));
 
       const parsed: ParsedPlacementRow = { date: dateKey ? normalizeDateCell(row[dateKey]) : "" };

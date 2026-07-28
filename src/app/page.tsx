@@ -92,8 +92,8 @@ export default function Home() {
         <div className="grid grid-cols-2 gap-3">
           <SummaryCard label="Total Chicks Placed" value={Math.round(m.totalChicksPlaced).toLocaleString()} accent="green" />
           <SummaryCard label="Harvestable Birds" value={Math.round(m.totalHarvestableBirds).toLocaleString()} />
-          <SummaryCard label="Total Carcass" value={`${m.totalCarcassTons.toFixed(0)} t`} accent="gold" />
-          <SummaryCard label="FPP" value={`${m.totalFppTons.toFixed(0)} t`} />
+          <SummaryCard label="Total Carcass" value={`${Math.round(m.totalCarcassKg).toLocaleString()} kg`} accent="gold" />
+          <SummaryCard label="FPP" value={`${Math.round(m.totalFppKg).toLocaleString()} kg`} />
           <SummaryCard label="Avg Utilization" value={`${m.avgUtilizationPct.toFixed(1)}%`} />
           <SummaryCard
             label="Weeks Over Capacity"

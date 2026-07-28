@@ -12,6 +12,10 @@ function pct(v: number) {
   return Math.round(v * 1000) / 10;
 }
 
+function kg(n: number) {
+  return Math.round(n).toLocaleString();
+}
+
 function topCutKeys(row: CutPlanWeek, keys: CutKey[], n = 3): Set<CutKey> {
   const sorted = [...keys].sort((a, b) => row.cuts[b] - row.cuts[a]);
   return new Set(sorted.slice(0, n));
@@ -42,18 +46,18 @@ export function CutPlan() {
         const isTop = topCutKeys(r, keys).has(k);
         return (
           <span className={isTop ? "font-semibold text-brand-green-dark" : ""}>
-            {r.cuts[k].toFixed(1)}
+            {kg(r.cuts[k])}
           </span>
         );
       },
-      footer: totalsByKey[k].toFixed(1),
+      footer: kg(totalsByKey[k]),
     })),
     {
       key: "total",
-      header: "Total (tons)",
+      header: "Total (kg)",
       align: "right",
-      render: (r) => r.totalTons.toFixed(1),
-      footer: grandTotal.toFixed(1),
+      render: (r) => kg(r.totalKg),
+      footer: kg(grandTotal),
     },
   ];
 
@@ -68,7 +72,7 @@ export function CutPlan() {
 
       <div className="flex flex-wrap items-end gap-3">
         {keys.slice(0, 4).map((k) => (
-          <SummaryCard key={k} label={CUT_LABELS[k]} value={`${totalsByKey[k].toFixed(0)} t`} />
+          <SummaryCard key={k} label={CUT_LABELS[k]} value={`${kg(totalsByKey[k])} kg`} />
         ))}
 
         <div className="flex-1" />

@@ -15,8 +15,8 @@ export function exportPlacementTemplate(
 ) {
   const wb = XLSX.utils.book_new();
   const sheet = placementDays.map((d) => ({
-    Date: d.date,
-    "Farms Placing": "",
+    "Placement Date": d.date,
+    "House Placing": "",
     "Chicks per Farm": DEFAULT_CHICKS_PER_FARM,
   }));
   XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(sheet), "Placement Plan");
@@ -27,8 +27,8 @@ export function exportPipelineToExcel(result: PipelineResult, params: PlanParame
   const wb = XLSX.utils.book_new();
 
   const placementSheet = result.placementDays.map((r) => ({
-    Date: r.date,
-    "Farms Placing": r.farmsPlacing,
+    "Placement Date": r.date,
+    "House Placing": r.farmsPlacing,
     "Chicks per Farm": r.chicksPerFarm,
     "Total Chicks Placed": r.farmsPlacing * r.chicksPerFarm,
   }));
@@ -40,7 +40,7 @@ export function exportPipelineToExcel(result: PipelineResult, params: PlanParame
     "Harvest End": r.harvestDateEnd,
     "Placement Wk Ref": r.placementWeekRef ?? "-",
     "Harvestable Birds": round(r.harvestableBirds, 0),
-    "Live Weight (tons)": round(r.totalLiveWeightTons),
+    "Live Weight (kg)": round(r.totalLiveWeightKg, 0),
     "Utilization %": round(r.utilizationPct),
     "Exceeds Capacity": r.exceedsCapacity ? "YES" : "",
   }));
@@ -48,19 +48,20 @@ export function exportPipelineToExcel(result: PipelineResult, params: PlanParame
 
   const carcassSheet = result.carcass.map((r) => ({
     Week: r.week,
-    "Carcass (tons)": round(r.carcassWeightTons),
-    "Grade A (tons)": round(r.gradeATons),
-    "Grade B (tons)": round(r.gradeBTons),
-    "Grade C (tons)": round(r.gradeCTons),
+    "Carcass (PC)": round(r.carcassCountPc, 0),
+    "Carcass (kg)": round(r.carcassWeightKg, 0),
+    "Grade A (kg)": round(r.gradeAKg, 0),
+    "Grade B (kg)": round(r.gradeBKg, 0),
+    "Grade C (kg)": round(r.gradeCKg, 0),
   }));
   XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(carcassSheet), "Carcass Yield");
 
   const familySheet = result.family.map((r) => ({
     Week: r.week,
-    "WC Fresh (tons)": round(r.wcFreshTons),
-    "WC Frozen (tons)": round(r.wcFrozenTons),
-    "FPP (tons)": round(r.fppTons),
-    "Total (tons)": round(r.totalTons),
+    "WC Fresh (kg)": round(r.wcFreshKg, 0),
+    "WC Frozen (kg)": round(r.wcFrozenKg, 0),
+    "FPP (kg)": round(r.fppKg, 0),
+    "Total (kg)": round(r.totalKg, 0),
   }));
   XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(familySheet), "Product Family");
 
@@ -68,9 +69,9 @@ export function exportPipelineToExcel(result: PipelineResult, params: PlanParame
   const cutSheet = result.cuts.map((r) => {
     const row: Record<string, number | string> = { Week: r.week };
     keys.forEach((k) => {
-      row[CUT_LABELS[k]] = round(r.cuts[k]);
+      row[CUT_LABELS[k]] = round(r.cuts[k], 0);
     });
-    row["Total (tons)"] = round(r.totalTons);
+    row["Total (kg)"] = round(r.totalKg, 0);
     return row;
   });
   XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(cutSheet), "FPP Cut Plan");
@@ -79,11 +80,11 @@ export function exportPipelineToExcel(result: PipelineResult, params: PlanParame
     Week: r.week,
     Plant: PLANT_LABELS[r.plant],
     Birds: round(r.birds, 0),
-    "Live Weight (tons)": round(r.liveWeightTons),
-    "Carcass (tons)": round(r.carcassTons),
-    "WC Fresh (tons)": round(r.wcFreshTons),
-    "WC Frozen (tons)": round(r.wcFrozenTons),
-    "FPP (tons)": round(r.fppTons),
+    "Live Weight (kg)": round(r.liveWeightKg, 0),
+    "Carcass (kg)": round(r.carcassKg, 0),
+    "WC Fresh (kg)": round(r.wcFreshKg, 0),
+    "WC Frozen (kg)": round(r.wcFrozenKg, 0),
+    "FPP (kg)": round(r.fppKg, 0),
     "Daily Birds": round(r.dailyBirds, 0),
     "Capacity Breach": r.capacityBreach ? "YES" : "",
   }));

@@ -27,10 +27,10 @@ export function ScenarioCompare() {
   const metricRows: { key: keyof ReturnType<typeof computeSummaryMetrics>; label: string; fmt: (n: number) => string }[] = [
     { key: "totalChicksPlaced", label: "Total Chicks Placed", fmt: (n) => Math.round(n).toLocaleString() },
     { key: "totalHarvestableBirds", label: "Total Harvestable Birds", fmt: (n) => Math.round(n).toLocaleString() },
-    { key: "totalCarcassTons", label: "Total Carcass (tons)", fmt: (n) => n.toFixed(0) },
-    { key: "totalFppTons", label: "FPP (tons)", fmt: (n) => n.toFixed(0) },
-    { key: "totalWcFreshTons", label: "WC Fresh (tons)", fmt: (n) => n.toFixed(0) },
-    { key: "totalWcFrozenTons", label: "WC Frozen (tons)", fmt: (n) => n.toFixed(0) },
+    { key: "totalCarcassKg", label: "Total Carcass (kg)", fmt: (n) => Math.round(n).toLocaleString() },
+    { key: "totalFppKg", label: "FPP (kg)", fmt: (n) => Math.round(n).toLocaleString() },
+    { key: "totalWcFreshKg", label: "WC Fresh (kg)", fmt: (n) => Math.round(n).toLocaleString() },
+    { key: "totalWcFrozenKg", label: "WC Frozen (kg)", fmt: (n) => Math.round(n).toLocaleString() },
     { key: "avgUtilizationPct", label: "Avg Capacity Utilization", fmt: (n) => `${n.toFixed(1)}%` },
     { key: "weeksWithCapacityBreach", label: "Weeks Over Capacity", fmt: (n) => String(n) },
   ];

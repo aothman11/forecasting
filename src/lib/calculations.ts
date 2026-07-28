@@ -128,7 +128,6 @@ export function computeLiveBirdForecast(
     const chicksPlaced = refRow ? refRow.totalChicksPlaced : 0;
     const harvestableBirds = chicksPlaced * (1 - params.mortalityRate);
     const totalLiveWeightKg = harvestableBirds * params.avgLiveWeightKg;
-    const totalLiveWeightTons = totalLiveWeightKg / 1000;
     const utilizationPct = capacity > 0 ? (harvestableBirds / capacity) * 100 : 0;
 
     return {
@@ -141,7 +140,6 @@ export function computeLiveBirdForecast(
       placementWeekRef: refRow ? refWeek : null,
       harvestableBirds,
       totalLiveWeightKg,
-      totalLiveWeightTons,
       totalPlantCapacity: capacity,
       utilizationPct,
       exceedsCapacity: harvestableBirds > capacity,
@@ -156,13 +154,14 @@ export function computeCarcassYield(
   params: Parameters
 ): CarcassYieldWeek[] {
   return liveBird.map((lb): CarcassYieldWeek => {
-    const carcassWeightTons = lb.totalLiveWeightTons * params.dressingPct;
+    const carcassWeightKg = lb.totalLiveWeightKg * params.dressingPct;
     return {
       week: lb.week,
-      carcassWeightTons,
-      gradeATons: carcassWeightTons * params.gradeSplit.A,
-      gradeBTons: carcassWeightTons * params.gradeSplit.B,
-      gradeCTons: carcassWeightTons * params.gradeSplit.C,
+      carcassCountPc: lb.harvestableBirds,
+      carcassWeightKg,
+      gradeAKg: carcassWeightKg * params.gradeSplit.A,
+      gradeBKg: carcassWeightKg * params.gradeSplit.B,
+      gradeCKg: carcassWeightKg * params.gradeSplit.C,
     };
   });
 }
@@ -175,15 +174,15 @@ export function computeProductFamily(
 ): ProductFamilyWeek[] {
   return carcass.map((c): ProductFamilyWeek => {
     const { A, B, C } = params.familyAllocation;
-    const wcFreshTons = c.gradeATons * A.wcFresh + c.gradeBTons * B.wcFresh + c.gradeCTons * C.wcFresh;
-    const wcFrozenTons = c.gradeATons * A.wcFrozen + c.gradeBTons * B.wcFrozen + c.gradeCTons * C.wcFrozen;
-    const fppTons = c.gradeATons * A.fpp + c.gradeBTons * B.fpp + c.gradeCTons * C.fpp;
+    const wcFreshKg = c.gradeAKg * A.wcFresh + c.gradeBKg * B.wcFresh + c.gradeCKg * C.wcFresh;
+    const wcFrozenKg = c.gradeAKg * A.wcFrozen + c.gradeBKg * B.wcFrozen + c.gradeCKg * C.wcFrozen;
+    const fppKg = c.gradeAKg * A.fpp + c.gradeBKg * B.fpp + c.gradeCKg * C.fpp;
     return {
       week: c.week,
-      wcFreshTons,
-      wcFrozenTons,
-      fppTons,
-      totalTons: wcFreshTons + wcFrozenTons + fppTons,
+      wcFreshKg,
+      wcFrozenKg,
+      fppKg,
+      totalKg: wcFreshKg + wcFrozenKg + fppKg,
     };
   });
 }
@@ -219,10 +218,10 @@ export function computeCutPlan(
   return family.map((f): CutPlanWeek => {
     const cuts = {} as Record<CutKey, number>;
     for (const key of keys) {
-      cuts[key] = f.fppTons * params.cutYields[key];
+      cuts[key] = f.fppKg * params.cutYields[key];
     }
-    const totalTons = keys.reduce((sum, k) => sum + cuts[k], 0);
-    return { week: f.week, cuts, totalTons };
+    const totalKg = keys.reduce((sum, k) => sum + cuts[k], 0);
+    return { week: f.week, cuts, totalKg };
   });
 }
 
@@ -240,29 +239,29 @@ export function computePlantDistribution(
     const capacity = params.plantCapacities[plant];
     for (const lb of liveBird) {
       const birds = lb.harvestableBirds * share;
-      const liveWeightTons = (birds * params.avgLiveWeightKg) / 1000;
-      const carcassTons = liveWeightTons * params.dressingPct;
-      const gradeATons = carcassTons * params.gradeSplit.A;
-      const gradeBTons = carcassTons * params.gradeSplit.B;
-      const gradeCTons = carcassTons * params.gradeSplit.C;
+      const liveWeightKg = birds * params.avgLiveWeightKg;
+      const carcassKg = liveWeightKg * params.dressingPct;
+      const gradeAKg = carcassKg * params.gradeSplit.A;
+      const gradeBKg = carcassKg * params.gradeSplit.B;
+      const gradeCKg = carcassKg * params.gradeSplit.C;
       const { A, B, C } = params.familyAllocation;
-      const wcFreshTons = gradeATons * A.wcFresh + gradeBTons * B.wcFresh + gradeCTons * C.wcFresh;
-      const wcFrozenTons = gradeATons * A.wcFrozen + gradeBTons * B.wcFrozen + gradeCTons * C.wcFrozen;
-      const fppTons = gradeATons * A.fpp + gradeBTons * B.fpp + gradeCTons * C.fpp;
+      const wcFreshKg = gradeAKg * A.wcFresh + gradeBKg * B.wcFresh + gradeCKg * C.wcFresh;
+      const wcFrozenKg = gradeAKg * A.wcFrozen + gradeBKg * B.wcFrozen + gradeCKg * C.wcFrozen;
+      const fppKg = gradeAKg * A.fpp + gradeBKg * B.fpp + gradeCKg * C.fpp;
       const dailyBirds = birds / params.workingDaysPerWeek;
 
       result.push({
         week: lb.week,
         plant,
         birds,
-        liveWeightTons,
-        carcassTons,
-        gradeATons,
-        gradeBTons,
-        gradeCTons,
-        wcFreshTons,
-        wcFrozenTons,
-        fppTons,
+        liveWeightKg,
+        carcassKg,
+        gradeAKg,
+        gradeBKg,
+        gradeCKg,
+        wcFreshKg,
+        wcFrozenKg,
+        fppKg,
         dailyBirds,
         plantCapacity: capacity,
         capacityBreach: dailyBirds > capacity,
@@ -289,10 +288,10 @@ export function runPipeline(placementDays: PlacementDayRow[], params: Parameters
 export interface SummaryMetrics {
   totalChicksPlaced: number;
   totalHarvestableBirds: number;
-  totalCarcassTons: number;
-  totalWcFreshTons: number;
-  totalWcFrozenTons: number;
-  totalFppTons: number;
+  totalCarcassKg: number;
+  totalWcFreshKg: number;
+  totalWcFrozenKg: number;
+  totalFppKg: number;
   avgUtilizationPct: number;
   weeksWithCapacityBreach: number;
 }
@@ -300,10 +299,10 @@ export interface SummaryMetrics {
 export function computeSummaryMetrics(result: PipelineResult): SummaryMetrics {
   const totalPlacedChicks = result.placement.reduce((s, r) => s + r.totalChicksPlaced, 0);
   const totalHarvestableBirds = result.liveBird.reduce((s, r) => s + r.harvestableBirds, 0);
-  const totalCarcassTons = result.carcass.reduce((s, r) => s + r.carcassWeightTons, 0);
-  const totalWcFreshTons = result.family.reduce((s, r) => s + r.wcFreshTons, 0);
-  const totalWcFrozenTons = result.family.reduce((s, r) => s + r.wcFrozenTons, 0);
-  const totalFppTons = result.family.reduce((s, r) => s + r.fppTons, 0);
+  const totalCarcassKg = result.carcass.reduce((s, r) => s + r.carcassWeightKg, 0);
+  const totalWcFreshKg = result.family.reduce((s, r) => s + r.wcFreshKg, 0);
+  const totalWcFrozenKg = result.family.reduce((s, r) => s + r.wcFrozenKg, 0);
+  const totalFppKg = result.family.reduce((s, r) => s + r.fppKg, 0);
   const avgUtilizationPct =
     result.liveBird.length > 0
       ? result.liveBird.reduce((s, r) => s + r.utilizationPct, 0) / result.liveBird.length
@@ -313,10 +312,10 @@ export function computeSummaryMetrics(result: PipelineResult): SummaryMetrics {
   return {
     totalChicksPlaced: totalPlacedChicks,
     totalHarvestableBirds,
-    totalCarcassTons,
-    totalWcFreshTons,
-    totalWcFrozenTons,
-    totalFppTons,
+    totalCarcassKg,
+    totalWcFreshKg,
+    totalWcFrozenKg,
+    totalFppKg,
     avgUtilizationPct,
     weeksWithCapacityBreach,
   };

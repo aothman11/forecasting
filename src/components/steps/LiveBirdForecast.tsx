@@ -11,7 +11,7 @@ export function LiveBirdForecast() {
   const rows = result.liveBird;
 
   const totalBirds = rows.reduce((s, r) => s + r.harvestableBirds, 0);
-  const totalTons = rows.reduce((s, r) => s + r.totalLiveWeightTons, 0);
+  const totalKg = rows.reduce((s, r) => s + r.totalLiveWeightKg, 0);
   const breachWeeks = rows.filter((r) => r.exceedsCapacity).length;
 
   const columns: DataTableColumn<LiveBirdWeek>[] = [
@@ -39,13 +39,7 @@ export function LiveBirdForecast() {
       header: "Total Live Weight (kg)",
       align: "right",
       render: (r) => Math.round(r.totalLiveWeightKg).toLocaleString(),
-    },
-    {
-      key: "tons",
-      header: "Total Live Weight (tons)",
-      align: "right",
-      render: (r) => r.totalLiveWeightTons.toFixed(1),
-      footer: totalTons.toFixed(1),
+      footer: Math.round(totalKg).toLocaleString(),
     },
     {
       key: "util",
@@ -70,7 +64,7 @@ export function LiveBirdForecast() {
 
       <div className="flex flex-wrap gap-3">
         <SummaryCard label="Total Harvestable Birds" value={Math.round(totalBirds).toLocaleString()} accent="green" />
-        <SummaryCard label="Total Live Weight" value={`${totalTons.toFixed(0)} t`} />
+        <SummaryCard label="Total Live Weight" value={`${Math.round(totalKg).toLocaleString()} kg`} />
         <SummaryCard
           label="Weeks Over Capacity"
           value={String(breachWeeks)}

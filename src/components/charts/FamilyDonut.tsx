@@ -8,9 +8,9 @@ const COLORS = ["#047836", "#C49A1A", "#D24918"];
 export function FamilyDonut({ data }: { data: ProductFamilyWeek[] }) {
   const totals = data.reduce(
     (acc, d) => {
-      acc.wcFresh += d.wcFreshTons;
-      acc.wcFrozen += d.wcFrozenTons;
-      acc.fpp += d.fppTons;
+      acc.wcFresh += d.wcFreshKg;
+      acc.wcFrozen += d.wcFrozenKg;
+      acc.fpp += d.fppKg;
       return acc;
     },
     { wcFresh: 0, wcFrozen: 0, fpp: 0 }
@@ -38,7 +38,7 @@ export function FamilyDonut({ data }: { data: ProductFamilyWeek[] }) {
               <Cell key={i} fill={COLORS[i % COLORS.length]} />
             ))}
           </Pie>
-          <Tooltip formatter={(value) => `${Number(value).toLocaleString()} t`} />
+          <Tooltip formatter={(value) => `${Number(value).toLocaleString()} kg`} />
           <Legend wrapperStyle={{ fontSize: 12 }} />
         </PieChart>
       </ResponsiveContainer>

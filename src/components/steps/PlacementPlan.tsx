@@ -40,7 +40,7 @@ export function PlacementPlan() {
     );
     setImportMessage(
       matched === 0
-        ? `No rows matched — check the "Date" column uses yyyy-mm-dd and falls within the current ${placementDays.length}-day horizon.`
+        ? `No rows matched — check the "Placement Date" column uses yyyy-mm-dd and falls within the current ${placementDays.length}-day horizon.`
         : `Matched ${matched} of ${parsed.length} imported rows to the current horizon.`
     );
   };
@@ -60,12 +60,12 @@ export function PlacementPlan() {
   const columns: DataTableColumn<PlacementDayRow>[] = [
     {
       key: "date",
-      header: "Date",
+      header: "Placement Date",
       render: (r) => `${r.date} (${format(new Date(r.date), "EEE")})`,
     },
     {
       key: "farmsPlacing",
-      header: "Farms Placing",
+      header: "House Placing",
       align: "right",
       render: (r) => (
         <input
@@ -115,7 +115,7 @@ export function PlacementPlan() {
       <div className="flex flex-wrap items-end gap-3">
         <SummaryCard label="Running Total Chicks" value={Math.round(runningTotal).toLocaleString()} accent="green" />
         <SummaryCard
-          label="Total Farm-Placements"
+          label="Total House-Placements"
           value={totalFarmsUsed.toLocaleString()}
           sublabel={`vs. ${params.totalFarms} farms in fleet`}
           accent={totalFarmsUsed > params.totalFarms * (params.planningHorizonWeeks / 6) * 1.02 ? "alert" : "neutral"}
@@ -182,8 +182,8 @@ export function PlacementPlan() {
       )}
 
       <div className="text-xs text-neutral-400">
-        Expected columns: <span className="font-medium text-neutral-500">Date</span> (yyyy-mm-dd),{" "}
-        <span className="font-medium text-neutral-500">Farms Placing</span>,{" "}
+        Expected columns: <span className="font-medium text-neutral-500">Placement Date</span> (yyyy-mm-dd),{" "}
+        <span className="font-medium text-neutral-500">House Placing</span>,{" "}
         <span className="font-medium text-neutral-500">Chicks per Farm</span>.
       </div>
 

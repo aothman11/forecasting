@@ -15,9 +15,9 @@ import type { CarcassYieldWeek } from "@/lib/types";
 export function GradeChart({ data }: { data: CarcassYieldWeek[] }) {
   const chartData = data.map((d) => ({
     week: `W${d.week}`,
-    "Grade A": Math.round(d.gradeATons * 10) / 10,
-    "Grade B": Math.round(d.gradeBTons * 10) / 10,
-    "Grade C": Math.round(d.gradeCTons * 10) / 10,
+    "Grade A": Math.round(d.gradeAKg),
+    "Grade B": Math.round(d.gradeBKg),
+    "Grade C": Math.round(d.gradeCKg),
   }));
 
   return (
@@ -26,8 +26,8 @@ export function GradeChart({ data }: { data: CarcassYieldWeek[] }) {
         <BarChart data={chartData} margin={{ top: 8, right: 16, left: 0, bottom: 0 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="#e2e5e3" />
           <XAxis dataKey="week" tick={{ fontSize: 11 }} />
-          <YAxis tick={{ fontSize: 11 }} unit="t" />
-          <Tooltip formatter={(value) => `${Number(value).toLocaleString()} t`} />
+          <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`} />
+          <Tooltip formatter={(value) => `${Number(value).toLocaleString()} kg`} />
           <Legend wrapperStyle={{ fontSize: 12 }} />
           <Bar dataKey="Grade A" stackId="grade" fill="#047836" />
           <Bar dataKey="Grade B" stackId="grade" fill="#C49A1A" />

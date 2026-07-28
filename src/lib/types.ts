@@ -90,7 +90,6 @@ export interface LiveBirdWeek {
   placementWeekRef: number | null;
   harvestableBirds: number;
   totalLiveWeightKg: number;
-  totalLiveWeightTons: number;
   totalPlantCapacity: number;
   utilizationPct: number;
   exceedsCapacity: boolean;
@@ -98,38 +97,39 @@ export interface LiveBirdWeek {
 
 export interface CarcassYieldWeek {
   week: number;
-  carcassWeightTons: number;
-  gradeATons: number;
-  gradeBTons: number;
-  gradeCTons: number;
+  carcassCountPc: number;
+  carcassWeightKg: number;
+  gradeAKg: number;
+  gradeBKg: number;
+  gradeCKg: number;
 }
 
 export interface ProductFamilyWeek {
   week: number;
-  wcFreshTons: number;
-  wcFrozenTons: number;
-  fppTons: number;
-  totalTons: number;
+  wcFreshKg: number;
+  wcFrozenKg: number;
+  fppKg: number;
+  totalKg: number;
 }
 
 export type CutPlanWeek = {
   week: number;
   cuts: Record<CutKey, number>;
-  totalTons: number;
+  totalKg: number;
 };
 
 export interface PlantWeek {
   week: number;
   plant: PlantKey;
   birds: number;
-  liveWeightTons: number;
-  carcassTons: number;
-  gradeATons: number;
-  gradeBTons: number;
-  gradeCTons: number;
-  wcFreshTons: number;
-  wcFrozenTons: number;
-  fppTons: number;
+  liveWeightKg: number;
+  carcassKg: number;
+  gradeAKg: number;
+  gradeBKg: number;
+  gradeCKg: number;
+  wcFreshKg: number;
+  wcFrozenKg: number;
+  fppKg: number;
   dailyBirds: number;
   plantCapacity: number;
   capacityBreach: boolean;

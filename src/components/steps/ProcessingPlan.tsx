@@ -9,14 +9,18 @@ import type { PlantKey, PlantWeek } from "@/lib/types";
 
 const PLANT_KEYS: PlantKey[] = ["plant1", "plant2", "plant3"];
 
+function kg(n: number) {
+  return Math.round(n).toLocaleString();
+}
+
 interface Row {
   week: number;
   birds: number;
-  liveWeightTons: number;
-  carcassTons: number;
-  wcFreshTons: number;
-  wcFrozenTons: number;
-  fppTons: number;
+  liveWeightKg: number;
+  carcassKg: number;
+  wcFreshKg: number;
+  wcFrozenKg: number;
+  fppKg: number;
   dailyBirds: number;
   plantCapacity: number;
   capacityBreach: boolean;
@@ -38,11 +42,11 @@ export function ProcessingPlan() {
       return {
         week,
         birds: parts.reduce((s, p) => s + p.birds, 0),
-        liveWeightTons: parts.reduce((s, p) => s + p.liveWeightTons, 0),
-        carcassTons: parts.reduce((s, p) => s + p.carcassTons, 0),
-        wcFreshTons: parts.reduce((s, p) => s + p.wcFreshTons, 0),
-        wcFrozenTons: parts.reduce((s, p) => s + p.wcFrozenTons, 0),
-        fppTons: parts.reduce((s, p) => s + p.fppTons, 0),
+        liveWeightKg: parts.reduce((s, p) => s + p.liveWeightKg, 0),
+        carcassKg: parts.reduce((s, p) => s + p.carcassKg, 0),
+        wcFreshKg: parts.reduce((s, p) => s + p.wcFreshKg, 0),
+        wcFrozenKg: parts.reduce((s, p) => s + p.wcFrozenKg, 0),
+        fppKg: parts.reduce((s, p) => s + p.fppKg, 0),
         dailyBirds: parts.reduce((s, p) => s + p.dailyBirds, 0),
         plantCapacity: parts.reduce((s, p) => s + p.plantCapacity, 0),
         capacityBreach: parts.some((p) => p.capacityBreach),
@@ -55,7 +59,7 @@ export function ProcessingPlan() {
   const totals = rows.reduce(
     (acc, r) => {
       acc.birds += r.birds;
-      acc.carcass += r.carcassTons;
+      acc.carcass += r.carcassKg;
       return acc;
     },
     { birds: 0, carcass: 0 }
@@ -71,19 +75,19 @@ export function ProcessingPlan() {
     { key: "birds", header: "Birds", align: "right", render: (r) => Math.round(r.birds).toLocaleString() },
     {
       key: "liveWt",
-      header: "Live Wt (tons)",
+      header: "Live Wt (kg)",
       align: "right",
-      render: (r) => r.liveWeightTons.toFixed(1),
+      render: (r) => kg(r.liveWeightKg),
     },
     {
       key: "carcass",
-      header: "Carcass (tons)",
+      header: "Carcass (kg)",
       align: "right",
-      render: (r) => r.carcassTons.toFixed(1),
+      render: (r) => kg(r.carcassKg),
     },
-    { key: "fresh", header: "WC Fresh (tons)", align: "right", render: (r) => r.wcFreshTons.toFixed(1) },
-    { key: "frozen", header: "WC Frozen (tons)", align: "right", render: (r) => r.wcFrozenTons.toFixed(1) },
-    { key: "fpp", header: "FPP (tons)", align: "right", render: (r) => r.fppTons.toFixed(1) },
+    { key: "fresh", header: "WC Fresh (kg)", align: "right", render: (r) => kg(r.wcFreshKg) },
+    { key: "frozen", header: "WC Frozen (kg)", align: "right", render: (r) => kg(r.wcFrozenKg) },
+    { key: "fpp", header: "FPP (kg)", align: "right", render: (r) => kg(r.fppKg) },
     {
       key: "daily",
       header: "Daily Birds",
@@ -114,7 +118,7 @@ export function ProcessingPlan() {
 
       <div className="flex flex-wrap gap-3">
         <SummaryCard label="Total Birds (horizon)" value={Math.round(totals.birds).toLocaleString()} accent="green" />
-        <SummaryCard label="Total Carcass" value={`${totals.carcass.toFixed(0)} t`} accent="gold" />
+        <SummaryCard label="Total Carcass" value={`${kg(totals.carcass)} kg`} accent="gold" />
         <SummaryCard label="Avg Plant Utilization" value={`${(avgUtilization * 100).toFixed(1)}%`} />
         <SummaryCard
           label="Weeks with Capacity Breach"
