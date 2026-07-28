@@ -5,11 +5,11 @@ import { validatePipeline } from "./validations";
 
 export function usePipeline() {
   const params = usePlanStore((s) => s.params);
-  const placement = usePlanStore((s) => s.placement);
+  const placementDays = usePlanStore((s) => s.placementDays);
 
   return useMemo(() => {
-    const result = runPipeline(placement, params);
+    const result = runPipeline(placementDays, params);
     const issues = validatePipeline(params, result);
     return { result, issues, params };
-  }, [params, placement]);
+  }, [params, placementDays]);
 }

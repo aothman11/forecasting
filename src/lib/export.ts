@@ -11,9 +11,8 @@ function round(n: number, dp = 1): number {
 export function exportPipelineToExcel(result: PipelineResult, params: PlanParameters, fileName = "awp-broiler-plan.xlsx") {
   const wb = XLSX.utils.book_new();
 
-  const placementSheet = result.placement.map((r) => ({
-    Week: r.week,
-    "Week Starting": r.weekStarting,
+  const placementSheet = result.placementDays.map((r) => ({
+    Date: r.date,
     "Farms Placing": r.farmsPlacing,
     "Chicks per Farm": r.chicksPerFarm,
     "Total Chicks Placed": r.farmsPlacing * r.chicksPerFarm,

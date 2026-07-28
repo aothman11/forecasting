@@ -1,8 +1,8 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
-import type { Parameters, PlacementRow, PlantKey, ScenarioSnapshot } from "./types";
+import type { Parameters, PlacementDayRow, PlantKey, ScenarioSnapshot } from "./types";
 import { DEFAULT_PARAMETERS } from "./defaults";
-import { ensurePlacementHorizon, quickFillPlacement, fullCycleDays } from "./calculations";
+import { ensurePlacementDaysHorizon, quickFillPlacementDays, fullCycleDays } from "./calculations";
 
 export const STEPS = [
   { id: 1, label: "Placement Plan" },
@@ -15,9 +15,13 @@ export const STEPS = [
 
 export type PlantFilter = PlantKey | "all";
 
+function horizonDaysFor(params: Pick<Parameters, "planningHorizonWeeks">): number {
+  return params.planningHorizonWeeks * 7;
+}
+
 interface PlanState {
   params: Parameters;
-  placement: PlacementRow[];
+  placementDays: PlacementDayRow[];
   selectedStep: number;
   selectedPlant: PlantFilter;
   assumptionsOpen: boolean;
@@ -26,8 +30,8 @@ interface PlanState {
 
   setParam: (patch: Partial<Parameters>) => void;
   setNestedParam: <K extends keyof Parameters>(key: K, value: Parameters[K]) => void;
-  setPlacementRow: (week: number, patch: Partial<PlacementRow>) => void;
-  setPlacement: (rows: PlacementRow[]) => void;
+  setPlacementDayRow: (dayIndex: number, patch: Partial<PlacementDayRow>) => void;
+  setPlacementDays: (rows: PlacementDayRow[]) => void;
   quickFillPlacementPlan: () => void;
   setHorizonWeeks: (weeks: number) => void;
   setPlanStartDate: (date: string) => void;
@@ -44,7 +48,11 @@ export const usePlanStore = create<PlanState>()(
   persist(
     (set) => ({
       params: DEFAULT_PARAMETERS,
-      placement: ensurePlacementHorizon([], DEFAULT_PARAMETERS.planningHorizonWeeks, DEFAULT_PARAMETERS.planStartDate),
+      placementDays: ensurePlacementDaysHorizon(
+        [],
+        horizonDaysFor(DEFAULT_PARAMETERS),
+        DEFAULT_PARAMETERS.planStartDate
+      ),
       selectedStep: 1,
       selectedPlant: "all",
       assumptionsOpen: false,
@@ -61,17 +69,17 @@ export const usePlanStore = create<PlanState>()(
           params: { ...s.params, [key]: value },
         })),
 
-      setPlacementRow: (week, patch) =>
+      setPlacementDayRow: (dayIndex, patch) =>
         set((s) => ({
-          placement: s.placement.map((r) => (r.week === week ? { ...r, ...patch } : r)),
+          placementDays: s.placementDays.map((r) => (r.dayIndex === dayIndex ? { ...r, ...patch } : r)),
         })),
 
-      setPlacement: (rows) => set({ placement: rows }),
+      setPlacementDays: (rows) => set({ placementDays: rows }),
 
       quickFillPlacementPlan: () =>
         set((s) => ({
-          placement: quickFillPlacement(
-            s.params.planningHorizonWeeks,
+          placementDays: quickFillPlacementDays(
+            horizonDaysFor(s.params),
             s.params.totalFarms,
             s.params.planStartDate,
             fullCycleDays(s.params)
@@ -81,21 +89,21 @@ export const usePlanStore = create<PlanState>()(
       setHorizonWeeks: (weeks) =>
         set((s) => ({
           params: { ...s.params, planningHorizonWeeks: weeks },
-          placement: ensurePlacementHorizon(s.placement, weeks, s.params.planStartDate),
+          placementDays: ensurePlacementDaysHorizon(s.placementDays, weeks * 7, s.params.planStartDate),
         })),
 
       setPlanStartDate: (date) =>
         set((s) => ({
           params: { ...s.params, planStartDate: date },
-          placement: ensurePlacementHorizon(s.placement, s.params.planningHorizonWeeks, date),
+          placementDays: ensurePlacementDaysHorizon(s.placementDays, horizonDaysFor(s.params), date),
         })),
 
       resetToDefaults: () =>
         set(() => ({
           params: DEFAULT_PARAMETERS,
-          placement: ensurePlacementHorizon(
+          placementDays: ensurePlacementDaysHorizon(
             [],
-            DEFAULT_PARAMETERS.planningHorizonWeeks,
+            horizonDaysFor(DEFAULT_PARAMETERS),
             DEFAULT_PARAMETERS.planStartDate
           ),
         })),
@@ -112,7 +120,7 @@ export const usePlanStore = create<PlanState>()(
             name,
             savedAt: new Date().toISOString(),
             params: s.params,
-            placement: s.placement,
+            placementDays: s.placementDays,
           };
           const next = [...s.scenarios, snapshot].slice(-3);
           return { scenarios: next };
@@ -123,9 +131,24 @@ export const usePlanStore = create<PlanState>()(
     }),
     {
       name: "awp-broiler-forecast-store",
+      version: 2,
+      // v2 switched Step 1 from weekly to daily placement rows (PlacementRow -> PlacementDayRow).
+      // Older persisted scenarios carry the pre-v2 shape and would crash the pipeline, so drop them.
+      migrate: (persisted, version) => {
+        if (version >= 2) return persisted;
+        const state = persisted as { params?: Parameters; placementDays?: unknown };
+        const days = state.placementDays;
+        const looksDaily =
+          Array.isArray(days) && days.length > 0 && typeof (days[0] as { dayIndex?: unknown })?.dayIndex === "number";
+        return {
+          params: state.params,
+          ...(looksDaily ? { placementDays: days } : {}),
+          scenarios: [],
+        };
+      },
       partialize: (s) => ({
         params: s.params,
-        placement: s.placement,
+        placementDays: s.placementDays,
         scenarios: s.scenarios,
       }),
     }

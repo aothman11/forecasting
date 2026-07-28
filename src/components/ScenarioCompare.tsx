@@ -7,19 +7,19 @@ import type { ScenarioSnapshot } from "@/lib/types";
 
 export function ScenarioCompare() {
   const params = usePlanStore((s) => s.params);
-  const placement = usePlanStore((s) => s.placement);
+  const placementDays = usePlanStore((s) => s.placementDays);
   const scenarios = usePlanStore((s) => s.scenarios);
   const saveScenario = usePlanStore((s) => s.saveScenario);
   const deleteScenario = usePlanStore((s) => s.deleteScenario);
   const [name, setName] = useState("");
 
-  const currentMetrics = computeSummaryMetrics(runPipeline(placement, params));
+  const currentMetrics = computeSummaryMetrics(runPipeline(placementDays, params));
 
   const columns: { label: string; metrics: ReturnType<typeof computeSummaryMetrics>; id: string | null }[] = [
     { label: "Current (live)", metrics: currentMetrics, id: null },
     ...scenarios.map((sc: ScenarioSnapshot) => ({
       label: sc.name,
-      metrics: computeSummaryMetrics(runPipeline(sc.placement, sc.params)),
+      metrics: computeSummaryMetrics(runPipeline(sc.placementDays, sc.params)),
       id: sc.id,
     })),
   ];

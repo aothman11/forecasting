@@ -1,44 +1,53 @@
 "use client";
 
 import { useRef } from "react";
+import { format } from "date-fns";
 import { usePlanStore } from "@/lib/store";
-import { totalChicksPlaced } from "@/lib/calculations";
 import { parsePlacementCSV } from "@/lib/csv";
 import { DataTable, type DataTableColumn } from "../shared/DataTable";
 import { SummaryCard } from "../shared/SummaryCard";
-import type { PlacementRow } from "@/lib/types";
+import type { PlacementDayRow } from "@/lib/types";
 import { MAX_HORIZON_WEEKS, MIN_HORIZON_WEEKS } from "@/lib/defaults";
 
 export function PlacementPlan() {
-  const placement = usePlanStore((s) => s.placement);
+  const placementDays = usePlanStore((s) => s.placementDays);
   const params = usePlanStore((s) => s.params);
-  const setPlacementRow = usePlanStore((s) => s.setPlacementRow);
-  const setPlacement = usePlanStore((s) => s.setPlacement);
+  const setPlacementDayRow = usePlanStore((s) => s.setPlacementDayRow);
+  const setPlacementDays = usePlanStore((s) => s.setPlacementDays);
   const quickFillPlacementPlan = usePlanStore((s) => s.quickFillPlacementPlan);
   const setHorizonWeeks = usePlanStore((s) => s.setHorizonWeeks);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const runningTotal = placement.reduce((s, r) => s + totalChicksPlaced(r), 0);
-  const totalFarmsUsed = placement.reduce((s, r) => s + r.farmsPlacing, 0);
+  const runningTotal = placementDays.reduce((s, r) => s + r.farmsPlacing * r.chicksPerFarm, 0);
+  const totalFarmsUsed = placementDays.reduce((s, r) => s + r.farmsPlacing, 0);
 
   const handleCSV = (file: File) => {
     const reader = new FileReader();
     reader.onload = () => {
       const parsed = parsePlacementCSV(String(reader.result));
-      const byWeek = new Map(parsed.filter((p) => p.week != null).map((p) => [p.week as number, p]));
-      setPlacement(
-        placement.map((row) => {
-          const patch = byWeek.get(row.week);
-          return patch ? { ...row, ...patch, week: row.week } : row;
+      const byDate = new Map(parsed.map((p) => [p.date, p]));
+      setPlacementDays(
+        placementDays.map((row) => {
+          const patch = byDate.get(row.date);
+          return patch
+            ? {
+                ...row,
+                farmsPlacing: patch.farmsPlacing ?? row.farmsPlacing,
+                chicksPerFarm: patch.chicksPerFarm ?? row.chicksPerFarm,
+              }
+            : row;
         })
       );
     };
     reader.readAsText(file);
   };
 
-  const columns: DataTableColumn<PlacementRow>[] = [
-    { key: "week", header: "Week #", render: (r) => `W${r.week}` },
-    { key: "weekStarting", header: "Week Starting", render: (r) => r.weekStarting },
+  const columns: DataTableColumn<PlacementDayRow>[] = [
+    {
+      key: "date",
+      header: "Date",
+      render: (r) => `${r.date} (${format(new Date(r.date), "EEE")})`,
+    },
     {
       key: "farmsPlacing",
       header: "Farms Placing",
@@ -49,7 +58,7 @@ export function PlacementPlan() {
           type="number"
           min={0}
           value={r.farmsPlacing}
-          onChange={(e) => setPlacementRow(r.week, { farmsPlacing: Number(e.target.value) })}
+          onChange={(e) => setPlacementDayRow(r.dayIndex, { farmsPlacing: Number(e.target.value) })}
         />
       ),
       footer: totalFarmsUsed.toLocaleString(),
@@ -65,7 +74,7 @@ export function PlacementPlan() {
           min={0}
           step={500}
           value={r.chicksPerFarm}
-          onChange={(e) => setPlacementRow(r.week, { chicksPerFarm: Number(e.target.value) })}
+          onChange={(e) => setPlacementDayRow(r.dayIndex, { chicksPerFarm: Number(e.target.value) })}
         />
       ),
     },
@@ -73,7 +82,7 @@ export function PlacementPlan() {
       key: "total",
       header: "Total Chicks Placed",
       align: "right",
-      render: (r) => Math.round(totalChicksPlaced(r)).toLocaleString(),
+      render: (r) => Math.round(r.farmsPlacing * r.chicksPerFarm).toLocaleString(),
       footer: Math.round(runningTotal).toLocaleString(),
     },
   ];
@@ -83,7 +92,8 @@ export function PlacementPlan() {
       <div>
         <h1 className="text-xl font-bold section-title">Step 1 — Placement Plan</h1>
         <p className="text-sm text-neutral-500 mt-0.5">
-          The only manual input in the workbench. Every downstream step is calculated from this table.
+          The only manual input in the workbench, entered day by day. Every downstream step rolls this up into
+          weekly totals and calculates forward from there.
         </p>
       </div>
 
@@ -95,7 +105,7 @@ export function PlacementPlan() {
           sublabel={`vs. ${params.totalFarms} farms in fleet`}
           accent={totalFarmsUsed > params.totalFarms * (params.planningHorizonWeeks / 6) * 1.02 ? "alert" : "neutral"}
         />
-        <SummaryCard label="Horizon" value={`${params.planningHorizonWeeks} wks`} />
+        <SummaryCard label="Horizon" value={`${placementDays.length} days`} sublabel={`${params.planningHorizonWeeks} weeks`} />
 
         <div className="flex-1" />
 
@@ -143,7 +153,7 @@ export function PlacementPlan() {
         />
       </div>
 
-      <DataTable columns={columns} rows={placement} rowKey={(r) => r.week} />
+      <DataTable columns={columns} rows={placementDays} rowKey={(r) => r.dayIndex} />
     </div>
   );
 }

@@ -1,11 +1,20 @@
 // Domain types for the AWP Broiler Forecasting & Processing Plan pipeline.
 // PlacementPlan -> LiveBirdForecast -> CarcassYield -> ProductFamilyAllocation -> CutPlan -> PlantDistribution
 
+/** Step 1 manual input — one row per calendar day. */
+export interface PlacementDayRow {
+  dayIndex: number; // 0-based offset from planStartDate
+  date: string; // ISO date (yyyy-mm-dd)
+  farmsPlacing: number;
+  chicksPerFarm: number;
+}
+
+/** Weekly aggregate of the daily placement input, used by every downstream step. */
 export interface PlacementRow {
   week: number;
   weekStarting: string; // ISO date (yyyy-mm-dd)
   farmsPlacing: number;
-  chicksPerFarm: number;
+  totalChicksPlaced: number;
 }
 
 export interface PlantShares {
@@ -127,6 +136,7 @@ export interface PlantWeek {
 }
 
 export interface PipelineResult {
+  placementDays: PlacementDayRow[];
   placement: PlacementRow[];
   liveBird: LiveBirdWeek[];
   carcass: CarcassYieldWeek[];
@@ -140,7 +150,7 @@ export interface ScenarioSnapshot {
   name: string;
   savedAt: string;
   params: Parameters;
-  placement: PlacementRow[];
+  placementDays: PlacementDayRow[];
 }
 
 export interface ValidationIssue {

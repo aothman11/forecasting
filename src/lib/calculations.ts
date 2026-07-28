@@ -1,4 +1,4 @@
-import { addDays, format } from "date-fns";
+import { addDays, differenceInCalendarDays, format } from "date-fns";
 import type {
   CarcassYieldWeek,
   CutKey,
@@ -6,6 +6,7 @@ import type {
   LiveBirdWeek,
   Parameters,
   PipelineResult,
+  PlacementDayRow,
   PlacementRow,
   PlantKey,
   PlantWeek,
@@ -17,6 +18,10 @@ import { DEFAULT_CHICKS_PER_FARM } from "./defaults";
 
 export function weekStartDate(planStartDate: string, week: number): string {
   return format(addDays(new Date(planStartDate), (week - 1) * 7), "yyyy-MM-dd");
+}
+
+export function dayIndexDate(planStartDate: string, dayIndex: number): string {
+  return format(addDays(new Date(planStartDate), dayIndex), "yyyy-MM-dd");
 }
 
 export function harvestOffsetWeeks(cycleLengthDays: number): number {
@@ -35,23 +40,23 @@ export function totalPlantCapacity(params: Parameters): number {
   );
 }
 
-/** Ensures a contiguous placement array for weeks 1..horizon, preserving existing edits. */
-export function ensurePlacementHorizon(
-  existing: PlacementRow[],
-  horizonWeeks: number,
+/** Ensures a contiguous day-by-day placement array for the horizon, preserving existing edits by day offset. */
+export function ensurePlacementDaysHorizon(
+  existing: PlacementDayRow[],
+  horizonDays: number,
   planStartDate: string,
   defaultChicksPerFarm: number = DEFAULT_CHICKS_PER_FARM
-): PlacementRow[] {
-  const byWeek = new Map(existing.map((r) => [r.week, r]));
-  const rows: PlacementRow[] = [];
-  for (let w = 1; w <= horizonWeeks; w++) {
-    const prior = byWeek.get(w);
+): PlacementDayRow[] {
+  const byIndex = new Map(existing.map((r) => [r.dayIndex, r]));
+  const rows: PlacementDayRow[] = [];
+  for (let d = 0; d < horizonDays; d++) {
+    const prior = byIndex.get(d);
     rows.push(
       prior
-        ? { ...prior, weekStarting: weekStartDate(planStartDate, w) }
+        ? { ...prior, date: dayIndexDate(planStartDate, d) }
         : {
-            week: w,
-            weekStarting: weekStartDate(planStartDate, w),
+            dayIndex: d,
+            date: dayIndexDate(planStartDate, d),
             farmsPlacing: 0,
             chicksPerFarm: defaultChicksPerFarm,
           }
@@ -60,34 +65,50 @@ export function ensurePlacementHorizon(
   return rows;
 }
 
-/** Distributes `totalFarms` evenly across a rotation of ~fullCycleDays/7 weeks, then tiles it across the horizon. */
-export function quickFillPlacement(
-  horizonWeeks: number,
+/** Distributes `totalFarms` evenly across a rotation of ~fullCycleDays days, then tiles it across the horizon. */
+export function quickFillPlacementDays(
+  horizonDays: number,
   totalFarms: number,
   planStartDate: string,
   fullCycleLenDays: number,
   chicksPerFarm: number = DEFAULT_CHICKS_PER_FARM
-): PlacementRow[] {
-  const rotationWeeks = Math.max(1, Math.round(fullCycleLenDays / 7));
-  const base = Math.floor(totalFarms / rotationWeeks);
-  const remainder = totalFarms - base * rotationWeeks;
-  // first `remainder` weeks of the rotation get one extra farm so the rotation sums to totalFarms exactly
-  const pattern = Array.from({ length: rotationWeeks }, (_, i) => base + (i < remainder ? 1 : 0));
+): PlacementDayRow[] {
+  const rotationDays = Math.max(1, Math.round(fullCycleLenDays));
+  const base = Math.floor(totalFarms / rotationDays);
+  const remainder = totalFarms - base * rotationDays;
+  // first `remainder` days of the rotation get one extra farm so the rotation sums to totalFarms exactly
+  const pattern = Array.from({ length: rotationDays }, (_, i) => base + (i < remainder ? 1 : 0));
 
-  const rows: PlacementRow[] = [];
-  for (let w = 1; w <= horizonWeeks; w++) {
+  const rows: PlacementDayRow[] = [];
+  for (let d = 0; d < horizonDays; d++) {
     rows.push({
-      week: w,
-      weekStarting: weekStartDate(planStartDate, w),
-      farmsPlacing: pattern[(w - 1) % rotationWeeks],
+      dayIndex: d,
+      date: dayIndexDate(planStartDate, d),
+      farmsPlacing: pattern[d % rotationDays],
       chicksPerFarm,
     });
   }
   return rows;
 }
 
-export function totalChicksPlaced(row: PlacementRow): number {
-  return row.farmsPlacing * row.chicksPerFarm;
+/** Rolls the daily placement input up into weekly totals consumed by every downstream step. */
+export function aggregateToWeeklyPlacement(
+  days: PlacementDayRow[],
+  params: Pick<Parameters, "planningHorizonWeeks" | "planStartDate">
+): PlacementRow[] {
+  const start = new Date(params.planStartDate);
+  const weeks: PlacementRow[] = [];
+  for (let w = 1; w <= params.planningHorizonWeeks; w++) {
+    weeks.push({ week: w, weekStarting: weekStartDate(params.planStartDate, w), farmsPlacing: 0, totalChicksPlaced: 0 });
+  }
+  for (const day of days) {
+    const week = Math.floor(differenceInCalendarDays(new Date(day.date), start) / 7) + 1;
+    const target = weeks[week - 1];
+    if (!target) continue;
+    target.farmsPlacing += day.farmsPlacing;
+    target.totalChicksPlaced += day.farmsPlacing * day.chicksPerFarm;
+  }
+  return weeks;
 }
 
 // ---------- Step 2: Live Bird Forecast ----------
@@ -104,7 +125,7 @@ export function computeLiveBirdForecast(
     const week = row.week;
     const refWeek = week - offset;
     const refRow = placementByWeek.get(refWeek);
-    const chicksPlaced = refRow ? totalChicksPlaced(refRow) : 0;
+    const chicksPlaced = refRow ? refRow.totalChicksPlaced : 0;
     const harvestableBirds = chicksPlaced * (1 - params.mortalityRate);
     const totalLiveWeightKg = harvestableBirds * params.avgLiveWeightKg;
     const totalLiveWeightTons = totalLiveWeightKg / 1000;
@@ -253,13 +274,14 @@ export function computePlantDistribution(
 
 // ---------- full pipeline ----------
 
-export function runPipeline(placement: PlacementRow[], params: Parameters): PipelineResult {
+export function runPipeline(placementDays: PlacementDayRow[], params: Parameters): PipelineResult {
+  const placement = aggregateToWeeklyPlacement(placementDays, params);
   const liveBird = computeLiveBirdForecast(placement, params);
   const carcass = computeCarcassYield(liveBird, params);
   const family = computeProductFamily(carcass, params);
   const cuts = computeCutPlan(family, params);
   const plants = computePlantDistribution(liveBird, params);
-  return { placement, liveBird, carcass, family, cuts, plants };
+  return { placementDays, placement, liveBird, carcass, family, cuts, plants };
 }
 
 // ---------- summary metrics (used by overview cards / PDF export / mobile view) ----------
@@ -276,7 +298,7 @@ export interface SummaryMetrics {
 }
 
 export function computeSummaryMetrics(result: PipelineResult): SummaryMetrics {
-  const totalPlacedChicks = result.placement.reduce((s, r) => s + totalChicksPlaced(r), 0);
+  const totalPlacedChicks = result.placement.reduce((s, r) => s + r.totalChicksPlaced, 0);
   const totalHarvestableBirds = result.liveBird.reduce((s, r) => s + r.harvestableBirds, 0);
   const totalCarcassTons = result.carcass.reduce((s, r) => s + r.carcassWeightTons, 0);
   const totalWcFreshTons = result.family.reduce((s, r) => s + r.wcFreshTons, 0);
