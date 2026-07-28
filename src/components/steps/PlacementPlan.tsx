@@ -4,6 +4,7 @@ import { useRef, useState } from "react";
 import { format } from "date-fns";
 import { usePlanStore } from "@/lib/store";
 import { isExcelFile, parsePlacementCSV, parsePlacementExcel, type ParsedPlacementRow } from "@/lib/placementImport";
+import { exportPlacementTemplate } from "@/lib/export";
 import { DataTable, type DataTableColumn } from "../shared/DataTable";
 import { SummaryCard } from "../shared/SummaryCard";
 import type { PlacementDayRow } from "@/lib/types";
@@ -146,6 +147,13 @@ export function PlacementPlan() {
           className="text-xs font-medium px-3 py-1.5 rounded-md bg-brand-green text-white hover:bg-brand-green-dark transition-colors"
         >
           Quick Fill ({params.totalFarms} farms)
+        </button>
+
+        <button
+          onClick={() => exportPlacementTemplate(placementDays)}
+          className="text-xs font-medium px-3 py-1.5 rounded-md border border-[var(--border-subtle)] hover:border-brand-green hover:text-brand-green transition-colors"
+        >
+          Download Template
         </button>
 
         <button

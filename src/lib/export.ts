@@ -1,11 +1,26 @@
 import * as XLSX from "xlsx";
 import type { PipelineResult } from "./types";
 import { activeCutKeys } from "./calculations";
-import { CUT_LABELS, PLANT_LABELS } from "./defaults";
-import type { Parameters as PlanParameters } from "./types";
+import { CUT_LABELS, DEFAULT_CHICKS_PER_FARM, PLANT_LABELS } from "./defaults";
+import type { Parameters as PlanParameters, PlacementDayRow } from "./types";
 
 function round(n: number, dp = 1): number {
   return Math.round(n * 10 ** dp) / 10 ** dp;
+}
+
+/** Blank fill-in-the-blanks template matching the current horizon's dates, ready for re-import. */
+export function exportPlacementTemplate(
+  placementDays: PlacementDayRow[],
+  fileName = "awp-placement-template.xlsx"
+) {
+  const wb = XLSX.utils.book_new();
+  const sheet = placementDays.map((d) => ({
+    Date: d.date,
+    "Farms Placing": "",
+    "Chicks per Farm": DEFAULT_CHICKS_PER_FARM,
+  }));
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(sheet), "Placement Plan");
+  XLSX.writeFile(wb, fileName);
 }
 
 export function exportPipelineToExcel(result: PipelineResult, params: PlanParameters, fileName = "awp-broiler-plan.xlsx") {
