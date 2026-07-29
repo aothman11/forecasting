@@ -3,12 +3,13 @@
 import { useMemo, useRef, useState } from "react";
 import { usePlanStore } from "@/lib/store";
 import { weekStartDate } from "@/lib/calculations";
+import { exportSalesPlanTemplate } from "@/lib/export";
 import {
   aggregateSalesPlanByWeek,
   distinctValues,
   distinctWeeksOfYear,
   isSalesPlanFile,
-  isoWeekNumber,
+  salesWeekNumber,
   parseSalesPlan,
   type FreshFrozen,
   type SalesPlanAggregate,
@@ -66,7 +67,7 @@ export function SalesPlanImportPanel({ onClose }: { onClose: () => void }) {
       const fileWeeks = distinctWeeksOfYear(parsed);
       const initialAssignment: Record<number, string> = {};
       demand.forEach((d) => {
-        const suggested = isoWeekNumber(weekStartDate(params.planStartDate, d.week));
+        const suggested = salesWeekNumber(weekStartDate(params.planStartDate, d.week));
         initialAssignment[d.week] = fileWeeks.includes(suggested) ? String(suggested) : NONE;
       });
       setWeekAssignment(initialAssignment);
@@ -116,6 +117,12 @@ export function SalesPlanImportPanel({ onClose }: { onClose: () => void }) {
             className="text-xs font-medium px-3 py-1.5 rounded-md bg-brand-green text-white hover:bg-brand-green-dark transition-colors"
           >
             Choose File (.xlsx / .csv)
+          </button>
+          <button
+            onClick={() => exportSalesPlanTemplate(new Date(params.planStartDate).getFullYear())}
+            className="text-xs font-medium px-3 py-1.5 rounded-md border border-[var(--border-subtle)] hover:border-brand-green hover:text-brand-green transition-colors"
+          >
+            Download Template
           </button>
           <span className="text-xs text-neutral-400">
             Uses the &quot;Week No. in &lt;year&gt;&quot; column to align each week of sales to the matching plan

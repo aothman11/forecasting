@@ -6,10 +6,12 @@ export function StepJourney() {
   const selectedStep = usePlanStore((s) => s.selectedStep);
   const compareOpen = usePlanStore((s) => s.compareOpen);
   const demandOpen = usePlanStore((s) => s.demandOpen);
+  const homeOpen = usePlanStore((s) => s.homeOpen);
   const setSelectedStep = usePlanStore((s) => s.setSelectedStep);
   const setCompareOpen = usePlanStore((s) => s.setCompareOpen);
   const setDemandOpen = usePlanStore((s) => s.setDemandOpen);
-  const inStepView = !compareOpen && !demandOpen;
+  const setHomeOpen = usePlanStore((s) => s.setHomeOpen);
+  const inStepView = !compareOpen && !demandOpen && !homeOpen;
 
   return (
     <div className="flex items-center justify-center gap-1.5 px-6 py-3 bg-white border-b border-[var(--border-subtle)] overflow-x-auto">
@@ -22,6 +24,7 @@ export function StepJourney() {
               onClick={() => {
                 setCompareOpen(false);
                 setDemandOpen(false);
+                setHomeOpen(false);
                 setSelectedStep(step.id);
               }}
               className="flex flex-col items-center gap-1 group"

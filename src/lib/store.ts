@@ -31,6 +31,7 @@ interface PlanState {
   assumptionsOpen: boolean;
   compareOpen: boolean;
   demandOpen: boolean;
+  homeOpen: boolean;
   scenarios: ScenarioSnapshot[];
 
   setParam: (patch: Partial<Parameters>) => void;
@@ -50,6 +51,7 @@ interface PlanState {
   toggleAssumptions: () => void;
   setCompareOpen: (open: boolean) => void;
   setDemandOpen: (open: boolean) => void;
+  setHomeOpen: (open: boolean) => void;
   saveScenario: (name: string) => void;
   deleteScenario: (id: string) => void;
 }
@@ -73,6 +75,7 @@ export const usePlanStore = create<PlanState>()(
       assumptionsOpen: false,
       compareOpen: false,
       demandOpen: false,
+      homeOpen: true,
       scenarios: [],
 
       setParam: (patch) =>
@@ -168,6 +171,7 @@ export const usePlanStore = create<PlanState>()(
       toggleAssumptions: () => set((s) => ({ assumptionsOpen: !s.assumptionsOpen })),
       setCompareOpen: (open) => set({ compareOpen: open }),
       setDemandOpen: (open) => set({ demandOpen: open }),
+      setHomeOpen: (open) => set({ homeOpen: open }),
 
       saveScenario: (name) =>
         set((s) => {

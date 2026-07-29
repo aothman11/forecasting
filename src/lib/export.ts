@@ -23,6 +23,36 @@ export function exportPlacementTemplate(
   XLSX.writeFile(wb, fileName);
 }
 
+/** Blank template matching the SAP sales plan export structure, with one illustrative example row. */
+export function exportSalesPlanTemplate(year: number, fileName = "awp-sales-plan-template.xlsx") {
+  const wb = XLSX.utils.book_new();
+  const exampleRow = {
+    "Year.Quarter": `${year}.Q3`,
+    "Year.Month": `${year}.08`,
+    Month: "August",
+    [`Week No. in ${year}`]: 32,
+    "Week No. in Month": 1,
+    "Sales Office": "e.g. Riyadh",
+    Channels: "e.g. Retail",
+    "Material Division": "e.g. Poultry",
+    Division: "e.g. Fresh",
+    "Material Category": "e.g. Whole Chicken",
+    "Material Report Group": "e.g. WC",
+    "WH Grading": "e.g. A",
+    Grading: "e.g. Grade A",
+    Size: "900g",
+    "Material Code": "e.g. 100234",
+    "Material Description": "e.g. Whole Chicken Fresh 900g",
+    "Weight of carton": 12,
+    "Gross Sales Volume (CAR)": 500,
+    "Gross Sales Volume (UoM)": 6000,
+    "Gross Sales Value (SAR)": 45000,
+    "Net Sales Value (SAR)": 43000,
+  };
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet([exampleRow]), "Sales Plan");
+  XLSX.writeFile(wb, fileName);
+}
+
 export function exportPipelineToExcel(
   result: PipelineResult,
   params: PlanParameters,

@@ -10,6 +10,8 @@ export function Sidebar() {
   const setCompareOpen = usePlanStore((s) => s.setCompareOpen);
   const demandOpen = usePlanStore((s) => s.demandOpen);
   const setDemandOpen = usePlanStore((s) => s.setDemandOpen);
+  const homeOpen = usePlanStore((s) => s.homeOpen);
+  const setHomeOpen = usePlanStore((s) => s.setHomeOpen);
 
   return (
     <aside className="w-64 shrink-0 border-r border-[var(--border-subtle)] bg-white flex flex-col">
@@ -22,17 +24,40 @@ export function Sidebar() {
       </div>
 
       <nav className="flex-1 py-3 overflow-y-auto">
+        <button
+          onClick={() => {
+            setCompareOpen(false);
+            setDemandOpen(false);
+            setHomeOpen(true);
+          }}
+          className={`w-full text-left px-4 py-2.5 flex items-center gap-3 text-sm transition-colors mb-2 ${
+            homeOpen
+              ? "bg-brand-green-tint text-brand-green-dark font-semibold border-r-2 border-brand-green"
+              : "text-neutral-600 hover:bg-neutral-50"
+          }`}
+        >
+          <span
+            className={`flex items-center justify-center w-6 h-6 rounded-full text-[11px] font-semibold shrink-0 transition-shadow ${
+              homeOpen ? "bg-brand-green text-white shadow-sm shadow-brand-green/30" : "bg-neutral-200 text-neutral-600"
+            }`}
+          >
+            🏠
+          </span>
+          Home
+        </button>
+
         <div className="px-4 text-[11px] uppercase tracking-wide text-neutral-400 font-semibold mb-1">
           Planning Steps
         </div>
         {STEPS.map((step) => {
-          const active = !compareOpen && !demandOpen && selectedStep === step.id;
+          const active = !compareOpen && !demandOpen && !homeOpen && selectedStep === step.id;
           return (
             <button
               key={step.id}
               onClick={() => {
                 setCompareOpen(false);
                 setDemandOpen(false);
+                setHomeOpen(false);
                 setSelectedStep(step.id);
               }}
               className={`w-full text-left px-4 py-2.5 flex items-center gap-3 text-sm transition-colors ${
@@ -62,6 +87,7 @@ export function Sidebar() {
         <button
           onClick={() => {
             setCompareOpen(false);
+            setHomeOpen(false);
             setDemandOpen(true);
           }}
           className={`w-full text-left px-4 py-2.5 flex items-center gap-3 text-sm transition-colors ${
@@ -82,6 +108,7 @@ export function Sidebar() {
         <button
           onClick={() => {
             setDemandOpen(false);
+            setHomeOpen(false);
             setCompareOpen(true);
           }}
           className={`w-full text-left px-4 py-2.5 flex items-center gap-3 text-sm transition-colors ${

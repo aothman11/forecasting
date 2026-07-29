@@ -1,5 +1,4 @@
 import * as XLSX from "xlsx";
-import { getISOWeek } from "date-fns";
 
 export interface SalesPlanRow {
   weekOfYear: number;
@@ -108,9 +107,21 @@ export function distinctWeeksOfYear(rows: SalesPlanRow[]): number[] {
   return Array.from(set).sort((a, b) => a - b);
 }
 
-/** ISO-8601 week number (Mon-start) for a plan week's start date — used as the best-guess alignment to the file's week column. */
-export function isoWeekNumber(dateStr: string): number {
-  return getISOWeek(new Date(dateStr));
+/**
+ * SAP-style "week of year" where the week counter resets at the start of every month
+ * (days 1-7 of a month = week 1, 8-14 = week 2, ...), rather than a continuous Mon-start ISO week.
+ * Used as the best-guess alignment to the file's "Week No. in <year>" column.
+ */
+export function salesWeekNumber(dateStr: string): number {
+  const date = new Date(dateStr);
+  const year = date.getFullYear();
+  let week = 0;
+  for (let m = 0; m < date.getMonth(); m++) {
+    const daysInMonth = new Date(year, m + 1, 0).getDate();
+    week += Math.ceil(daysInMonth / 7);
+  }
+  week += Math.ceil(date.getDate() / 7);
+  return week;
 }
 
 export type FreshFrozen = "fresh" | "frozen" | "ignore";
