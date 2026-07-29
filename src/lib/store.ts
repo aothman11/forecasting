@@ -226,7 +226,7 @@ export const usePlanStore = create<PlanState>()(
     }),
     {
       name: "awp-broiler-forecast-store",
-      version: 5,
+      version: 7,
       // v2 switched Step 1 from weekly to daily placement rows (PlacementRow -> PlacementDayRow).
       // v3 replaced the farm-based model (totalFarms/dressingPct/chicksPerFarm) with the house-based
       // processing chain (houseCount/avgCarcassWeightKg/chicksPerHouse/...). Both changes touch nearly
@@ -235,15 +235,20 @@ export const usePlanStore = create<PlanState>()(
       // v5 replaced the 3-bucket weekly Demand Forecast (demand/salesPlanDivisionMap/salesPlanCategoryMap)
       // with the Module 1 Demand Plan (demandProducts/demandQty/salesPlanProductMap/salesPlanChannelMap) —
       // shape changed entirely, so pre-v5 demand-related state is discarded.
+      // v6 expanded WC weight buckets to 50g steps (500–1500g).
+      // v7 corrected to 100g steps (500–1500g); demandProducts and demandQty reset again.
       migrate: (persisted, version) => {
-        if (version >= 5) return persisted;
+        if (version >= 7) return persisted;
         const state = persisted as { params?: Parameters; placementDays?: unknown; scenarios?: unknown };
         if (version < 3) return { scenarios: [] };
         const params = state.params ? { ...DEFAULT_PARAMETERS, ...state.params } : undefined;
+        // v5→v6: drop old demand catalog so new 50g-step WC buckets take effect
         return {
           params,
           placementDays: state.placementDays,
           scenarios: state.scenarios ?? [],
+          demandProducts: undefined,
+          demandQty: undefined,
         };
       },
       partialize: (s) => ({

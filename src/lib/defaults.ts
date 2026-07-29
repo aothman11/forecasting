@@ -165,9 +165,11 @@ const wholeChickenBuckets = (grade: "A" | "B", weights: number[]): DemandProduct
     }))
   );
 
+const WC_BUCKETS_G = [500, 600, 700, 800, 900, 1000, 1100, 1200, 1300, 1400, 1500];
+
 export const DEFAULT_DEMAND_PRODUCTS: DemandProduct[] = [
-  ...wholeChickenBuckets("A", [800, 900, 1000, 1100, 1200, 1300, 1400]),
-  ...wholeChickenBuckets("B", [800, 900, 1000, 1100, 1200]),
+  ...wholeChickenBuckets("A", WC_BUCKETS_G),
+  ...wholeChickenBuckets("B", WC_BUCKETS_G),
   { id: "cut-breast-bone-in", category: "cuts", name: "Breast (bone-in)", unit: "ton" },
   { id: "cut-breast-boneless", category: "cuts", name: "Breast (boneless)", unit: "ton" },
   { id: "cut-whole-leg", category: "cuts", name: "Whole Leg", unit: "ton" },

@@ -87,8 +87,16 @@ export function HomeDashboard() {
 
   const m = computeSummaryMetrics(result);
   const horizonWeeks = Array.from({ length: params.planningHorizonWeeks }, (_, i) => i + 1);
+
+  // Approximate carton weights by category (kg/carton) for CAR conversion on the dashboard.
+  const CARTON_KG: Record<string, number> = { wholeChicken: 15, cuts: 15, fpp: 10 };
+
   const demandTotalTon = (["wholeChicken", "cuts", "fpp"] as const).reduce(
     (s, cat) => s + categoryTotal(demandProducts, demandQty, cat, "ALL", horizonWeeks),
+    0
+  );
+  const demandTotalCar = (["wholeChicken", "cuts", "fpp"] as const).reduce(
+    (s, cat) => s + Math.round((categoryTotal(demandProducts, demandQty, cat, "ALL", horizonWeeks) * 1000) / CARTON_KG[cat]),
     0
   );
 
@@ -133,7 +141,7 @@ export function HomeDashboard() {
           value={`${kg(m.totalWcFreshKg + m.totalWcFrozenKg + m.totalFppKg)} kg`}
           icon="📦"
         />
-        <SummaryCard label="Total Demand" value={`${demandTotalTon.toFixed(1)} t`} icon="📊" />
+        <SummaryCard label="Total Demand" value={`${demandTotalCar.toLocaleString()} CAR`} icon="📊" />
         <SummaryCard
           label="Weeks Over Capacity"
           value={String(m.weeksWithCapacityBreach)}
@@ -188,12 +196,17 @@ export function HomeDashboard() {
         <DashCard icon="📊" title="Demand Plan" description="Weekly demand by product category" onOpen={openDemand}>
           <div className="mt-2 space-y-1.5">
             {(["wholeChicken", "cuts", "fpp", "eggs"] as const).map((cat) => {
-              const total = categoryTotal(demandProducts, demandQty, cat, "ALL", horizonWeeks);
-              const unit = cat === "eggs" ? "trays" : "t";
+              const totalTon = categoryTotal(demandProducts, demandQty, cat, "ALL", horizonWeeks);
+              const cartonKg = CARTON_KG[cat];
+              const display = cat === "eggs"
+                ? totalTon > 0 ? `${Math.round(totalTon).toLocaleString()} trays` : null
+                : totalTon > 0 ? `${Math.round((totalTon * 1000) / cartonKg).toLocaleString()} CAR` : null;
               return (
                 <div key={cat} className="flex items-center justify-between text-xs">
                   <span className="text-neutral-600">{PRODUCT_CATEGORY_LABELS[cat]}</span>
-                  <span className="font-semibold tabular-nums">{total > 0 ? `${total.toFixed(1)} ${unit}` : <span className="text-neutral-300">—</span>}</span>
+                  <span className="font-semibold tabular-nums">
+                    {display ?? <span className="text-neutral-300">—</span>}
+                  </span>
                 </div>
               );
             })}
