@@ -53,6 +53,8 @@ const HEADER_MATCHERS: Partial<Record<keyof SalesPlanRow, string[]>> = {
 
 // Flexible: "Week No. in 2026", "Week No in 2026", "Week No. In 2025", "Week# in 2026"
 const WEEK_OF_YEAR_PATTERN = /^week[\s#]*no\.?\s*(in|of)?\s*\d{4}$/i;
+// Fallback: "Week No. in Month", "Week No in Month", "Week# in Month"
+const WEEK_OF_MONTH_PATTERN = /^week[\s#]*no\.?\s*(in|of)?\s*month$/i;
 
 const FIELD_KEYS = Object.keys(HEADER_MATCHERS) as (keyof SalesPlanRow)[];
 
@@ -91,7 +93,11 @@ export function parseSalesPlan(buffer: ArrayBuffer): SalesPlanRow[] {
   });
   resolvedKey.weekOfYear = sourceKeys.find((k) => WEEK_OF_YEAR_PATTERN.test(k.trim()));
 
-  return rawRows
+  // Fallback column keys for deriving weekOfYear when the annual column is absent
+  const weekOfMonthKey = sourceKeys.find((k) => WEEK_OF_MONTH_PATTERN.test(k.trim()));
+  const yearMonthKey = resolvedKey.yearMonth; // "Year.Month" e.g. "2026.07"
+
+  const parsed = rawRows
     .map((row): SalesPlanRow => {
       const result = {} as SalesPlanRow;
       ([...FIELD_KEYS, "weekOfYear"] as (keyof SalesPlanRow)[]).forEach((field) => {
@@ -103,9 +109,28 @@ export function parseSalesPlan(buffer: ArrayBuffer): SalesPlanRow[] {
           (result[field] as string) = String(raw ?? "").trim();
         }
       });
+
+      // Fallback: compute weekOfYear from Year.Month + Week No. in Month
+      if (result.weekOfYear === 0 && weekOfMonthKey && yearMonthKey) {
+        const weekInMonth = Number(row[weekOfMonthKey]) || 0;
+        const ym = String(row[yearMonthKey] ?? "").trim(); // "2026.07"
+        const [yearStr, monthStr] = ym.split(/[.\-\/]/);
+        const year = Number(yearStr);
+        const month = Number(monthStr); // 1-based
+        if (year > 2000 && month >= 1 && month <= 12 && weekInMonth >= 1) {
+          let week = 0;
+          for (let m = 1; m < month; m++) {
+            week += Math.ceil(new Date(year, m, 0).getDate() / 7);
+          }
+          result.weekOfYear = week + weekInMonth;
+        }
+      }
+
       return result;
     })
     .filter((r) => r.materialCode || r.materialDescription);
+
+  return parsed;
 }
 
 export function distinctValues(rows: SalesPlanRow[], field: keyof SalesPlanRow): string[] {
