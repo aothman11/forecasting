@@ -4,7 +4,7 @@ import Image from "next/image";
 import { usePipeline } from "@/lib/usePipeline";
 import { usePlanStore } from "@/lib/store";
 import { activeCutKeys, computeSummaryMetrics } from "@/lib/calculations";
-import { CHANNEL_KEYS, CHANNEL_LABELS, CUT_LABELS, PLANT_LABELS, PRODUCT_CATEGORY_LABELS } from "@/lib/defaults";
+import { CHANNEL_KEYS, CHANNEL_LABELS, CUT_LABELS, EGG_TRAYS_PER_CARTON, PLANT_LABELS, PRODUCT_CATEGORY_LABELS } from "@/lib/defaults";
 import { categoryTotal, grandTotal } from "@/lib/demandPlan";
 import { SummaryCard } from "./shared/SummaryCard";
 import { CapacityChart } from "./charts/CapacityChart";
@@ -88,26 +88,27 @@ export function HomeDashboard() {
   const m = computeSummaryMetrics(result);
   const horizonWeeks = Array.from({ length: params.planningHorizonWeeks }, (_, i) => i + 1);
 
-  // Approximate carton weights by category (kg/carton) for CAR conversion on the dashboard.
   const CARTON_KG: Record<string, number> = { wholeChicken: 15, cuts: 15, fpp: 10 };
+  const toCar = (cat: string, qty: number) =>
+    cat === "eggs" ? Math.round(qty / EGG_TRAYS_PER_CARTON) : Math.round((qty * 1000) / CARTON_KG[cat]);
 
   const demandTotalTon = (["wholeChicken", "cuts", "fpp"] as const).reduce(
     (s, cat) => s + categoryTotal(demandProducts, demandQty, cat, "ALL", horizonWeeks),
     0
   );
-  const demandTotalCar = (["wholeChicken", "cuts", "fpp"] as const).reduce(
-    (s, cat) => s + Math.round((categoryTotal(demandProducts, demandQty, cat, "ALL", horizonWeeks) * 1000) / CARTON_KG[cat]),
+  const demandTotalCar = (["wholeChicken", "cuts", "fpp", "eggs"] as const).reduce(
+    (s, cat) => s + toCar(cat, categoryTotal(demandProducts, demandQty, cat, "ALL", horizonWeeks)),
     0
   );
 
-  // Per-channel CAR totals (meat only), sorted descending for the channel insight card.
-  const channelDemand = CHANNEL_KEYS.map((ch) => {
-    const tons = (["wholeChicken", "cuts", "fpp"] as const).reduce(
-      (s, cat) => s + categoryTotal(demandProducts, demandQty, cat, ch, horizonWeeks),
+  // Per-channel CAR totals (all categories), sorted descending for the channel insight card.
+  const channelDemand = CHANNEL_KEYS.map((ch) => ({
+    ch,
+    car: (["wholeChicken", "cuts", "fpp", "eggs"] as const).reduce(
+      (s, cat) => s + toCar(cat, categoryTotal(demandProducts, demandQty, cat, ch, horizonWeeks)),
       0
-    );
-    return { ch, car: Math.round((tons * 1000) / 14) };
-  }).sort((a, b) => b.car - a.car);
+    ),
+  })).sort((a, b) => b.car - a.car);
   const channelMax = channelDemand[0]?.car || 1;
 
   const runningChicks = result.placement.reduce((s, r) => s + r.totalChicksPlaced, 0);
@@ -206,11 +207,9 @@ export function HomeDashboard() {
         <DashCard icon="📊" title="Demand Plan" description="Weekly demand by product category" onOpen={openDemand}>
           <div className="mt-2 space-y-1.5">
             {(["wholeChicken", "cuts", "fpp", "eggs"] as const).map((cat) => {
-              const totalTon = categoryTotal(demandProducts, demandQty, cat, "ALL", horizonWeeks);
-              const cartonKg = CARTON_KG[cat];
-              const display = cat === "eggs"
-                ? totalTon > 0 ? `${Math.round(totalTon).toLocaleString()} trays` : null
-                : totalTon > 0 ? `${Math.round((totalTon * 1000) / cartonKg).toLocaleString()} CAR` : null;
+              const qty = categoryTotal(demandProducts, demandQty, cat, "ALL", horizonWeeks);
+              const car = toCar(cat, qty);
+              const display = car > 0 ? `${car.toLocaleString()} CAR` : null;
               return (
                 <div key={cat} className="flex items-center justify-between text-xs">
                   <span className="text-neutral-600">{PRODUCT_CATEGORY_LABELS[cat]}</span>

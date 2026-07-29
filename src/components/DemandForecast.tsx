@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { usePlanStore } from "@/lib/store";
 import { categoryTotal, grandTotal, slugifyProductName } from "@/lib/demandPlan";
-import { CHANNEL_KEYS, CHANNEL_LABELS, PRODUCT_CATEGORY_LABELS } from "@/lib/defaults";
+import { CHANNEL_KEYS, CHANNEL_LABELS, EGG_TRAYS_PER_CARTON, PRODUCT_CATEGORY_LABELS } from "@/lib/defaults";
 import { exportDemandPlanToExcel } from "@/lib/export";
 import { SummaryCard } from "./shared/SummaryCard";
 import { DemandPlanMatrix } from "./DemandPlanMatrix";
@@ -53,17 +53,14 @@ export function DemandForecast() {
 
   const CARTON_KG: Partial<Record<ProductCategory, number>> = { wholeChicken: 15, cuts: 15, fpp: 10 };
 
+  const toCar = (cat: ProductCategory, qty: number) =>
+    cat === "eggs" ? Math.round(qty / EGG_TRAYS_PER_CARTON) : Math.round((qty * 1000) / CARTON_KG[cat]!);
+
   const categoryTotals = (["wholeChicken", "cuts", "fpp", "eggs"] as ProductCategory[]).map((cat) => {
-    const tons = categoryTotal(demandProducts, demandQty, cat, channel, weeks);
-    const ctnKg = CARTON_KG[cat];
-    const display = cat === "eggs"
-      ? `${Math.round(tons).toLocaleString()} trays`
-      : `${Math.round((tons * 1000) / ctnKg!).toLocaleString()} CAR`;
-    return { cat, tons, display };
+    const qty = categoryTotal(demandProducts, demandQty, cat, channel, weeks);
+    return { cat, qty, display: `${toCar(cat, qty).toLocaleString()} CAR` };
   });
-  const totalCar = categoryTotals
-    .filter(({ cat }) => cat !== "eggs")
-    .reduce((s, { cat, tons }) => s + Math.round((tons * 1000) / CARTON_KG[cat]!), 0);
+  const totalCar = categoryTotals.reduce((s, { cat, qty }) => s + toCar(cat, qty), 0);
 
   const handleAddProduct = () => {
     if (!newName.trim()) return;
