@@ -76,6 +76,16 @@ function findHeaderRowIndex(sheet: XLSX.WorkSheet): number {
   return 0;
 }
 
+/** Returns the raw column header names found in the file (for debugging when detection fails). */
+export function getSalesPlanHeaders(buffer: ArrayBuffer): string[] {
+  const workbook = XLSX.read(buffer, { type: "array" });
+  const sheet = workbook.Sheets[workbook.SheetNames[0]];
+  if (!sheet) return [];
+  const headerRow = findHeaderRowIndex(sheet);
+  const rawRows = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, { defval: "", range: headerRow });
+  return rawRows.length > 0 ? Object.keys(rawRows[0]) : [];
+}
+
 export function parseSalesPlan(buffer: ArrayBuffer): SalesPlanRow[] {
   const workbook = XLSX.read(buffer, { type: "array" });
   const sheet = workbook.Sheets[workbook.SheetNames[0]];

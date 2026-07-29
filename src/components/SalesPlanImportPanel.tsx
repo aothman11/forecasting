@@ -12,6 +12,7 @@ import {
   distinctRowSignatures,
   distinctValues,
   distinctWeeksOfYear,
+  getSalesPlanHeaders,
   isSalesPlanFile,
   normalizeChannelKey,
   parseSalesPlan,
@@ -38,6 +39,7 @@ export function SalesPlanImportPanel({ onClose }: { onClose: () => void }) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [fileName, setFileName] = useState<string | null>(null);
   const [rows, setRows] = useState<SalesPlanRow[] | null>(null);
+  const [fileHeaders, setFileHeaders] = useState<string[]>([]);
   const [productDraft, setProductDraft] = useState<Record<string, string>>({});
   const [channelDraft, setChannelDraft] = useState<Record<string, ChannelKey | typeof IGNORE>>({});
   const [weekAssignment, setWeekAssignment] = useState<Record<number, string>>({});
@@ -52,9 +54,11 @@ export function SalesPlanImportPanel({ onClose }: { onClose: () => void }) {
   const handleFile = (file: File) => {
     const reader = new FileReader();
     reader.onload = () => {
-      const parsed = parseSalesPlan(reader.result as ArrayBuffer);
+      const buf = reader.result as ArrayBuffer;
+      const parsed = parseSalesPlan(buf);
       setRows(parsed);
       setFileName(file.name);
+      setFileHeaders(getSalesPlanHeaders(buf));
       setAppliedMessage(null);
 
       // Auto-map products: try saved map first, then auto-mapping, then NONE
@@ -212,7 +216,7 @@ export function SalesPlanImportPanel({ onClose }: { onClose: () => void }) {
             <span className={weeksInFile.length > 0 ? "text-brand-green-dark font-medium" : "text-brand-alert font-medium"}>
               {weeksInFile.length > 0
                 ? `${weeksInFile.length} weeks found (${weeksInFile[0]}–${weeksInFile[weeksInFile.length - 1]})`
-                : "⚠ No weeks detected — check the 'Week No. in YYYY' column"}
+                : "⚠ No weeks detected"}
             </span>
             <span className="text-brand-green-dark font-medium">
               ✓ {autoMappedCount}/{signatures.length} products auto-matched
@@ -223,6 +227,16 @@ export function SalesPlanImportPanel({ onClose }: { onClose: () => void }) {
                 : `⚠ ${channelValues.length - autoMappedChannels} channels need review`}
             </span>
           </div>
+
+          {weeksInFile.length === 0 && fileHeaders.length > 0 && (
+            <div className="text-[11px] bg-amber-50 border border-amber-200 rounded-lg p-3 space-y-1">
+              <div className="font-semibold text-amber-800">Columns detected in your file:</div>
+              <div className="text-amber-700 break-all">{fileHeaders.join(" · ")}</div>
+              <div className="text-amber-600 mt-1">
+                The parser looks for a column matching <code className="bg-amber-100 px-1 rounded">Week No. in 2026</code> or <code className="bg-amber-100 px-1 rounded">Week No. in Month</code>. Share the exact column name above so it can be matched.
+              </div>
+            </div>
+          )}
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             {/* Products */}
