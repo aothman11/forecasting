@@ -3,6 +3,7 @@
 import { STEPS, usePlanStore } from "@/lib/store";
 import { usePipeline } from "@/lib/usePipeline";
 import { Sidebar } from "@/components/Sidebar";
+import { StepJourney } from "@/components/StepJourney";
 import { ParameterPanel } from "@/components/ParameterPanel";
 import { ScenarioCompare } from "@/components/ScenarioCompare";
 import { ExportButtons } from "@/components/shared/ExportButtons";
@@ -71,6 +72,8 @@ export default function Home() {
               </button>
             </div>
           </header>
+
+          <StepJourney />
 
           <ValidationBanner issues={issues} />
 

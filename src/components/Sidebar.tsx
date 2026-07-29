@@ -45,6 +45,9 @@ export function Sidebar() {
               >
                 {step.id}
               </span>
+              <span aria-hidden className="shrink-0">
+                {step.icon}
+              </span>
               {step.label}
             </button>
           );

@@ -5,12 +5,12 @@ import { DEFAULT_PARAMETERS } from "./defaults";
 import { ensurePlacementDaysHorizon, quickFillPlacementDays, fullCycleDays } from "./calculations";
 
 export const STEPS = [
-  { id: 1, label: "Placement Plan" },
-  { id: 2, label: "Live Bird Forecast" },
-  { id: 3, label: "Carcass Yield & Grade Split" },
-  { id: 4, label: "Product Family Allocation" },
-  { id: 5, label: "FPP Cut Plan" },
-  { id: 6, label: "Processing Plan by Plant" },
+  { id: 1, label: "Placement Plan", short: "Placement", icon: "🐣" },
+  { id: 2, label: "Live Bird Forecast", short: "Live Birds", icon: "🐔" },
+  { id: 3, label: "Carcass Yield & Grade Split", short: "Carcass", icon: "⚖️" },
+  { id: 4, label: "Product Family Allocation", short: "Products", icon: "📦" },
+  { id: 5, label: "FPP Cut Plan", short: "Cuts", icon: "🍗" },
+  { id: 6, label: "Processing Plan by Plant", short: "Plants", icon: "🏭" },
 ] as const;
 
 export type PlantFilter = PlantKey | "all";
