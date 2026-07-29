@@ -137,16 +137,6 @@ export function HomeDashboard() {
         {/* subtle dark overlay to ensure text readability over the light image */}
         <div className="absolute inset-0 bg-gradient-to-b from-white/30 via-transparent to-black/20 pointer-events-none" />
 
-        {/* AWP logo — top left */}
-        <div className="absolute top-4 left-5 z-10">
-          <Image src="/alwatania-logo-white.png" alt="Al-Watania Poultry" width={110} height={55} className="h-10 w-auto drop-shadow-md" priority />
-        </div>
-
-        {/* DT logo — bottom right */}
-        <div className="absolute bottom-4 right-5 z-10">
-          <Image src="/sap-dt-initiative-logo.png" alt="SAP Digital Transformation Initiative" width={140} height={46} className="h-8 w-auto drop-shadow-md" />
-        </div>
-
         {/* Centre text */}
         <div className="relative z-10 flex flex-col items-center justify-center py-10 px-6 text-center">
           <div
@@ -165,16 +155,13 @@ export function HomeDashboard() {
               letterSpacing: "-0.01em",
             }}
           >
-            Production Forecast
+            Sales and Operations Planning
           </div>
           <div
             className="mt-2 text-sm font-medium tracking-widest uppercase"
             style={{ color: "#2d6a2d", letterSpacing: "0.18em" }}
           >
             Smarter Planning · Better Production
-          </div>
-          <div className="mt-1 text-xs text-neutral-600/70">
-            Placement → Processing · Demand → Supply · Plant by Plant
           </div>
         </div>
       </div>
