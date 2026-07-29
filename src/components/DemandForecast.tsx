@@ -51,11 +51,19 @@ export function DemandForecast() {
 
   const weeks = Array.from({ length: params.planningHorizonWeeks }, (_, i) => i + 1);
 
-  const total = grandTotal(demandProducts, demandQty, channel, weeks);
-  const categoryTotals = (["wholeChicken", "cuts", "fpp", "eggs"] as ProductCategory[]).map((cat) => ({
-    cat,
-    total: categoryTotal(demandProducts, demandQty, cat, channel, weeks),
-  }));
+  const CARTON_KG: Partial<Record<ProductCategory, number>> = { wholeChicken: 15, cuts: 15, fpp: 10 };
+
+  const categoryTotals = (["wholeChicken", "cuts", "fpp", "eggs"] as ProductCategory[]).map((cat) => {
+    const tons = categoryTotal(demandProducts, demandQty, cat, channel, weeks);
+    const ctnKg = CARTON_KG[cat];
+    const display = cat === "eggs"
+      ? `${Math.round(tons).toLocaleString()} trays`
+      : `${Math.round((tons * 1000) / ctnKg!).toLocaleString()} CAR`;
+    return { cat, tons, display };
+  });
+  const totalCar = categoryTotals
+    .filter(({ cat }) => cat !== "eggs")
+    .reduce((s, { cat, tons }) => s + Math.round((tons * 1000) / CARTON_KG[cat]!), 0);
 
   const handleAddProduct = () => {
     if (!newName.trim()) return;
@@ -107,9 +115,9 @@ export function DemandForecast() {
       </div>
 
       <div className="flex flex-wrap items-end gap-3">
-        <SummaryCard label="Total Demand" value={`${total.toFixed(1)} t`} accent="green" />
-        {categoryTotals.map(({ cat, total: t }) => (
-          <SummaryCard key={cat} label={PRODUCT_CATEGORY_LABELS[cat]} value={`${t.toFixed(1)} t`} />
+        <SummaryCard label="Total Demand" value={`${totalCar.toLocaleString()} CAR`} accent="green" />
+        {categoryTotals.map(({ cat, display }) => (
+          <SummaryCard key={cat} label={PRODUCT_CATEGORY_LABELS[cat]} value={display} />
         ))}
 
         <div className="flex-1" />

@@ -4,8 +4,8 @@ import Image from "next/image";
 import { usePipeline } from "@/lib/usePipeline";
 import { usePlanStore } from "@/lib/store";
 import { activeCutKeys, computeSummaryMetrics } from "@/lib/calculations";
-import { CUT_LABELS, PLANT_LABELS, PRODUCT_CATEGORY_LABELS } from "@/lib/defaults";
-import { categoryTotal } from "@/lib/demandPlan";
+import { CHANNEL_KEYS, CHANNEL_LABELS, CUT_LABELS, PLANT_LABELS, PRODUCT_CATEGORY_LABELS } from "@/lib/defaults";
+import { categoryTotal, grandTotal } from "@/lib/demandPlan";
 import { SummaryCard } from "./shared/SummaryCard";
 import { CapacityChart } from "./charts/CapacityChart";
 import { GradeChart } from "./charts/GradeChart";
@@ -99,6 +99,16 @@ export function HomeDashboard() {
     (s, cat) => s + Math.round((categoryTotal(demandProducts, demandQty, cat, "ALL", horizonWeeks) * 1000) / CARTON_KG[cat]),
     0
   );
+
+  // Per-channel CAR totals (meat only), sorted descending for the channel insight card.
+  const channelDemand = CHANNEL_KEYS.map((ch) => {
+    const tons = (["wholeChicken", "cuts", "fpp"] as const).reduce(
+      (s, cat) => s + categoryTotal(demandProducts, demandQty, cat, ch, horizonWeeks),
+      0
+    );
+    return { ch, car: Math.round((tons * 1000) / 14) };
+  }).sort((a, b) => b.car - a.car);
+  const channelMax = channelDemand[0]?.car || 1;
 
   const runningChicks = result.placement.reduce((s, r) => s + r.totalChicksPlaced, 0);
   const totalHouses = result.placement.reduce((s, r) => s + r.farmsPlacing, 0);
@@ -212,6 +222,28 @@ export function HomeDashboard() {
             })}
             {demandTotalTon === 0 && (
               <div className="text-[11px] text-neutral-400 mt-1">No demand entered — open Demand Plan to get started.</div>
+            )}
+          </div>
+        </DashCard>
+
+        <DashCard icon="🏪" title="Demand by Channel" description="Total CAR per sales channel" onOpen={openDemand}>
+          <div className="mt-2 space-y-1.5">
+            {channelDemand.map(({ ch, car }) => (
+              <div key={ch} className="flex items-center gap-2 text-xs">
+                <span className="w-24 shrink-0 text-neutral-600">{CHANNEL_LABELS[ch]}</span>
+                <div className="flex-1 h-2 rounded-full bg-neutral-100 overflow-hidden">
+                  <div
+                    className="h-full rounded-full bg-brand-green"
+                    style={{ width: `${(car / channelMax) * 100}%` }}
+                  />
+                </div>
+                <span className="w-20 text-right font-semibold tabular-nums shrink-0">
+                  {car > 0 ? `${car.toLocaleString()} CAR` : <span className="text-neutral-300">—</span>}
+                </span>
+              </div>
+            ))}
+            {demandTotalCar === 0 && (
+              <div className="text-[11px] text-neutral-400 mt-1">No demand entered yet.</div>
             )}
           </div>
         </DashCard>
