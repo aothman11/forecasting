@@ -152,28 +152,28 @@ export type CutPlanWeek = {
   totalKg: number;
 };
 
-/** Step 1 manual input for the Demand Forecast comparison — one row per week. */
-export interface DemandWeek {
-  week: number;
-  wcFreshKg: number;
-  wcFrozenKg: number;
-  fppKg: number;
+// ---------- Demand Plan (Module 1): product x channel x week ----------
+
+export type ProductCategory = "wholeChicken" | "cuts" | "fpp" | "eggs";
+
+export type ChannelKey = "DIST" | "EXPO" | "FOOD" | "MODT" | "SIST" | "TRAD" | "WHOL" | "ECOM";
+
+export type DemandUnit = "ton" | "tray" | "carton";
+
+/** A single sellable line item in the demand catalog. Fully user-extensible — not a fixed enum. */
+export interface DemandProduct {
+  id: string;
+  category: ProductCategory;
+  name: string;
+  grade?: "A" | "B"; // wholeChicken only
+  weightBucketG?: number; // wholeChicken only, editable in 50g steps
+  freshFrozen?: "fresh" | "frozen"; // wholeChicken only
+  yieldPct?: number; // fpp only: % yield from FPP input tons (simple BOM, editable)
+  unit: DemandUnit;
 }
 
-export interface DemandComparisonWeek {
-  week: number;
-  demandKg: number;
-  productionKg: number;
-  varianceKg: number;
-  fillRatePct: number;
-  wcFreshDemandKg: number;
-  wcFreshProductionKg: number;
-  wcFrozenDemandKg: number;
-  wcFrozenProductionKg: number;
-  fppDemandKg: number;
-  fppProductionKg: number;
-  shortfall: boolean;
-}
+/** Sparse quantity map keyed by `${productId}::${channel}::${week}`. */
+export type DemandPlanQty = Record<string, number>;
 
 export interface CarcassSizeWeek {
   week: number;

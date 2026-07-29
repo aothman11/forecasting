@@ -1,9 +1,17 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
-import type { DemandWeek, Parameters, PlacementDayRow, PlantKey, ScenarioSnapshot } from "./types";
-import { DEFAULT_PARAMETERS } from "./defaults";
-import { ensureDemandHorizon, ensurePlacementDaysHorizon, quickFillPlacementDays } from "./calculations";
-import type { FreshFrozen, WholeOrFpp } from "./salesPlanImport";
+import type {
+  ChannelKey,
+  DemandPlanQty,
+  DemandProduct,
+  Parameters,
+  PlacementDayRow,
+  PlantKey,
+  ScenarioSnapshot,
+} from "./types";
+import { DEFAULT_DEMAND_PRODUCTS, DEFAULT_PARAMETERS } from "./defaults";
+import { ensurePlacementDaysHorizon, quickFillPlacementDays } from "./calculations";
+import { bulkAdjustDemand, copyDemandWeekForward, demandCellKey, type BulkAdjustOptions } from "./demandPlan";
 
 export const STEPS = [
   { id: 1, label: "Placement Plan", short: "Placement", icon: "🐣" },
@@ -23,9 +31,10 @@ function horizonDaysFor(params: Pick<Parameters, "planningHorizonWeeks">): numbe
 interface PlanState {
   params: Parameters;
   placementDays: PlacementDayRow[];
-  demand: DemandWeek[];
-  salesPlanDivisionMap: Record<string, FreshFrozen>;
-  salesPlanCategoryMap: Record<string, WholeOrFpp>;
+  demandProducts: DemandProduct[];
+  demandQty: DemandPlanQty;
+  salesPlanProductMap: Record<string, string>;
+  salesPlanChannelMap: Record<string, ChannelKey>;
   selectedStep: number;
   selectedPlant: PlantFilter;
   assumptionsOpen: boolean;
@@ -39,10 +48,14 @@ interface PlanState {
   setPlacementDayRow: (dayIndex: number, patch: Partial<PlacementDayRow>) => void;
   setPlacementDays: (rows: PlacementDayRow[]) => void;
   quickFillPlacementPlan: () => void;
-  setDemandWeek: (week: number, patch: Partial<DemandWeek>) => void;
-  setDemand: (rows: DemandWeek[]) => void;
-  setSalesPlanDivisionMap: (map: Record<string, FreshFrozen>) => void;
-  setSalesPlanCategoryMap: (map: Record<string, WholeOrFpp>) => void;
+  addDemandProduct: (product: DemandProduct) => void;
+  updateDemandProduct: (id: string, patch: Partial<DemandProduct>) => void;
+  removeDemandProduct: (id: string) => void;
+  setDemandCell: (productId: string, channel: ChannelKey, week: number, qty: number) => void;
+  bulkAdjustDemandPlan: (opts: BulkAdjustOptions) => void;
+  copyDemandWeekForwardAction: (channel: ChannelKey | "ALL", fromWeek: number, toWeek: number) => void;
+  setSalesPlanProductMap: (map: Record<string, string>) => void;
+  setSalesPlanChannelMap: (map: Record<string, ChannelKey>) => void;
   setHorizonWeeks: (weeks: number) => void;
   setPlanStartDate: (date: string) => void;
   resetToDefaults: () => void;
@@ -67,9 +80,10 @@ export const usePlanStore = create<PlanState>()(
         DEFAULT_PARAMETERS.fridayOff,
         DEFAULT_PARAMETERS.chicksPerHouse
       ),
-      demand: ensureDemandHorizon([], DEFAULT_PARAMETERS.planningHorizonWeeks),
-      salesPlanDivisionMap: {},
-      salesPlanCategoryMap: {},
+      demandProducts: DEFAULT_DEMAND_PRODUCTS,
+      demandQty: {},
+      salesPlanProductMap: {},
+      salesPlanChannelMap: {},
       selectedStep: 1,
       selectedPlant: "all",
       assumptionsOpen: false,
@@ -107,15 +121,36 @@ export const usePlanStore = create<PlanState>()(
 
       setPlacementDays: (rows) => set({ placementDays: rows }),
 
-      setDemandWeek: (week, patch) =>
+      addDemandProduct: (product) => set((s) => ({ demandProducts: [...s.demandProducts, product] })),
+
+      updateDemandProduct: (id, patch) =>
         set((s) => ({
-          demand: s.demand.map((r) => (r.week === week ? { ...r, ...patch } : r)),
+          demandProducts: s.demandProducts.map((p) => (p.id === id ? { ...p, ...patch } : p)),
         })),
 
-      setDemand: (rows) => set({ demand: rows }),
+      removeDemandProduct: (id) =>
+        set((s) => {
+          const demandProducts = s.demandProducts.filter((p) => p.id !== id);
+          const demandQty = Object.fromEntries(
+            Object.entries(s.demandQty).filter(([key]) => !key.startsWith(`${id}::`))
+          );
+          return { demandProducts, demandQty };
+        }),
 
-      setSalesPlanDivisionMap: (map) => set({ salesPlanDivisionMap: map }),
-      setSalesPlanCategoryMap: (map) => set({ salesPlanCategoryMap: map }),
+      setDemandCell: (productId, channel, week, qty) =>
+        set((s) => ({
+          demandQty: { ...s.demandQty, [demandCellKey(productId, channel, week)]: qty },
+        })),
+
+      bulkAdjustDemandPlan: (opts) => set((s) => ({ demandQty: bulkAdjustDemand(s.demandQty, opts) })),
+
+      copyDemandWeekForwardAction: (channel, fromWeek, toWeek) =>
+        set((s) => ({
+          demandQty: copyDemandWeekForward(s.demandQty, s.demandProducts, channel, fromWeek, toWeek),
+        })),
+
+      setSalesPlanProductMap: (map) => set({ salesPlanProductMap: map }),
+      setSalesPlanChannelMap: (map) => set({ salesPlanChannelMap: map }),
 
       quickFillPlacementPlan: () =>
         set((s) => ({
@@ -138,7 +173,6 @@ export const usePlanStore = create<PlanState>()(
             s.params.fridayOff,
             s.params.chicksPerHouse
           ),
-          demand: ensureDemandHorizon(s.demand, weeks),
         })),
 
       setPlanStartDate: (date) =>
@@ -163,7 +197,8 @@ export const usePlanStore = create<PlanState>()(
             DEFAULT_PARAMETERS.fridayOff,
             DEFAULT_PARAMETERS.chicksPerHouse
           ),
-          demand: ensureDemandHorizon([], DEFAULT_PARAMETERS.planningHorizonWeeks),
+          demandProducts: DEFAULT_DEMAND_PRODUCTS,
+          demandQty: {},
         })),
 
       setSelectedStep: (step) => set({ selectedStep: step }),
@@ -191,27 +226,33 @@ export const usePlanStore = create<PlanState>()(
     }),
     {
       name: "awp-broiler-forecast-store",
-      version: 4,
+      version: 5,
       // v2 switched Step 1 from weekly to daily placement rows (PlacementRow -> PlacementDayRow).
       // v3 replaced the farm-based model (totalFarms/dressingPct/chicksPerFarm) with the house-based
       // processing chain (houseCount/avgCarcassWeightKg/chicksPerHouse/...). Both changes touch nearly
       // every field, so pre-v3 persisted state is discarded wholesale rather than partially migrated.
       // v4 added housesPerFarm (purely additive/informational), so v3 state is backfilled instead.
+      // v5 replaced the 3-bucket weekly Demand Forecast (demand/salesPlanDivisionMap/salesPlanCategoryMap)
+      // with the Module 1 Demand Plan (demandProducts/demandQty/salesPlanProductMap/salesPlanChannelMap) —
+      // shape changed entirely, so pre-v5 demand-related state is discarded.
       migrate: (persisted, version) => {
-        if (version >= 4) return persisted;
+        if (version >= 5) return persisted;
+        const state = persisted as { params?: Parameters; placementDays?: unknown; scenarios?: unknown };
         if (version < 3) return { scenarios: [] };
-        const state = persisted as { params?: Parameters };
+        const params = state.params ? { ...DEFAULT_PARAMETERS, ...state.params } : undefined;
         return {
-          ...(persisted as object),
-          params: state.params ? { ...DEFAULT_PARAMETERS, ...state.params } : undefined,
+          params,
+          placementDays: state.placementDays,
+          scenarios: state.scenarios ?? [],
         };
       },
       partialize: (s) => ({
         params: s.params,
         placementDays: s.placementDays,
-        demand: s.demand,
-        salesPlanDivisionMap: s.salesPlanDivisionMap,
-        salesPlanCategoryMap: s.salesPlanCategoryMap,
+        demandProducts: s.demandProducts,
+        demandQty: s.demandQty,
+        salesPlanProductMap: s.salesPlanProductMap,
+        salesPlanChannelMap: s.salesPlanChannelMap,
         scenarios: s.scenarios,
       }),
     }

@@ -1,4 +1,5 @@
 import * as XLSX from "xlsx";
+import type { ChannelKey, DemandProduct } from "./types";
 
 export interface SalesPlanRow {
   weekOfYear: number;
@@ -124,73 +125,78 @@ export function salesWeekNumber(dateStr: string): number {
   return week;
 }
 
-export type FreshFrozen = "fresh" | "frozen" | "ignore";
-export type WholeOrFpp = "whole" | "fpp" | "ignore";
+/** A distinct (Division, Material Category, Size, Grading) combination the user maps to a catalog product once. */
+export interface RowSignatureGroup {
+  signature: string;
+  division: string;
+  materialCategory: string;
+  size: string;
+  grading: string;
+  rowCount: number;
+}
 
-export interface SalesPlanAggregate {
-  wcFreshKg: number;
-  wcFrozenKg: number;
-  fppKg: number;
+export function rowSignature(row: SalesPlanRow): string {
+  return [row.division, row.materialCategory, row.size, row.grading].join(" | ");
+}
+
+export function distinctRowSignatures(rows: SalesPlanRow[]): RowSignatureGroup[] {
+  const map = new Map<string, RowSignatureGroup>();
+  rows.forEach((r) => {
+    const signature = rowSignature(r);
+    const existing = map.get(signature);
+    if (existing) {
+      existing.rowCount++;
+    } else {
+      map.set(signature, {
+        signature,
+        division: r.division,
+        materialCategory: r.materialCategory,
+        size: r.size,
+        grading: r.grading,
+        rowCount: 1,
+      });
+    }
+  });
+  return Array.from(map.values()).sort((a, b) => b.rowCount - a.rowCount);
+}
+
+export interface SalesPlanImportSummary {
   mappedRows: number;
   unmappedRows: number;
 }
 
-function emptyAggregate(): SalesPlanAggregate {
-  return { wcFreshKg: 0, wcFrozenKg: 0, fppKg: 0, mappedRows: 0, unmappedRows: 0 };
-}
-
-function addRowToAggregate(
-  agg: SalesPlanAggregate,
-  row: SalesPlanRow,
-  divisionMap: Record<string, FreshFrozen>,
-  categoryMap: Record<string, WholeOrFpp>
-) {
-  const catType = categoryMap[row.materialCategory] ?? "ignore";
-  const divType = divisionMap[row.division] ?? "ignore";
-  const vol = row.grossSalesVolumeUom;
-
-  if (catType === "fpp") {
-    agg.fppKg += vol;
-    agg.mappedRows++;
-  } else if (catType === "whole" && divType === "fresh") {
-    agg.wcFreshKg += vol;
-    agg.mappedRows++;
-  } else if (catType === "whole" && divType === "frozen") {
-    agg.wcFrozenKg += vol;
-    agg.mappedRows++;
-  } else {
-    agg.unmappedRows++;
-  }
-}
-
-/** Buckets rows into WC Fresh / WC Frozen / FPP kg using the user-assigned Division and Material Category mappings. */
-export function aggregateSalesPlanToDemand(
+/**
+ * Aggregates rows into demand quantities keyed by `${productId}::${channel}::${weekOfYear}`, converting
+ * to the target product's unit (kg -> tons for "ton" products; passed through as-is otherwise). Rows whose
+ * row-signature or channel aren't mapped are skipped and counted as unmapped.
+ */
+export function aggregateSalesPlanByProductChannelWeek(
   rows: SalesPlanRow[],
-  divisionMap: Record<string, FreshFrozen>,
-  categoryMap: Record<string, WholeOrFpp>
-): SalesPlanAggregate {
-  const agg = emptyAggregate();
-  rows.forEach((row) => addRowToAggregate(agg, row, divisionMap, categoryMap));
-  return agg;
-}
+  productMap: Record<string, string>,
+  channelMap: Record<string, ChannelKey>,
+  productsById: Map<string, DemandProduct>
+): { totals: Map<string, number>; summary: SalesPlanImportSummary } {
+  const totals = new Map<string, number>();
+  let mappedRows = 0;
+  let unmappedRows = 0;
 
-/** Same as aggregateSalesPlanToDemand, but grouped by the file's "Week No. in <year>" column. */
-export function aggregateSalesPlanByWeek(
-  rows: SalesPlanRow[],
-  divisionMap: Record<string, FreshFrozen>,
-  categoryMap: Record<string, WholeOrFpp>
-): Map<number, SalesPlanAggregate> {
-  const byWeek = new Map<number, SalesPlanAggregate>();
-  rows.forEach((row) => {
-    if (row.weekOfYear <= 0) return;
-    let agg = byWeek.get(row.weekOfYear);
-    if (!agg) {
-      agg = emptyAggregate();
-      byWeek.set(row.weekOfYear, agg);
+  for (const row of rows) {
+    const productId = productMap[rowSignature(row)];
+    const channel = channelMap[row.channel];
+    const product = productId ? productsById.get(productId) : undefined;
+
+    if (!productId || !channel || !product || row.weekOfYear <= 0) {
+      unmappedRows++;
+      continue;
     }
-    addRowToAggregate(agg, row, divisionMap, categoryMap);
-  });
-  return byWeek;
+
+    const qty = product.unit === "ton" ? row.grossSalesVolumeUom / 1000 : row.grossSalesVolumeUom;
+    const key = `${productId}::${channel}::${row.weekOfYear}`;
+    totals.set(key, (totals.get(key) ?? 0) + qty);
+    mappedRows++;
+  }
+
+  return { totals, summary: { mappedRows, unmappedRows } };
 }
 
 export function isSalesPlanFile(file: File): boolean {

@@ -4,45 +4,45 @@ import { useMemo, useRef, useState } from "react";
 import { usePlanStore } from "@/lib/store";
 import { weekStartDate } from "@/lib/calculations";
 import { exportSalesPlanTemplate } from "@/lib/export";
+import { CHANNEL_KEYS, CHANNEL_LABELS, PRODUCT_CATEGORY_LABELS } from "@/lib/defaults";
 import {
-  aggregateSalesPlanByWeek,
+  aggregateSalesPlanByProductChannelWeek,
+  distinctRowSignatures,
   distinctValues,
   distinctWeeksOfYear,
   isSalesPlanFile,
-  salesWeekNumber,
   parseSalesPlan,
-  type FreshFrozen,
-  type SalesPlanAggregate,
+  salesWeekNumber,
+  type RowSignatureGroup,
   type SalesPlanRow,
-  type WholeOrFpp,
 } from "@/lib/salesPlanImport";
-
-function kg(n: number) {
-  return Math.round(n).toLocaleString();
-}
+import type { ChannelKey } from "@/lib/types";
 
 const NONE = "none";
+const IGNORE = "ignore";
 
 export function SalesPlanImportPanel({ onClose }: { onClose: () => void }) {
   const params = usePlanStore((s) => s.params);
-  const demand = usePlanStore((s) => s.demand);
-  const setDemandWeek = usePlanStore((s) => s.setDemandWeek);
-  const savedDivisionMap = usePlanStore((s) => s.salesPlanDivisionMap);
-  const savedCategoryMap = usePlanStore((s) => s.salesPlanCategoryMap);
-  const setSalesPlanDivisionMap = usePlanStore((s) => s.setSalesPlanDivisionMap);
-  const setSalesPlanCategoryMap = usePlanStore((s) => s.setSalesPlanCategoryMap);
+  const demandProducts = usePlanStore((s) => s.demandProducts);
+  const setDemandCell = usePlanStore((s) => s.setDemandCell);
+  const savedProductMap = usePlanStore((s) => s.salesPlanProductMap);
+  const savedChannelMap = usePlanStore((s) => s.salesPlanChannelMap);
+  const setSalesPlanProductMap = usePlanStore((s) => s.setSalesPlanProductMap);
+  const setSalesPlanChannelMap = usePlanStore((s) => s.setSalesPlanChannelMap);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [fileName, setFileName] = useState<string | null>(null);
   const [rows, setRows] = useState<SalesPlanRow[] | null>(null);
-  const [divisionDraft, setDivisionDraft] = useState<Record<string, FreshFrozen>>({});
-  const [categoryDraft, setCategoryDraft] = useState<Record<string, WholeOrFpp>>({});
+  const [productDraft, setProductDraft] = useState<Record<string, string>>({});
+  const [channelDraft, setChannelDraft] = useState<Record<string, ChannelKey | typeof IGNORE>>({});
   const [weekAssignment, setWeekAssignment] = useState<Record<number, string>>({});
   const [appliedMessage, setAppliedMessage] = useState<string | null>(null);
 
-  const divisionValues = useMemo(() => (rows ? distinctValues(rows, "division") : []), [rows]);
-  const categoryValues = useMemo(() => (rows ? distinctValues(rows, "materialCategory") : []), [rows]);
+  const productsById = useMemo(() => new Map(demandProducts.map((p) => [p.id, p])), [demandProducts]);
+  const signatures: RowSignatureGroup[] = useMemo(() => (rows ? distinctRowSignatures(rows) : []), [rows]);
+  const channelValues = useMemo(() => (rows ? distinctValues(rows, "channel") : []), [rows]);
   const weeksInFile = useMemo(() => (rows ? distinctWeeksOfYear(rows) : []), [rows]);
+  const horizonWeeks = Array.from({ length: params.planningHorizonWeeks }, (_, i) => i + 1);
 
   const handleFile = (file: File) => {
     const reader = new FileReader();
@@ -52,53 +52,77 @@ export function SalesPlanImportPanel({ onClose }: { onClose: () => void }) {
       setFileName(file.name);
       setAppliedMessage(null);
 
-      const divs: Record<string, FreshFrozen> = {};
-      distinctValues(parsed, "division").forEach((v) => {
-        divs[v] = savedDivisionMap[v] ?? "ignore";
+      const prodDraft: Record<string, string> = {};
+      distinctRowSignatures(parsed).forEach((g) => {
+        prodDraft[g.signature] = savedProductMap[g.signature] ?? NONE;
       });
-      setDivisionDraft(divs);
+      setProductDraft(prodDraft);
 
-      const cats: Record<string, WholeOrFpp> = {};
-      distinctValues(parsed, "materialCategory").forEach((v) => {
-        cats[v] = savedCategoryMap[v] ?? "ignore";
+      const chDraft: Record<string, ChannelKey | typeof IGNORE> = {};
+      distinctValues(parsed, "channel").forEach((v) => {
+        chDraft[v] = savedChannelMap[v] ?? IGNORE;
       });
-      setCategoryDraft(cats);
+      setChannelDraft(chDraft);
 
       const fileWeeks = distinctWeeksOfYear(parsed);
       const initialAssignment: Record<number, string> = {};
-      demand.forEach((d) => {
-        const suggested = salesWeekNumber(weekStartDate(params.planStartDate, d.week));
-        initialAssignment[d.week] = fileWeeks.includes(suggested) ? String(suggested) : NONE;
+      horizonWeeks.forEach((w) => {
+        const suggested = salesWeekNumber(weekStartDate(params.planStartDate, w));
+        initialAssignment[w] = fileWeeks.includes(suggested) ? String(suggested) : NONE;
       });
       setWeekAssignment(initialAssignment);
     };
     reader.readAsArrayBuffer(file);
   };
 
-  const byWeekAggregate: Map<number, SalesPlanAggregate> = useMemo(
-    () => (rows ? aggregateSalesPlanByWeek(rows, divisionDraft, categoryDraft) : new Map()),
-    [rows, divisionDraft, categoryDraft]
+  const productMap = useMemo(
+    () =>
+      Object.fromEntries(Object.entries(productDraft).filter(([, v]) => v !== NONE)) as Record<string, string>,
+    [productDraft]
   );
+  const channelMap = useMemo(
+    () =>
+      Object.fromEntries(Object.entries(channelDraft).filter(([, v]) => v !== IGNORE)) as Record<string, ChannelKey>,
+    [channelDraft]
+  );
+
+  const { totals, summary } = useMemo(
+    () => (rows ? aggregateSalesPlanByProductChannelWeek(rows, productMap, channelMap, productsById) : { totals: new Map<string, number>(), summary: { mappedRows: 0, unmappedRows: 0 } }),
+    [rows, productMap, channelMap, productsById]
+  );
+
+  // Preview: total mapped tons per file week, for the alignment table.
+  const totalsByFileWeek = useMemo(() => {
+    const byWeek = new Map<number, number>();
+    totals.forEach((qty, key) => {
+      const weekOfYear = Number(key.split("::")[2]);
+      byWeek.set(weekOfYear, (byWeek.get(weekOfYear) ?? 0) + qty);
+    });
+    return byWeek;
+  }, [totals]);
 
   const matchedCount = Object.values(weekAssignment).filter((v) => v !== NONE).length;
 
   const applyToHorizon = () => {
-    let applied = 0;
-    demand.forEach((d) => {
-      const assigned = weekAssignment[d.week];
-      if (!assigned || assigned === NONE) return;
-      const agg = byWeekAggregate.get(Number(assigned));
-      if (!agg) return;
-      setDemandWeek(d.week, {
-        wcFreshKg: Math.round(agg.wcFreshKg),
-        wcFrozenKg: Math.round(agg.wcFrozenKg),
-        fppKg: Math.round(agg.fppKg),
-      });
-      applied++;
+    // planWeek -> fileWeek (number)
+    const fileWeekToPlanWeek = new Map<number, number>();
+    horizonWeeks.forEach((w) => {
+      const assigned = weekAssignment[w];
+      if (assigned && assigned !== NONE) fileWeekToPlanWeek.set(Number(assigned), w);
     });
-    setSalesPlanDivisionMap({ ...savedDivisionMap, ...divisionDraft });
-    setSalesPlanCategoryMap({ ...savedCategoryMap, ...categoryDraft });
-    setAppliedMessage(`Applied demand to ${applied} of ${demand.length} plan weeks.`);
+
+    let appliedCells = 0;
+    totals.forEach((qty, key) => {
+      const [productId, channel, weekOfYearStr] = key.split("::");
+      const planWeek = fileWeekToPlanWeek.get(Number(weekOfYearStr));
+      if (planWeek === undefined) return;
+      setDemandCell(productId, channel as ChannelKey, planWeek, Math.round(qty * 100) / 100);
+      appliedCells++;
+    });
+
+    setSalesPlanProductMap({ ...savedProductMap, ...productMap });
+    setSalesPlanChannelMap({ ...savedChannelMap, ...channelMap });
+    setAppliedMessage(`Applied ${appliedCells} product/channel/week cells across ${fileWeekToPlanWeek.size} matched weeks.`);
   };
 
   return (
@@ -144,61 +168,77 @@ export function SalesPlanImportPanel({ onClose }: { onClose: () => void }) {
         <>
           <div className="text-xs text-neutral-500">
             {rows.length.toLocaleString()} rows loaded from <span className="font-medium">{fileName}</span> ·{" "}
-            {weeksInFile.length} distinct week(s) found: {weeksInFile.join(", ") || "none"}
+            {weeksInFile.length} distinct week(s) found: {weeksInFile.join(", ") || "none"} ·{" "}
+            {summary.mappedRows.toLocaleString()} mapped, {summary.unmappedRows.toLocaleString()} unmapped
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             <div>
               <div className="text-xs font-semibold text-neutral-600 uppercase tracking-wide mb-1.5">
-                Division → Fresh / Frozen
+                Division / Category / Size / Grading → Product
               </div>
-              <div className="space-y-1 max-h-40 overflow-y-auto pr-1">
-                {divisionValues.map((v) => (
-                  <div key={v} className="flex items-center justify-between gap-2 text-xs">
-                    <span className="truncate" title={v}>
-                      {v}
+              <div className="text-[11px] text-neutral-400 mb-1.5">
+                Don&apos;t see the right product? Close this panel, use &quot;Add Product&quot; on the Demand Plan
+                toolbar, then reopen the import.
+              </div>
+              <div className="space-y-1 max-h-56 overflow-y-auto pr-1">
+                {signatures.map((g) => (
+                  <div key={g.signature} className="flex items-center justify-between gap-2 text-xs">
+                    <span className="truncate" title={g.signature}>
+                      {g.division} / {g.materialCategory} / {g.size} / {g.grading}{" "}
+                      <span className="text-neutral-400">({g.rowCount})</span>
                     </span>
                     <select
-                      value={divisionDraft[v] ?? "ignore"}
-                      onChange={(e) =>
-                        setDivisionDraft({ ...divisionDraft, [v]: e.target.value as FreshFrozen })
-                      }
-                      className="border border-[var(--border-subtle)] rounded px-1.5 py-0.5 text-xs shrink-0"
+                      value={productDraft[g.signature] ?? NONE}
+                      onChange={(e) => setProductDraft({ ...productDraft, [g.signature]: e.target.value })}
+                      className="border border-[var(--border-subtle)] rounded px-1.5 py-0.5 text-xs shrink-0 max-w-[180px]"
                     >
-                      <option value="ignore">Ignore</option>
-                      <option value="fresh">Fresh</option>
-                      <option value="frozen">Frozen</option>
+                      <option value={NONE}>Ignore</option>
+                      {(["wholeChicken", "cuts", "fpp", "eggs"] as const).map((cat) => (
+                        <optgroup key={cat} label={PRODUCT_CATEGORY_LABELS[cat]}>
+                          {demandProducts
+                            .filter((p) => p.category === cat)
+                            .map((p) => (
+                              <option key={p.id} value={p.id}>
+                                {p.name}
+                              </option>
+                            ))}
+                        </optgroup>
+                      ))}
                     </select>
                   </div>
                 ))}
-                {divisionValues.length === 0 && <div className="text-xs text-neutral-400">No values found.</div>}
+                {signatures.length === 0 && <div className="text-xs text-neutral-400">No values found.</div>}
               </div>
             </div>
 
             <div>
               <div className="text-xs font-semibold text-neutral-600 uppercase tracking-wide mb-1.5">
-                Material Category → Product Type
+                Channels → Channel
               </div>
-              <div className="space-y-1 max-h-40 overflow-y-auto pr-1">
-                {categoryValues.map((v) => (
+              <div className="space-y-1 max-h-56 overflow-y-auto pr-1">
+                {channelValues.map((v) => (
                   <div key={v} className="flex items-center justify-between gap-2 text-xs">
                     <span className="truncate" title={v}>
                       {v}
                     </span>
                     <select
-                      value={categoryDraft[v] ?? "ignore"}
+                      value={channelDraft[v] ?? IGNORE}
                       onChange={(e) =>
-                        setCategoryDraft({ ...categoryDraft, [v]: e.target.value as WholeOrFpp })
+                        setChannelDraft({ ...channelDraft, [v]: e.target.value as ChannelKey | typeof IGNORE })
                       }
                       className="border border-[var(--border-subtle)] rounded px-1.5 py-0.5 text-xs shrink-0"
                     >
-                      <option value="ignore">Ignore</option>
-                      <option value="whole">Whole Chicken</option>
-                      <option value="fpp">FPP (Cuts)</option>
+                      <option value={IGNORE}>Ignore</option>
+                      {CHANNEL_KEYS.map((ck) => (
+                        <option key={ck} value={ck}>
+                          {CHANNEL_LABELS[ck]}
+                        </option>
+                      ))}
                     </select>
                   </div>
                 ))}
-                {categoryValues.length === 0 && <div className="text-xs text-neutral-400">No values found.</div>}
+                {channelValues.length === 0 && <div className="text-xs text-neutral-400">No values found.</div>}
               </div>
             </div>
           </div>
@@ -209,7 +249,7 @@ export function SalesPlanImportPanel({ onClose }: { onClose: () => void }) {
                 Plan Week ↔ File Week Alignment
               </div>
               <span className="text-xs text-neutral-400">
-                {matchedCount} of {demand.length} weeks matched — review before applying
+                {matchedCount} of {horizonWeeks.length} weeks matched — review before applying
               </span>
             </div>
             <div className="max-h-64 overflow-y-auto border border-[var(--border-subtle)] rounded-lg">
@@ -218,37 +258,31 @@ export function SalesPlanImportPanel({ onClose }: { onClose: () => void }) {
                   <tr className="bg-[var(--brand-green-tint)] text-[10px] uppercase tracking-wide text-brand-green-dark sticky top-0">
                     <th className="text-left px-2 py-1.5">Plan Week</th>
                     <th className="text-left px-2 py-1.5">File Week</th>
-                    <th className="text-right px-2 py-1.5">WC Fresh (kg)</th>
-                    <th className="text-right px-2 py-1.5">WC Frozen (kg)</th>
-                    <th className="text-right px-2 py-1.5">FPP (kg)</th>
+                    <th className="text-right px-2 py-1.5">Total Mapped (t)</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {demand.map((d) => {
-                    const assigned = weekAssignment[d.week] ?? NONE;
-                    const agg = assigned !== NONE ? byWeekAggregate.get(Number(assigned)) : undefined;
+                  {horizonWeeks.map((w) => {
+                    const assigned = weekAssignment[w] ?? NONE;
+                    const total = assigned !== NONE ? totalsByFileWeek.get(Number(assigned)) : undefined;
                     return (
-                      <tr key={d.week} className="border-t border-[var(--border-subtle)]">
-                        <td className="px-2 py-1">W{d.week}</td>
+                      <tr key={w} className="border-t border-[var(--border-subtle)]">
+                        <td className="px-2 py-1">W{w}</td>
                         <td className="px-2 py-1">
                           <select
                             value={assigned}
-                            onChange={(e) =>
-                              setWeekAssignment({ ...weekAssignment, [d.week]: e.target.value })
-                            }
+                            onChange={(e) => setWeekAssignment({ ...weekAssignment, [w]: e.target.value })}
                             className="border border-[var(--border-subtle)] rounded px-1 py-0.5 text-xs"
                           >
                             <option value={NONE}>—</option>
-                            {weeksInFile.map((w) => (
-                              <option key={w} value={w}>
-                                Wk {w}
+                            {weeksInFile.map((fw) => (
+                              <option key={fw} value={fw}>
+                                Wk {fw}
                               </option>
                             ))}
                           </select>
                         </td>
-                        <td className="px-2 py-1 text-right">{agg ? kg(agg.wcFreshKg) : "—"}</td>
-                        <td className="px-2 py-1 text-right">{agg ? kg(agg.wcFrozenKg) : "—"}</td>
-                        <td className="px-2 py-1 text-right">{agg ? kg(agg.fppKg) : "—"}</td>
+                        <td className="px-2 py-1 text-right">{total !== undefined ? total.toFixed(2) : "—"}</td>
                       </tr>
                     );
                   })}

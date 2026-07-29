@@ -1,4 +1,4 @@
-import type { CutYields, Parameters, SizeKey } from "./types";
+import type { ChannelKey, CutYields, DemandProduct, Parameters, SizeKey } from "./types";
 
 export const DEFAULT_PARAMETERS: Parameters = {
   houseCount: 27,
@@ -130,3 +130,68 @@ export const SIZE_LABELS: Record<SizeKey, string> = {
 
 export const MIN_HORIZON_WEEKS = 16;
 export const MAX_HORIZON_WEEKS = 26;
+
+// ---------- Demand Plan (Module 1) ----------
+
+export const CHANNEL_KEYS: ChannelKey[] = ["DIST", "EXPO", "FOOD", "MODT", "SIST", "TRAD", "WHOL", "ECOM"];
+
+export const CHANNEL_LABELS: Record<ChannelKey, string> = {
+  DIST: "Distributors",
+  EXPO: "Export",
+  FOOD: "Food Servers",
+  MODT: "Modern Trade",
+  SIST: "Sister Companies",
+  TRAD: "Traditional Trade",
+  WHOL: "Wholesale",
+  ECOM: "E-commerce",
+};
+
+export const EGG_PIECES_PER_TRAY = 30;
+export const EGG_TRAYS_PER_CARTON = 12;
+
+/** Target (not enforced) fresh/frozen split used only by the "Distribute Fresh/Frozen" quick-fill helper. */
+export const WHOLE_CHICKEN_FRESH_FROZEN_TARGET = { fresh: 0.7, frozen: 0.3 };
+
+const wholeChickenBuckets = (grade: "A" | "B", weights: number[]): DemandProduct[] =>
+  weights.flatMap((g) =>
+    (["fresh", "frozen"] as const).map((ff) => ({
+      id: `wc-${g}-${grade.toLowerCase()}-${ff}`,
+      category: "wholeChicken" as const,
+      name: `WC ${g}g ${grade} ${ff === "fresh" ? "Fresh" : "Frozen"}`,
+      grade,
+      weightBucketG: g,
+      freshFrozen: ff,
+      unit: "ton" as const,
+    }))
+  );
+
+export const DEFAULT_DEMAND_PRODUCTS: DemandProduct[] = [
+  ...wholeChickenBuckets("A", [800, 900, 1000, 1100, 1200, 1300, 1400]),
+  ...wholeChickenBuckets("B", [800, 900, 1000, 1100, 1200]),
+  { id: "cut-breast-bone-in", category: "cuts", name: "Breast (bone-in)", unit: "ton" },
+  { id: "cut-breast-boneless", category: "cuts", name: "Breast (boneless)", unit: "ton" },
+  { id: "cut-whole-leg", category: "cuts", name: "Whole Leg", unit: "ton" },
+  { id: "cut-drumstick", category: "cuts", name: "Drumstick", unit: "ton" },
+  { id: "cut-thigh-bone-in", category: "cuts", name: "Thigh (bone-in)", unit: "ton" },
+  { id: "cut-wings", category: "cuts", name: "Wings", unit: "ton" },
+  { id: "cut-back-neck", category: "cuts", name: "Back & Neck", unit: "ton" },
+  { id: "cut-giblets", category: "cuts", name: "Giblets", unit: "ton" },
+  { id: "cut-trim-mince", category: "cuts", name: "Trim / Mince", unit: "ton" },
+  { id: "cut-marinated", category: "cuts", name: "Marinated", unit: "ton" },
+  { id: "fpp-nuggets", category: "fpp", name: "Nuggets", yieldPct: 0.2, unit: "ton" },
+  { id: "fpp-burgers-patties", category: "fpp", name: "Burgers / Patties", yieldPct: 0.15, unit: "ton" },
+  { id: "fpp-strips-tenders", category: "fpp", name: "Strips / Tenders", yieldPct: 0.2, unit: "ton" },
+  { id: "fpp-shawarma", category: "fpp", name: "Shawarma", yieldPct: 0.15, unit: "ton" },
+  { id: "fpp-marinated-pieces", category: "fpp", name: "Marinated Pieces", yieldPct: 0.15, unit: "ton" },
+  { id: "fpp-other", category: "fpp", name: "Other FPP", yieldPct: 0.15, unit: "ton" },
+  { id: "egg-large", category: "eggs", name: "Table Eggs Large", unit: "tray" },
+  { id: "egg-medium", category: "eggs", name: "Table Eggs Medium", unit: "tray" },
+  { id: "egg-small", category: "eggs", name: "Table Eggs Small", unit: "tray" },
+];
+
+export const PRODUCT_CATEGORY_LABELS: Record<DemandProduct["category"], string> = {
+  wholeChicken: "Whole Chicken",
+  cuts: "Cuts",
+  fpp: "FPP (Further Processed Products)",
+  eggs: "Eggs",
+};

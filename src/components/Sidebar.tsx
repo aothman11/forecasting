@@ -103,7 +103,7 @@ export function Sidebar() {
           >
             📊
           </span>
-          Demand Forecast
+          Demand Plan
         </button>
         <button
           onClick={() => {

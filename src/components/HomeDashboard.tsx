@@ -3,13 +3,13 @@
 import Image from "next/image";
 import { usePipeline } from "@/lib/usePipeline";
 import { usePlanStore } from "@/lib/store";
-import { activeCutKeys, computeDemandComparison, computeSummaryMetrics } from "@/lib/calculations";
-import { CUT_LABELS, PLANT_LABELS } from "@/lib/defaults";
+import { activeCutKeys, computeSummaryMetrics } from "@/lib/calculations";
+import { CUT_LABELS, PLANT_LABELS, PRODUCT_CATEGORY_LABELS } from "@/lib/defaults";
+import { categoryTotal } from "@/lib/demandPlan";
 import { SummaryCard } from "./shared/SummaryCard";
 import { CapacityChart } from "./charts/CapacityChart";
 import { GradeChart } from "./charts/GradeChart";
 import { FamilyDonut } from "./charts/FamilyDonut";
-import { DemandComparisonChart } from "./charts/DemandComparisonChart";
 import type { PlantKey } from "@/lib/types";
 
 function kg(n: number) {
@@ -69,7 +69,8 @@ function UtilizationBar({ label, pct }: { label: string; pct: number }) {
 
 export function HomeDashboard() {
   const { result, params } = usePipeline();
-  const demand = usePlanStore((s) => s.demand);
+  const demandProducts = usePlanStore((s) => s.demandProducts);
+  const demandQty = usePlanStore((s) => s.demandQty);
   const setSelectedStep = usePlanStore((s) => s.setSelectedStep);
   const setDemandOpen = usePlanStore((s) => s.setDemandOpen);
   const setHomeOpen = usePlanStore((s) => s.setHomeOpen);
@@ -85,10 +86,11 @@ export function HomeDashboard() {
   };
 
   const m = computeSummaryMetrics(result);
-  const comparison = computeDemandComparison(demand, result.family);
-  const demandTotal = comparison.reduce((s, r) => s + r.demandKg, 0);
-  const productionTotal = comparison.reduce((s, r) => s + r.productionKg, 0);
-  const overallFillRate = demandTotal > 0 ? (productionTotal / demandTotal) * 100 : 100;
+  const horizonWeeks = Array.from({ length: params.planningHorizonWeeks }, (_, i) => i + 1);
+  const demandTotalTon = (["wholeChicken", "cuts", "fpp"] as const).reduce(
+    (s, cat) => s + categoryTotal(demandProducts, demandQty, cat, "ALL", horizonWeeks),
+    0
+  );
 
   const runningChicks = result.placement.reduce((s, r) => s + r.totalChicksPlaced, 0);
   const totalHouses = result.placement.reduce((s, r) => s + r.farmsPlacing, 0);
@@ -131,7 +133,7 @@ export function HomeDashboard() {
           value={`${kg(m.totalWcFreshKg + m.totalWcFrozenKg + m.totalFppKg)} kg`}
           icon="📦"
         />
-        <SummaryCard label="Demand Fill Rate" value={`${overallFillRate.toFixed(1)}%`} icon="📊" />
+        <SummaryCard label="Total Demand" value={`${demandTotalTon.toFixed(1)} t`} icon="📊" />
         <SummaryCard
           label="Weeks Over Capacity"
           value={String(m.weeksWithCapacityBreach)}
@@ -183,8 +185,22 @@ export function HomeDashboard() {
           </div>
         </DashCard>
 
-        <DashCard icon="📊" title="Demand Forecast" description="Demand vs. production plan" onOpen={openDemand}>
-          <DemandComparisonChart data={comparison} />
+        <DashCard icon="📊" title="Demand Plan" description="Weekly demand by product category" onOpen={openDemand}>
+          <div className="mt-2 space-y-1.5">
+            {(["wholeChicken", "cuts", "fpp", "eggs"] as const).map((cat) => {
+              const total = categoryTotal(demandProducts, demandQty, cat, "ALL", horizonWeeks);
+              const unit = cat === "eggs" ? "trays" : "t";
+              return (
+                <div key={cat} className="flex items-center justify-between text-xs">
+                  <span className="text-neutral-600">{PRODUCT_CATEGORY_LABELS[cat]}</span>
+                  <span className="font-semibold tabular-nums">{total > 0 ? `${total.toFixed(1)} ${unit}` : <span className="text-neutral-300">—</span>}</span>
+                </div>
+              );
+            })}
+            {demandTotalTon === 0 && (
+              <div className="text-[11px] text-neutral-400 mt-1">No demand entered — open Demand Plan to get started.</div>
+            )}
+          </div>
         </DashCard>
       </div>
     </div>
