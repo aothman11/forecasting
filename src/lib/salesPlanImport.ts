@@ -31,10 +31,8 @@ const NUMERIC_FIELDS: (keyof SalesPlanRow)[] = [
   "netSalesValueSar",
 ];
 
-// Matches the exact header row from the AWP SAP sales plan export (order-insensitive).
-// "Week No. in <year>" is matched by pattern since the year changes annually.
 const HEADER_MATCHERS: Partial<Record<keyof SalesPlanRow, string[]>> = {
-  yearMonth: ["year.month"],
+  yearMonth: ["year.month", "year month"],
   salesOffice: ["sales office"],
   channel: ["channels", "channel"],
   materialDivision: ["material division"],
@@ -48,16 +46,16 @@ const HEADER_MATCHERS: Partial<Record<keyof SalesPlanRow, string[]>> = {
   materialDescription: ["material description"],
   weightOfCarton: ["weight of carton"],
   grossSalesVolumeCar: ["gross sales volume (car)"],
-  grossSalesVolumeUom: ["gross sales volume (uom)"],
-  grossSalesValueSar: ["gross sales value (sar)"],
-  netSalesValueSar: ["net sales value (sar)"],
+  grossSalesVolumeUom: ["gross sales volume (uom)", "gross sales volume (uom)", "gross sales volume uom"],
+  grossSalesValueSar: ["gross sales value (sar)", "gross sales value sar"],
+  netSalesValueSar: ["net sales value (sar)", "net sales value sar"],
 };
 
-const WEEK_OF_YEAR_PATTERN = /^week no\.?\s*in\s*\d{4}$/i;
+// Flexible: "Week No. in 2026", "Week No in 2026", "Week No. In 2025", "Week# in 2026"
+const WEEK_OF_YEAR_PATTERN = /^week[\s#]*no\.?\s*(in|of)?\s*\d{4}$/i;
 
 const FIELD_KEYS = Object.keys(HEADER_MATCHERS) as (keyof SalesPlanRow)[];
 
-/** Parses the first sheet of an .xlsx/.xls/.csv SAP sales plan export into typed rows. */
 export function parseSalesPlan(buffer: ArrayBuffer): SalesPlanRow[] {
   const workbook = XLSX.read(buffer, { type: "array" });
   const sheet = workbook.Sheets[workbook.SheetNames[0]];
@@ -108,11 +106,6 @@ export function distinctWeeksOfYear(rows: SalesPlanRow[]): number[] {
   return Array.from(set).sort((a, b) => a - b);
 }
 
-/**
- * SAP-style "week of year" where the week counter resets at the start of every month
- * (days 1-7 of a month = week 1, 8-14 = week 2, ...), rather than a continuous Mon-start ISO week.
- * Used as the best-guess alignment to the file's "Week No. in <year>" column.
- */
 export function salesWeekNumber(dateStr: string): number {
   const date = new Date(dateStr);
   const year = date.getFullYear();
@@ -125,18 +118,145 @@ export function salesWeekNumber(dateStr: string): number {
   return week;
 }
 
-/** A distinct (Division, Material Category, Size, Grading) combination the user maps to a catalog product once. */
+// ─── Auto-mapping helpers ──────────────────────────────────────────────────────
+
+/** Maps a SAP channel label to a ChannelKey. Returns undefined if not recognized. */
+export function normalizeChannelKey(raw: string): ChannelKey | undefined {
+  const s = raw.trim().toLowerCase();
+  const table: Record<string, ChannelKey> = {
+    distributers: "DIST", distributors: "DIST", dist: "DIST",
+    export: "EXPO", expo: "EXPO",
+    "food service": "FOOD", "food services": "FOOD", "food server": "FOOD", "food servers": "FOOD",
+    "modern trade": "MODT", modt: "MODT",
+    "sister companies": "SIST", "sister company": "SIST", sist: "SIST",
+    "traditional trade": "TRAD", trad: "TRAD",
+    wholesale: "WHOL", whol: "WHOL",
+    "e-commerce": "ECOM", ecommerce: "ECOM", ecom: "ECOM",
+  };
+  return table[s];
+}
+
+function deriveCategoryFromRow(row: SalesPlanRow): DemandProduct["category"] | undefined {
+  const cat = (row.materialCategory || "").toLowerCase();
+  const matDiv = (row.materialDivision || "").toLowerCase();
+  const div = (row.division || "").toLowerCase();
+  if (cat.includes("whole chicken") || cat.includes("whole bird")) return "wholeChicken";
+  if (cat.includes("fpp") || cat.includes("further processed")) return "fpp";
+  if (cat.includes("portions") || cat.includes("cuts") || cat.includes("cold cured") || cat.includes("marinated")) return "cuts";
+  if (cat.includes("egg") || matDiv.includes("egg") || div === "eggs") return "eggs";
+  return undefined;
+}
+
+function parseFreshFrozen(division: string): "fresh" | "frozen" | undefined {
+  const s = division.trim().toLowerCase();
+  if (s === "chiller" || s === "fresh" || s === "chilled") return "fresh";
+  if (s === "frozen") return "frozen";
+  return undefined;
+}
+
+function parseGrade(grading: string, whGrading: string): "A" | "B" | undefined {
+  for (const raw of [grading, whGrading]) {
+    const s = raw.trim().toUpperCase();
+    if (["AG", "A", "GRADE A", "A GRADE", "GRADE-A"].includes(s)) return "A";
+    if (["BG", "B", "GRADE B", "B GRADE", "GRADE-B"].includes(s)) return "B";
+  }
+  return undefined;
+}
+
+function parseWeightG(size: string): number | undefined {
+  if (!size?.trim()) return undefined;
+  const s = size.trim().toLowerCase().replace(/gm?$/, "").trim();
+  const n = Number(s);
+  if (!n || isNaN(n)) return undefined;
+  return n < 10 ? Math.round(n * 1000) : n;
+}
+
+function descMatchesCut(desc: string, productName: string): boolean {
+  const d = desc.toLowerCase();
+  const n = productName.toLowerCase();
+  if (n.includes("breast") && n.includes("bone-in")) return d.includes("breast") && (d.includes("bone") || d.includes(" bi") || d.includes("b/i"));
+  if (n.includes("breast") && n.includes("boneless")) return d.includes("breast") && (d.includes("boneless") || d.includes(" bl") || d.includes("b/l"));
+  if (n.includes("whole leg")) return d.includes("whole leg") || d.includes("whole-leg");
+  if (n.includes("drumstick")) return d.includes("drum");
+  if (n.includes("thigh")) return d.includes("thigh");
+  if (n.includes("wings")) return d.includes("wing");
+  if (n.includes("back")) return d.includes("back") || d.includes("neck");
+  if (n.includes("giblets")) return d.includes("giblet") || d.includes("liver") || d.includes("heart") || d.includes("gizzard");
+  if (n.includes("mince") || n.includes("trim")) return d.includes("mince") || d.includes("trim");
+  if (n.includes("marinated")) return d.includes("marinat");
+  return false;
+}
+
+function descMatchesFpp(desc: string, productName: string): boolean {
+  const d = desc.toLowerCase();
+  const n = productName.toLowerCase();
+  if (n.includes("nugget")) return d.includes("nugget");
+  if (n.includes("burger") || n.includes("pattie")) return d.includes("burger") || d.includes("pattie") || d.includes("patty");
+  if (n.includes("strip") || n.includes("tender")) return d.includes("strip") || d.includes("tender");
+  if (n.includes("shawarma")) return d.includes("shawarma");
+  if (n.includes("marinated")) return d.includes("marinat");
+  return false;
+}
+
+/** Auto-maps a row to a DemandProduct using the template column values. Returns undefined if no confident match. */
+export function autoMapProduct(row: SalesPlanRow, products: DemandProduct[]): DemandProduct | undefined {
+  const cat = deriveCategoryFromRow(row);
+  if (!cat) return undefined;
+
+  if (cat === "wholeChicken") {
+    const ff = parseFreshFrozen(row.division);
+    const grade = parseGrade(row.grading, row.whGrading);
+    const weight = parseWeightG(row.size);
+    if (!ff || !grade || !weight) return undefined;
+    return products.find(
+      (p) => p.category === "wholeChicken" && p.freshFrozen === ff && p.grade === grade && p.weightBucketG === weight
+    );
+  }
+
+  if (cat === "eggs") {
+    const d = (row.materialDescription || row.materialCategory).toLowerCase();
+    return (
+      products.find(
+        (p) =>
+          p.category === "eggs" &&
+          ((d.includes("large") && p.name.toLowerCase().includes("large")) ||
+            (d.includes("medium") && p.name.toLowerCase().includes("medium")) ||
+            (d.includes("small") && p.name.toLowerCase().includes("small")))
+      ) ?? products.find((p) => p.category === "eggs")
+    );
+  }
+
+  const desc = row.materialDescription || "";
+  if (cat === "cuts") {
+    return products.filter((p) => p.category === "cuts").find((p) => descMatchesCut(desc, p.name));
+  }
+  if (cat === "fpp") {
+    return products.filter((p) => p.category === "fpp").find((p) => descMatchesFpp(desc, p.name));
+  }
+
+  return undefined;
+}
+
+// ─── Row signatures ────────────────────────────────────────────────────────────
+
 export interface RowSignatureGroup {
   signature: string;
   division: string;
   materialCategory: string;
+  materialDescription: string;
   size: string;
   grading: string;
   rowCount: number;
 }
 
 export function rowSignature(row: SalesPlanRow): string {
-  return [row.division, row.materialCategory, row.size, row.grading].join(" | ");
+  const catLower = (row.materialCategory || "").toLowerCase();
+  if (catLower.includes("whole chicken") || catLower.includes("whole bird")) {
+    // WC is uniquely identified by Division + Category + Size + Grading
+    return [row.division, row.materialCategory, row.size, row.grading].join(" | ");
+  }
+  // Cuts / FPP / Eggs: use Material Description for granular per-product matching
+  return [row.division, row.materialCategory, row.materialDescription].join(" | ");
 }
 
 export function distinctRowSignatures(rows: SalesPlanRow[]): RowSignatureGroup[] {
@@ -151,6 +271,7 @@ export function distinctRowSignatures(rows: SalesPlanRow[]): RowSignatureGroup[]
         signature,
         division: r.division,
         materialCategory: r.materialCategory,
+        materialDescription: r.materialDescription,
         size: r.size,
         grading: r.grading,
         rowCount: 1,
@@ -165,11 +286,6 @@ export interface SalesPlanImportSummary {
   unmappedRows: number;
 }
 
-/**
- * Aggregates rows into demand quantities keyed by `${productId}::${channel}::${weekOfYear}`, converting
- * to the target product's unit (kg -> tons for "ton" products; passed through as-is otherwise). Rows whose
- * row-signature or channel aren't mapped are skipped and counted as unmapped.
- */
 export function aggregateSalesPlanByProductChannelWeek(
   rows: SalesPlanRow[],
   productMap: Record<string, string>,

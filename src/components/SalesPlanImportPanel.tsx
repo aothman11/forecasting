@@ -7,10 +7,12 @@ import { exportSalesPlanTemplate } from "@/lib/export";
 import { CHANNEL_KEYS, CHANNEL_LABELS, PRODUCT_CATEGORY_LABELS } from "@/lib/defaults";
 import {
   aggregateSalesPlanByProductChannelWeek,
+  autoMapProduct,
   distinctRowSignatures,
   distinctValues,
   distinctWeeksOfYear,
   isSalesPlanFile,
+  normalizeChannelKey,
   parseSalesPlan,
   salesWeekNumber,
   type RowSignatureGroup,
@@ -52,18 +54,35 @@ export function SalesPlanImportPanel({ onClose }: { onClose: () => void }) {
       setFileName(file.name);
       setAppliedMessage(null);
 
+      // Auto-map products: try saved map first, then auto-mapping, then NONE
       const prodDraft: Record<string, string> = {};
       distinctRowSignatures(parsed).forEach((g) => {
-        prodDraft[g.signature] = savedProductMap[g.signature] ?? NONE;
+        if (savedProductMap[g.signature]) {
+          prodDraft[g.signature] = savedProductMap[g.signature];
+        } else {
+          // Pick a representative row for this signature to run auto-map against
+          const rep = parsed.find(
+            (r) =>
+              r.division === g.division &&
+              r.materialCategory === g.materialCategory &&
+              r.materialDescription === g.materialDescription &&
+              r.size === g.size &&
+              r.grading === g.grading
+          );
+          const matched = rep ? autoMapProduct(rep, demandProducts) : undefined;
+          prodDraft[g.signature] = matched?.id ?? NONE;
+        }
       });
       setProductDraft(prodDraft);
 
+      // Auto-map channels: try saved map first, then normalizeChannelKey, then IGNORE
       const chDraft: Record<string, ChannelKey | typeof IGNORE> = {};
       distinctValues(parsed, "channel").forEach((v) => {
-        chDraft[v] = savedChannelMap[v] ?? IGNORE;
+        chDraft[v] = savedChannelMap[v] ?? normalizeChannelKey(v) ?? IGNORE;
       });
       setChannelDraft(chDraft);
 
+      // Auto-suggest week alignment
       const fileWeeks = distinctWeeksOfYear(parsed);
       const initialAssignment: Record<number, string> = {};
       horizonWeeks.forEach((w) => {
@@ -76,8 +95,7 @@ export function SalesPlanImportPanel({ onClose }: { onClose: () => void }) {
   };
 
   const productMap = useMemo(
-    () =>
-      Object.fromEntries(Object.entries(productDraft).filter(([, v]) => v !== NONE)) as Record<string, string>,
+    () => Object.fromEntries(Object.entries(productDraft).filter(([, v]) => v !== NONE)) as Record<string, string>,
     [productDraft]
   );
   const channelMap = useMemo(
@@ -87,11 +105,13 @@ export function SalesPlanImportPanel({ onClose }: { onClose: () => void }) {
   );
 
   const { totals, summary } = useMemo(
-    () => (rows ? aggregateSalesPlanByProductChannelWeek(rows, productMap, channelMap, productsById) : { totals: new Map<string, number>(), summary: { mappedRows: 0, unmappedRows: 0 } }),
+    () =>
+      rows
+        ? aggregateSalesPlanByProductChannelWeek(rows, productMap, channelMap, productsById)
+        : { totals: new Map<string, number>(), summary: { mappedRows: 0, unmappedRows: 0 } },
     [rows, productMap, channelMap, productsById]
   );
 
-  // Preview: total mapped tons per file week, for the alignment table.
   const totalsByFileWeek = useMemo(() => {
     const byWeek = new Map<number, number>();
     totals.forEach((qty, key) => {
@@ -103,8 +123,11 @@ export function SalesPlanImportPanel({ onClose }: { onClose: () => void }) {
 
   const matchedCount = Object.values(weekAssignment).filter((v) => v !== NONE).length;
 
+  const autoMappedCount = signatures.filter((g) => productDraft[g.signature] && productDraft[g.signature] !== NONE).length;
+  const unmappedSignatures = signatures.filter((g) => !productDraft[g.signature] || productDraft[g.signature] === NONE);
+  const autoMappedChannels = channelValues.filter((v) => channelDraft[v] && channelDraft[v] !== IGNORE).length;
+
   const applyToHorizon = () => {
-    // planWeek -> fileWeek (number)
     const fileWeekToPlanWeek = new Map<number, number>();
     horizonWeeks.forEach((w) => {
       const assigned = weekAssignment[w];
@@ -126,16 +149,14 @@ export function SalesPlanImportPanel({ onClose }: { onClose: () => void }) {
   };
 
   return (
-    <div className="border border-[var(--border-subtle)] rounded-xl p-4 bg-white shadow-sm space-y-3">
+    <div className="border border-[var(--border-subtle)] rounded-xl p-4 bg-white shadow-sm space-y-4">
       <div className="flex items-center justify-between">
         <div className="text-sm font-semibold text-brand-green-dark">Import Sales Plan (SAP export)</div>
-        <button onClick={onClose} className="text-neutral-400 hover:text-neutral-700 text-sm">
-          ✕
-        </button>
+        <button onClick={onClose} className="text-neutral-400 hover:text-neutral-700 text-sm">✕</button>
       </div>
 
       {!rows ? (
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 flex-wrap">
           <button
             onClick={() => fileInputRef.current?.click()}
             className="text-xs font-medium px-3 py-1.5 rounded-md bg-brand-green text-white hover:bg-brand-green-dark transition-colors"
@@ -149,8 +170,7 @@ export function SalesPlanImportPanel({ onClose }: { onClose: () => void }) {
             Download Template
           </button>
           <span className="text-xs text-neutral-400">
-            Uses the &quot;Week No. in &lt;year&gt;&quot; column to align each week of sales to the matching plan
-            week automatically.
+            Upload your filled template — products and channels are matched automatically.
           </span>
           <input
             ref={fileInputRef}
@@ -166,68 +186,124 @@ export function SalesPlanImportPanel({ onClose }: { onClose: () => void }) {
         </div>
       ) : (
         <>
-          <div className="text-xs text-neutral-500">
-            {rows.length.toLocaleString()} rows loaded from <span className="font-medium">{fileName}</span> ·{" "}
-            {weeksInFile.length} distinct week(s) found: {weeksInFile.join(", ") || "none"} ·{" "}
-            {summary.mappedRows.toLocaleString()} mapped, {summary.unmappedRows.toLocaleString()} unmapped
+          {/* File summary */}
+          <div className="flex items-center gap-4 text-xs flex-wrap">
+            <span className="text-neutral-500">
+              <span className="font-medium text-neutral-700">{rows.length.toLocaleString()}</span> rows from{" "}
+              <span className="font-medium">{fileName}</span>
+            </span>
+            <span className={weeksInFile.length > 0 ? "text-brand-green-dark font-medium" : "text-brand-alert font-medium"}>
+              {weeksInFile.length > 0
+                ? `${weeksInFile.length} weeks found (${weeksInFile[0]}–${weeksInFile[weeksInFile.length - 1]})`
+                : "⚠ No weeks detected — check the 'Week No. in YYYY' column"}
+            </span>
+            <span className="text-brand-green-dark font-medium">
+              ✓ {autoMappedCount}/{signatures.length} products auto-matched
+            </span>
+            <span className={autoMappedChannels < channelValues.length ? "text-amber-600 font-medium" : "text-brand-green-dark font-medium"}>
+              {autoMappedChannels === channelValues.length
+                ? `✓ ${autoMappedChannels} channels matched`
+                : `⚠ ${channelValues.length - autoMappedChannels} channels need review`}
+            </span>
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            {/* Products */}
             <div>
-              <div className="text-xs font-semibold text-neutral-600 uppercase tracking-wide mb-1.5">
-                Division / Category / Size / Grading → Product
+              <div className="text-xs font-semibold text-neutral-600 uppercase tracking-wide mb-2">
+                Products
               </div>
-              <div className="text-[11px] text-neutral-400 mb-1.5">
-                Don&apos;t see the right product? Close this panel, use &quot;Add Product&quot; on the Demand Plan
-                toolbar, then reopen the import.
-              </div>
-              <div className="space-y-1 max-h-56 overflow-y-auto pr-1">
-                {signatures.map((g) => (
-                  <div key={g.signature} className="flex items-center justify-between gap-2 text-xs">
-                    <span className="truncate" title={g.signature}>
-                      {g.division} / {g.materialCategory} / {g.size} / {g.grading}{" "}
-                      <span className="text-neutral-400">({g.rowCount})</span>
-                    </span>
-                    <select
-                      value={productDraft[g.signature] ?? NONE}
-                      onChange={(e) => setProductDraft({ ...productDraft, [g.signature]: e.target.value })}
-                      className="border border-[var(--border-subtle)] rounded px-1.5 py-0.5 text-xs shrink-0 max-w-[180px]"
-                    >
-                      <option value={NONE}>Ignore</option>
-                      {(["wholeChicken", "cuts", "fpp", "eggs"] as const).map((cat) => (
-                        <optgroup key={cat} label={PRODUCT_CATEGORY_LABELS[cat]}>
-                          {demandProducts
-                            .filter((p) => p.category === cat)
-                            .map((p) => (
-                              <option key={p.id} value={p.id}>
-                                {p.name}
-                              </option>
-                            ))}
-                        </optgroup>
-                      ))}
-                    </select>
+
+              {/* Auto-matched summary */}
+              {autoMappedCount > 0 && (
+                <div className="text-[11px] text-brand-green-dark bg-brand-green-tint rounded-md px-3 py-1.5 mb-2">
+                  ✓ {autoMappedCount} row type{autoMappedCount !== 1 ? "s" : ""} matched automatically
+                </div>
+              )}
+
+              {/* Unmatched only */}
+              {unmappedSignatures.length > 0 ? (
+                <>
+                  <div className="text-[11px] text-amber-700 mb-1.5">
+                    {unmappedSignatures.length} row type{unmappedSignatures.length !== 1 ? "s" : ""} need manual mapping:
                   </div>
-                ))}
-                {signatures.length === 0 && <div className="text-xs text-neutral-400">No values found.</div>}
-              </div>
+                  <div className="space-y-1 max-h-52 overflow-y-auto pr-1">
+                    {unmappedSignatures.map((g) => (
+                      <div key={g.signature} className="flex items-center justify-between gap-2 text-xs">
+                        <span className="truncate text-neutral-600" title={g.signature}>
+                          {g.materialDescription || `${g.materialCategory} ${g.size} ${g.grading}`.trim()}{" "}
+                          <span className="text-neutral-400">({g.rowCount})</span>
+                        </span>
+                        <select
+                          value={productDraft[g.signature] ?? NONE}
+                          onChange={(e) => setProductDraft({ ...productDraft, [g.signature]: e.target.value })}
+                          className="border border-[var(--border-subtle)] rounded px-1.5 py-0.5 text-xs shrink-0 max-w-[180px]"
+                        >
+                          <option value={NONE}>Ignore</option>
+                          {(["wholeChicken", "cuts", "fpp", "eggs"] as const).map((cat) => (
+                            <optgroup key={cat} label={PRODUCT_CATEGORY_LABELS[cat]}>
+                              {demandProducts
+                                .filter((p) => p.category === cat)
+                                .map((p) => (
+                                  <option key={p.id} value={p.id}>
+                                    {p.name}
+                                  </option>
+                                ))}
+                            </optgroup>
+                          ))}
+                        </select>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              ) : (
+                <div className="text-[11px] text-neutral-400">All product types matched — no manual input needed.</div>
+              )}
+
+              {/* Show all matched (collapsed / toggle) */}
+              {autoMappedCount > 0 && (
+                <details className="mt-2">
+                  <summary className="text-[11px] text-neutral-400 cursor-pointer hover:text-neutral-600 select-none">
+                    Show all {signatures.length} matched rows
+                  </summary>
+                  <div className="space-y-1 mt-1.5 max-h-48 overflow-y-auto pr-1">
+                    {signatures
+                      .filter((g) => productDraft[g.signature] && productDraft[g.signature] !== NONE)
+                      .map((g) => {
+                        const product = productsById.get(productDraft[g.signature]);
+                        return (
+                          <div key={g.signature} className="flex items-center justify-between gap-2 text-[11px]">
+                            <span className="truncate text-neutral-500" title={g.signature}>
+                              {g.materialDescription || `${g.division} / ${g.materialCategory} / ${g.size} / ${g.grading}`.trim()}
+                            </span>
+                            <span className="text-brand-green-dark shrink-0">→ {product?.name ?? "—"}</span>
+                          </div>
+                        );
+                      })}
+                  </div>
+                </details>
+              )}
             </div>
 
+            {/* Channels */}
             <div>
-              <div className="text-xs font-semibold text-neutral-600 uppercase tracking-wide mb-1.5">
-                Channels → Channel
+              <div className="text-xs font-semibold text-neutral-600 uppercase tracking-wide mb-2">
+                Channels
               </div>
-              <div className="space-y-1 max-h-56 overflow-y-auto pr-1">
+              <div className="space-y-1 max-h-64 overflow-y-auto pr-1">
                 {channelValues.map((v) => (
                   <div key={v} className="flex items-center justify-between gap-2 text-xs">
-                    <span className="truncate" title={v}>
-                      {v}
-                    </span>
+                    <span className="truncate text-neutral-600" title={v}>{v}</span>
                     <select
                       value={channelDraft[v] ?? IGNORE}
                       onChange={(e) =>
                         setChannelDraft({ ...channelDraft, [v]: e.target.value as ChannelKey | typeof IGNORE })
                       }
-                      className="border border-[var(--border-subtle)] rounded px-1.5 py-0.5 text-xs shrink-0"
+                      className={`border rounded px-1.5 py-0.5 text-xs shrink-0 ${
+                        channelDraft[v] && channelDraft[v] !== IGNORE
+                          ? "border-brand-green text-brand-green-dark"
+                          : "border-[var(--border-subtle)]"
+                      }`}
                     >
                       <option value={IGNORE}>Ignore</option>
                       {CHANNEL_KEYS.map((ck) => (
@@ -238,18 +314,19 @@ export function SalesPlanImportPanel({ onClose }: { onClose: () => void }) {
                     </select>
                   </div>
                 ))}
-                {channelValues.length === 0 && <div className="text-xs text-neutral-400">No values found.</div>}
+                {channelValues.length === 0 && <div className="text-xs text-neutral-400">No channels found.</div>}
               </div>
             </div>
           </div>
 
+          {/* Week alignment */}
           <div>
             <div className="flex items-center justify-between mb-1.5">
               <div className="text-xs font-semibold text-neutral-600 uppercase tracking-wide">
                 Plan Week ↔ File Week Alignment
               </div>
               <span className="text-xs text-neutral-400">
-                {matchedCount} of {horizonWeeks.length} weeks matched — review before applying
+                {matchedCount} of {horizonWeeks.length} weeks matched
               </span>
             </div>
             <div className="max-h-64 overflow-y-auto border border-[var(--border-subtle)] rounded-lg">
@@ -276,9 +353,7 @@ export function SalesPlanImportPanel({ onClose }: { onClose: () => void }) {
                           >
                             <option value={NONE}>—</option>
                             {weeksInFile.map((fw) => (
-                              <option key={fw} value={fw}>
-                                Wk {fw}
-                              </option>
+                              <option key={fw} value={fw}>Wk {fw}</option>
                             ))}
                           </select>
                         </td>
@@ -291,29 +366,31 @@ export function SalesPlanImportPanel({ onClose }: { onClose: () => void }) {
             </div>
           </div>
 
-          <div className="flex items-center gap-3">
+          {/* Actions */}
+          <div className="flex items-center gap-3 flex-wrap">
             <button
               onClick={applyToHorizon}
               disabled={matchedCount === 0}
               className="text-xs font-medium px-3 py-1.5 rounded-md bg-brand-green text-white hover:bg-brand-green-dark transition-colors disabled:opacity-40"
             >
-              Apply to {matchedCount} Matched Week{matchedCount === 1 ? "" : "s"}
+              Apply to {matchedCount} Matched Week{matchedCount !== 1 ? "s" : ""}
             </button>
             <button
-              onClick={() => {
-                setRows(null);
-                setFileName(null);
-                setAppliedMessage(null);
-              }}
+              onClick={() => { setRows(null); setFileName(null); setAppliedMessage(null); }}
               className="text-xs font-medium px-3 py-1.5 rounded-md border border-[var(--border-subtle)] hover:border-brand-green hover:text-brand-green transition-colors"
             >
               Load Different File
             </button>
+            {summary.mappedRows > 0 && (
+              <span className="text-xs text-neutral-400">
+                {summary.mappedRows.toLocaleString()} rows mapped · {summary.unmappedRows.toLocaleString()} ignored
+              </span>
+            )}
           </div>
 
           {appliedMessage && (
             <div className="text-xs text-brand-green-dark bg-brand-green-tint rounded-md px-3 py-1.5">
-              {appliedMessage}
+              ✓ {appliedMessage}
             </div>
           )}
         </>
