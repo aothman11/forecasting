@@ -51,10 +51,15 @@ const HEADER_MATCHERS: Partial<Record<keyof SalesPlanRow, string[]>> = {
   netSalesValueSar: ["net sales value (sar)", "net sales value sar"],
 };
 
-// Flexible: "Week No. in 2026", "Week No in 2026", "Week No. In 2025", "Week# in 2026"
-const WEEK_OF_YEAR_PATTERN = /^week[\s#]*no\.?\s*(in|of)?\s*\d{4}$/i;
-// Fallback: "Week No. in Month", "Week No in Month", "Week# in Month"
-const WEEK_OF_MONTH_PATTERN = /^week[\s#]*no\.?\s*(in|of)?\s*month$/i;
+function isWeekOfYearColumn(header: string): boolean {
+  const s = header.trim().toLowerCase();
+  return s.includes("week") && s.includes("no") && /\d{4}/.test(s);
+}
+
+function isWeekOfMonthColumn(header: string): boolean {
+  const s = header.trim().toLowerCase();
+  return s.includes("week") && s.includes("no") && s.includes("month");
+}
 
 const FIELD_KEYS = Object.keys(HEADER_MATCHERS) as (keyof SalesPlanRow)[];
 
@@ -101,10 +106,10 @@ export function parseSalesPlan(buffer: ArrayBuffer): SalesPlanRow[] {
     const matchers = HEADER_MATCHERS[field]!;
     resolvedKey[field] = sourceKeys.find((k) => matchers.includes(k.trim().toLowerCase()));
   });
-  resolvedKey.weekOfYear = sourceKeys.find((k) => WEEK_OF_YEAR_PATTERN.test(k.trim()));
+  resolvedKey.weekOfYear = sourceKeys.find((k) => isWeekOfYearColumn(k));
 
   // Fallback column keys for deriving weekOfYear when the annual column is absent
-  const weekOfMonthKey = sourceKeys.find((k) => WEEK_OF_MONTH_PATTERN.test(k.trim()));
+  const weekOfMonthKey = sourceKeys.find((k) => isWeekOfMonthColumn(k));
   const yearMonthKey = resolvedKey.yearMonth; // "Year.Month" e.g. "2026.07"
 
   const parsed = rawRows
