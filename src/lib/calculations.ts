@@ -4,6 +4,8 @@ import type {
   CarcassYieldWeek,
   CutKey,
   CutPlanWeek,
+  DemandComparisonWeek,
+  DemandWeek,
   LiveBirdWeek,
   Parameters,
   PipelineResult,
@@ -401,4 +403,58 @@ export function computeSummaryMetrics(result: PipelineResult): SummaryMetrics {
     avgUtilizationPct,
     weeksWithCapacityBreach,
   };
+}
+
+// ---------- Demand Forecast (cross-cutting: demand vs. production plan) ----------
+
+/** Ensures a contiguous demand array for weeks 1..horizon, preserving existing edits by week. */
+export function ensureDemandHorizon(existing: DemandWeek[], horizonWeeks: number): DemandWeek[] {
+  const byWeek = new Map(existing.map((r) => [r.week, r]));
+  const rows: DemandWeek[] = [];
+  for (let w = 1; w <= horizonWeeks; w++) {
+    rows.push(byWeek.get(w) ?? { week: w, wcFreshKg: 0, wcFrozenKg: 0, fppKg: 0 });
+  }
+  return rows;
+}
+
+/** Seeds a demand forecast from the current production plan, as a starting point to adjust from. */
+export function demandFromProduction(family: ProductFamilyWeek[]): DemandWeek[] {
+  return family.map((f) => ({
+    week: f.week,
+    wcFreshKg: Math.round(f.wcFreshKg),
+    wcFrozenKg: Math.round(f.wcFrozenKg),
+    fppKg: Math.round(f.fppKg),
+  }));
+}
+
+export function computeDemandComparison(
+  demand: DemandWeek[],
+  family: ProductFamilyWeek[]
+): DemandComparisonWeek[] {
+  const familyByWeek = new Map(family.map((f) => [f.week, f]));
+  return demand.map((d): DemandComparisonWeek => {
+    const f = familyByWeek.get(d.week);
+    const wcFreshProductionKg = f?.wcFreshKg ?? 0;
+    const wcFrozenProductionKg = f?.wcFrozenKg ?? 0;
+    const fppProductionKg = f?.fppKg ?? 0;
+    const demandKg = d.wcFreshKg + d.wcFrozenKg + d.fppKg;
+    const productionKg = wcFreshProductionKg + wcFrozenProductionKg + fppProductionKg;
+    const varianceKg = productionKg - demandKg;
+    const fillRatePct = demandKg > 0 ? (productionKg / demandKg) * 100 : 100;
+
+    return {
+      week: d.week,
+      demandKg,
+      productionKg,
+      varianceKg,
+      fillRatePct,
+      wcFreshDemandKg: d.wcFreshKg,
+      wcFreshProductionKg,
+      wcFrozenDemandKg: d.wcFrozenKg,
+      wcFrozenProductionKg,
+      fppDemandKg: d.fppKg,
+      fppProductionKg,
+      shortfall: productionKg < demandKg,
+    };
+  });
 }

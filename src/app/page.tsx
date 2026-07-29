@@ -6,6 +6,7 @@ import { Sidebar } from "@/components/Sidebar";
 import { StepJourney } from "@/components/StepJourney";
 import { ParameterPanel } from "@/components/ParameterPanel";
 import { ScenarioCompare } from "@/components/ScenarioCompare";
+import { DemandForecast } from "@/components/DemandForecast";
 import { ExportButtons } from "@/components/shared/ExportButtons";
 import { ValidationBanner } from "@/components/shared/ValidationBanner";
 import { SummaryOverview } from "@/components/shared/SummaryOverview";
@@ -40,6 +41,7 @@ function StepContent({ step }: { step: number }) {
 export default function Home() {
   const selectedStep = usePlanStore((s) => s.selectedStep);
   const compareOpen = usePlanStore((s) => s.compareOpen);
+  const demandOpen = usePlanStore((s) => s.demandOpen);
   const assumptionsOpen = usePlanStore((s) => s.assumptionsOpen);
   const toggleAssumptions = usePlanStore((s) => s.toggleAssumptions);
   const { result, issues } = usePipeline();
@@ -56,7 +58,7 @@ export default function Home() {
         <div className="flex-1 flex flex-col min-w-0">
           <header className="h-14 border-b border-[var(--border-subtle)] bg-white flex items-center justify-between px-6 shrink-0">
             <div className="text-sm font-semibold text-neutral-700">
-              {compareOpen ? "Scenario Comparison" : currentLabel}
+              {compareOpen ? "Scenario Comparison" : demandOpen ? "Demand Forecast" : currentLabel}
             </div>
             <div className="flex items-center gap-3">
               <ExportButtons />
@@ -78,7 +80,13 @@ export default function Home() {
           <ValidationBanner issues={issues} />
 
           <main className="workbench-bg flex-1 overflow-y-auto p-6">
-            {compareOpen ? <ScenarioCompare /> : <StepContent step={selectedStep} />}
+            {compareOpen ? (
+              <ScenarioCompare />
+            ) : demandOpen ? (
+              <DemandForecast />
+            ) : (
+              <StepContent step={selectedStep} />
+            )}
           </main>
         </div>
 

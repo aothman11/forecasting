@@ -1,8 +1,14 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
-import type { Parameters, PlacementDayRow, PlantKey, ScenarioSnapshot } from "./types";
+import type { DemandWeek, Parameters, PlacementDayRow, PlantKey, ScenarioSnapshot } from "./types";
 import { DEFAULT_PARAMETERS } from "./defaults";
-import { ensurePlacementDaysHorizon, quickFillPlacementDays, fullCycleDays } from "./calculations";
+import {
+  ensureDemandHorizon,
+  ensurePlacementDaysHorizon,
+  quickFillPlacementDays,
+  fullCycleDays,
+} from "./calculations";
+import type { FreshFrozen, WholeOrFpp } from "./salesPlanImport";
 
 export const STEPS = [
   { id: 1, label: "Placement Plan", short: "Placement", icon: "🐣" },
@@ -22,10 +28,14 @@ function horizonDaysFor(params: Pick<Parameters, "planningHorizonWeeks">): numbe
 interface PlanState {
   params: Parameters;
   placementDays: PlacementDayRow[];
+  demand: DemandWeek[];
+  salesPlanDivisionMap: Record<string, FreshFrozen>;
+  salesPlanCategoryMap: Record<string, WholeOrFpp>;
   selectedStep: number;
   selectedPlant: PlantFilter;
   assumptionsOpen: boolean;
   compareOpen: boolean;
+  demandOpen: boolean;
   scenarios: ScenarioSnapshot[];
 
   setParam: (patch: Partial<Parameters>) => void;
@@ -33,6 +43,10 @@ interface PlanState {
   setPlacementDayRow: (dayIndex: number, patch: Partial<PlacementDayRow>) => void;
   setPlacementDays: (rows: PlacementDayRow[]) => void;
   quickFillPlacementPlan: () => void;
+  setDemandWeek: (week: number, patch: Partial<DemandWeek>) => void;
+  setDemand: (rows: DemandWeek[]) => void;
+  setSalesPlanDivisionMap: (map: Record<string, FreshFrozen>) => void;
+  setSalesPlanCategoryMap: (map: Record<string, WholeOrFpp>) => void;
   setHorizonWeeks: (weeks: number) => void;
   setPlanStartDate: (date: string) => void;
   resetToDefaults: () => void;
@@ -40,6 +54,7 @@ interface PlanState {
   setSelectedPlant: (plant: PlantFilter) => void;
   toggleAssumptions: () => void;
   setCompareOpen: (open: boolean) => void;
+  setDemandOpen: (open: boolean) => void;
   saveScenario: (name: string) => void;
   deleteScenario: (id: string) => void;
 }
@@ -55,10 +70,14 @@ export const usePlanStore = create<PlanState>()(
         DEFAULT_PARAMETERS.fridayOff,
         DEFAULT_PARAMETERS.chicksPerHouse
       ),
+      demand: ensureDemandHorizon([], DEFAULT_PARAMETERS.planningHorizonWeeks),
+      salesPlanDivisionMap: {},
+      salesPlanCategoryMap: {},
       selectedStep: 1,
       selectedPlant: "all",
       assumptionsOpen: false,
       compareOpen: false,
+      demandOpen: false,
       scenarios: [],
 
       setParam: (patch) =>
@@ -90,6 +109,16 @@ export const usePlanStore = create<PlanState>()(
 
       setPlacementDays: (rows) => set({ placementDays: rows }),
 
+      setDemandWeek: (week, patch) =>
+        set((s) => ({
+          demand: s.demand.map((r) => (r.week === week ? { ...r, ...patch } : r)),
+        })),
+
+      setDemand: (rows) => set({ demand: rows }),
+
+      setSalesPlanDivisionMap: (map) => set({ salesPlanDivisionMap: map }),
+      setSalesPlanCategoryMap: (map) => set({ salesPlanCategoryMap: map }),
+
       quickFillPlacementPlan: () =>
         set((s) => ({
           placementDays: quickFillPlacementDays(
@@ -112,6 +141,7 @@ export const usePlanStore = create<PlanState>()(
             s.params.fridayOff,
             s.params.chicksPerHouse
           ),
+          demand: ensureDemandHorizon(s.demand, weeks),
         })),
 
       setPlanStartDate: (date) =>
@@ -136,12 +166,14 @@ export const usePlanStore = create<PlanState>()(
             DEFAULT_PARAMETERS.fridayOff,
             DEFAULT_PARAMETERS.chicksPerHouse
           ),
+          demand: ensureDemandHorizon([], DEFAULT_PARAMETERS.planningHorizonWeeks),
         })),
 
       setSelectedStep: (step) => set({ selectedStep: step }),
       setSelectedPlant: (plant) => set({ selectedPlant: plant }),
       toggleAssumptions: () => set((s) => ({ assumptionsOpen: !s.assumptionsOpen })),
       setCompareOpen: (open) => set({ compareOpen: open }),
+      setDemandOpen: (open) => set({ demandOpen: open }),
 
       saveScenario: (name) =>
         set((s) => {
@@ -173,6 +205,9 @@ export const usePlanStore = create<PlanState>()(
       partialize: (s) => ({
         params: s.params,
         placementDays: s.placementDays,
+        demand: s.demand,
+        salesPlanDivisionMap: s.salesPlanDivisionMap,
+        salesPlanCategoryMap: s.salesPlanCategoryMap,
         scenarios: s.scenarios,
       }),
     }

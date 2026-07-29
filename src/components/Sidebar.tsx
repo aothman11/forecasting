@@ -8,6 +8,8 @@ export function Sidebar() {
   const setSelectedStep = usePlanStore((s) => s.setSelectedStep);
   const compareOpen = usePlanStore((s) => s.compareOpen);
   const setCompareOpen = usePlanStore((s) => s.setCompareOpen);
+  const demandOpen = usePlanStore((s) => s.demandOpen);
+  const setDemandOpen = usePlanStore((s) => s.setDemandOpen);
 
   return (
     <aside className="w-64 shrink-0 border-r border-[var(--border-subtle)] bg-white flex flex-col">
@@ -24,12 +26,13 @@ export function Sidebar() {
           Planning Steps
         </div>
         {STEPS.map((step) => {
-          const active = !compareOpen && selectedStep === step.id;
+          const active = !compareOpen && !demandOpen && selectedStep === step.id;
           return (
             <button
               key={step.id}
               onClick={() => {
                 setCompareOpen(false);
+                setDemandOpen(false);
                 setSelectedStep(step.id);
               }}
               className={`w-full text-left px-4 py-2.5 flex items-center gap-3 text-sm transition-colors ${
@@ -57,7 +60,30 @@ export function Sidebar() {
           Cross-Cutting
         </div>
         <button
-          onClick={() => setCompareOpen(true)}
+          onClick={() => {
+            setCompareOpen(false);
+            setDemandOpen(true);
+          }}
+          className={`w-full text-left px-4 py-2.5 flex items-center gap-3 text-sm transition-colors ${
+            demandOpen
+              ? "bg-brand-green-tint text-brand-green-dark font-semibold border-r-2 border-brand-green"
+              : "text-neutral-600 hover:bg-neutral-50"
+          }`}
+        >
+          <span
+            className={`flex items-center justify-center w-6 h-6 rounded-full text-[11px] font-semibold shrink-0 transition-shadow ${
+              demandOpen ? "bg-brand-green text-white shadow-sm shadow-brand-green/30" : "bg-neutral-200 text-neutral-600"
+            }`}
+          >
+            📊
+          </span>
+          Demand Forecast
+        </button>
+        <button
+          onClick={() => {
+            setDemandOpen(false);
+            setCompareOpen(true);
+          }}
           className={`w-full text-left px-4 py-2.5 flex items-center gap-3 text-sm transition-colors ${
             compareOpen
               ? "bg-brand-green-tint text-brand-green-dark font-semibold border-r-2 border-brand-green"

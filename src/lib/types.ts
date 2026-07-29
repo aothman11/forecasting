@@ -151,6 +151,29 @@ export type CutPlanWeek = {
   totalKg: number;
 };
 
+/** Step 1 manual input for the Demand Forecast comparison — one row per week. */
+export interface DemandWeek {
+  week: number;
+  wcFreshKg: number;
+  wcFrozenKg: number;
+  fppKg: number;
+}
+
+export interface DemandComparisonWeek {
+  week: number;
+  demandKg: number;
+  productionKg: number;
+  varianceKg: number;
+  fillRatePct: number;
+  wcFreshDemandKg: number;
+  wcFreshProductionKg: number;
+  wcFrozenDemandKg: number;
+  wcFrozenProductionKg: number;
+  fppDemandKg: number;
+  fppProductionKg: number;
+  shortfall: boolean;
+}
+
 export interface CarcassSizeWeek {
   week: number;
   sizes: Record<SizeKey, { birds: number; kg: number }>;

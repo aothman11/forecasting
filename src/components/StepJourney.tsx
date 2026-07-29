@@ -5,19 +5,23 @@ import { STEPS, usePlanStore } from "@/lib/store";
 export function StepJourney() {
   const selectedStep = usePlanStore((s) => s.selectedStep);
   const compareOpen = usePlanStore((s) => s.compareOpen);
+  const demandOpen = usePlanStore((s) => s.demandOpen);
   const setSelectedStep = usePlanStore((s) => s.setSelectedStep);
   const setCompareOpen = usePlanStore((s) => s.setCompareOpen);
+  const setDemandOpen = usePlanStore((s) => s.setDemandOpen);
+  const inStepView = !compareOpen && !demandOpen;
 
   return (
     <div className="flex items-center justify-center gap-1.5 px-6 py-3 bg-white border-b border-[var(--border-subtle)] overflow-x-auto">
       {STEPS.map((step, i) => {
-        const active = !compareOpen && selectedStep === step.id;
-        const done = !compareOpen && selectedStep > step.id;
+        const active = inStepView && selectedStep === step.id;
+        const done = inStepView && selectedStep > step.id;
         return (
           <div key={step.id} className="flex items-center gap-1.5 shrink-0">
             <button
               onClick={() => {
                 setCompareOpen(false);
+                setDemandOpen(false);
                 setSelectedStep(step.id);
               }}
               className="flex flex-col items-center gap-1 group"

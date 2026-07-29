@@ -1,8 +1,8 @@
 import * as XLSX from "xlsx";
 import type { PipelineResult } from "./types";
-import { activeCutKeys } from "./calculations";
+import { activeCutKeys, computeDemandComparison } from "./calculations";
 import { CUT_LABELS, DEFAULT_CHICKS_PER_HOUSE, PLANT_LABELS, SIZE_KEYS, SIZE_LABELS } from "./defaults";
-import type { Parameters as PlanParameters, PlacementDayRow } from "./types";
+import type { DemandWeek, Parameters as PlanParameters, PlacementDayRow } from "./types";
 
 function round(n: number, dp = 1): number {
   return Math.round(n * 10 ** dp) / 10 ** dp;
@@ -23,7 +23,12 @@ export function exportPlacementTemplate(
   XLSX.writeFile(wb, fileName);
 }
 
-export function exportPipelineToExcel(result: PipelineResult, params: PlanParameters, fileName = "awp-production-plan.xlsx") {
+export function exportPipelineToExcel(
+  result: PipelineResult,
+  params: PlanParameters,
+  fileName = "awp-production-plan.xlsx",
+  demand?: DemandWeek[]
+) {
   const wb = XLSX.utils.book_new();
 
   const placementSheet = result.placementDays.map((r) => ({
@@ -96,6 +101,25 @@ export function exportPipelineToExcel(result: PipelineResult, params: PlanParame
     "Total (kg)": round(r.totalKg, 0),
   }));
   XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(familySheet), "Product Family");
+
+  if (demand && demand.length > 0) {
+    const comparison = computeDemandComparison(demand, result.family);
+    const demandSheet = comparison.map((r) => ({
+      Week: r.week,
+      "WC Fresh Demand (kg)": round(r.wcFreshDemandKg, 0),
+      "WC Fresh Production (kg)": round(r.wcFreshProductionKg, 0),
+      "WC Frozen Demand (kg)": round(r.wcFrozenDemandKg, 0),
+      "WC Frozen Production (kg)": round(r.wcFrozenProductionKg, 0),
+      "FPP Demand (kg)": round(r.fppDemandKg, 0),
+      "FPP Production (kg)": round(r.fppProductionKg, 0),
+      "Total Demand (kg)": round(r.demandKg, 0),
+      "Total Production (kg)": round(r.productionKg, 0),
+      "Variance (kg)": round(r.varianceKg, 0),
+      "Fill Rate %": round(r.fillRatePct, 1),
+      Shortfall: r.shortfall ? "YES" : "",
+    }));
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(demandSheet), "Demand vs Production");
+  }
 
   const keys = activeCutKeys(params.legSplitMode);
   const cutSheet = result.cuts.map((r) => {
