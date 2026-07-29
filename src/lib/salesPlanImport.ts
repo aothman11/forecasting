@@ -63,41 +63,58 @@ function isWeekOfMonthColumn(header: string): boolean {
 
 const FIELD_KEYS = Object.keys(HEADER_MATCHERS) as (keyof SalesPlanRow)[];
 
-/** Find the 0-based row index that contains the actual column headers (tolerates title/blank rows above). */
-function findHeaderRowIndex(sheet: XLSX.WorkSheet): number {
-  const raw = XLSX.utils.sheet_to_json<unknown[]>(sheet, { header: 1, defval: "" });
-  for (let i = 0; i < Math.min(10, raw.length); i++) {
-    const cells = (raw[i] as unknown[]).map((c) => String(c ?? "").trim().toLowerCase());
-    const joined = cells.join(" ");
-    if (
-      joined.includes("division") ||
-      joined.includes("material category") ||
-      joined.includes("week no") ||
-      joined.includes("material code")
-    ) {
-      return i;
-    }
-  }
-  return 0;
+/** Robustly extract a number from a cell value — handles integers, floats, and mixed strings like "Wk 27". */
+function toNumber(raw: unknown): number {
+  if (typeof raw === "number") return isNaN(raw) ? 0 : raw;
+  const s = String(raw ?? "").trim();
+  const direct = Number(s);
+  if (!isNaN(direct)) return direct;
+  const m = s.match(/\d+(\.\d+)?/);
+  return m ? Number(m[0]) : 0;
 }
 
-/** Returns the raw column header names found in the file (for debugging when detection fails). */
+/** Find raw rows from the workbook, trying all sheets and multiple parse strategies. */
+function readRawRows(workbook: XLSX.WorkBook): Record<string, unknown>[] {
+  const looksLikeSalesPlan = (keys: string[]) =>
+    keys.some((k) => k.toLowerCase().includes("material") || k.toLowerCase().includes("division"));
+
+  for (const sheetName of workbook.SheetNames) {
+    const sheet = workbook.Sheets[sheetName];
+    if (!sheet) continue;
+
+    // Scan the first 10 rows to find the header row (handles title rows above data)
+    const allRows = XLSX.utils.sheet_to_json<unknown[]>(sheet, { header: 1, defval: "" });
+    for (let i = 0; i < Math.min(10, allRows.length); i++) {
+      const joined = (allRows[i] as unknown[]).map((c) => String(c ?? "").toLowerCase()).join(" ");
+      if (
+        joined.includes("material category") ||
+        joined.includes("material code") ||
+        joined.includes("week no") ||
+        joined.includes("division")
+      ) {
+        const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, { defval: "", range: i });
+        if (rows.length > 0 && looksLikeSalesPlan(Object.keys(rows[0]))) return rows;
+        break; // found the header row but parse failed — stop scanning this sheet
+      }
+    }
+
+    // Fallback: plain default parse
+    const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, { defval: "" });
+    if (rows.length > 0 && looksLikeSalesPlan(Object.keys(rows[0]))) return rows;
+  }
+  return [];
+}
+
+/** Returns the raw column header names found in the file (for debugging). */
 export function getSalesPlanHeaders(buffer: ArrayBuffer): string[] {
   const workbook = XLSX.read(buffer, { type: "array" });
-  const sheet = workbook.Sheets[workbook.SheetNames[0]];
-  if (!sheet) return [];
-  const headerRow = findHeaderRowIndex(sheet);
-  const rawRows = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, { defval: "", range: headerRow });
-  return rawRows.length > 0 ? Object.keys(rawRows[0]) : [];
+  const rows = readRawRows(workbook);
+  return rows.length > 0 ? Object.keys(rows[0]) : [];
 }
 
 export function parseSalesPlan(buffer: ArrayBuffer): SalesPlanRow[] {
   const workbook = XLSX.read(buffer, { type: "array" });
-  const sheet = workbook.Sheets[workbook.SheetNames[0]];
-  if (!sheet) return [];
-
-  const headerRow = findHeaderRowIndex(sheet);
-  const rawRows = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, { defval: "", range: headerRow });
+  const rawRows = readRawRows(workbook);
   if (rawRows.length === 0) return [];
 
   const sourceKeys = Object.keys(rawRows[0]);
@@ -108,30 +125,29 @@ export function parseSalesPlan(buffer: ArrayBuffer): SalesPlanRow[] {
   });
   resolvedKey.weekOfYear = sourceKeys.find((k) => isWeekOfYearColumn(k));
 
-  // Fallback column keys for deriving weekOfYear when the annual column is absent
   const weekOfMonthKey = sourceKeys.find((k) => isWeekOfMonthColumn(k));
-  const yearMonthKey = resolvedKey.yearMonth; // "Year.Month" e.g. "2026.07"
+  const yearMonthKey = resolvedKey.yearMonth;
 
-  const parsed = rawRows
+  return rawRows
     .map((row): SalesPlanRow => {
       const result = {} as SalesPlanRow;
       ([...FIELD_KEYS, "weekOfYear"] as (keyof SalesPlanRow)[]).forEach((field) => {
         const key = resolvedKey[field];
         const raw = key ? row[key] : "";
         if (NUMERIC_FIELDS.includes(field)) {
-          (result[field] as number) = Number(raw) || 0;
+          (result[field] as number) = toNumber(raw);
         } else {
           (result[field] as string) = String(raw ?? "").trim();
         }
       });
 
-      // Fallback: compute weekOfYear from Year.Month + Week No. in Month
+      // Fallback: derive weekOfYear from Year.Month + Week No. in Month
       if (result.weekOfYear === 0 && weekOfMonthKey && yearMonthKey) {
-        const weekInMonth = Number(row[weekOfMonthKey]) || 0;
-        const ym = String(row[yearMonthKey] ?? "").trim(); // "2026.07"
+        const weekInMonth = toNumber(row[weekOfMonthKey]);
+        const ym = String(row[yearMonthKey] ?? "").trim();
         const [yearStr, monthStr] = ym.split(/[.\-\/]/);
         const year = Number(yearStr);
-        const month = Number(monthStr); // 1-based
+        const month = Number(monthStr);
         if (year > 2000 && month >= 1 && month <= 12 && weekInMonth >= 1) {
           let week = 0;
           for (let m = 1; m < month; m++) {
@@ -144,8 +160,6 @@ export function parseSalesPlan(buffer: ArrayBuffer): SalesPlanRow[] {
       return result;
     })
     .filter((r) => r.materialCode || r.materialDescription);
-
-  return parsed;
 }
 
 export function distinctValues(rows: SalesPlanRow[], field: keyof SalesPlanRow): string[] {
