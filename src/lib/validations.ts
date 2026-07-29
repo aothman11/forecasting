@@ -1,5 +1,5 @@
 import type { Parameters, PipelineResult, ValidationIssue } from "./types";
-import { activeCutKeys, carcassSizeDistributionSum, cutYieldSum, fullCycleDays } from "./calculations";
+import { activeCutKeys, carcassSizeDistributionSum, cutYieldSum } from "./calculations";
 
 const PCT_TOLERANCE = 0.005; // 0.5 percentage points for exact-100 checks
 const CUT_TOLERANCE = 0.02; // ±2% for cut plan yields
@@ -10,23 +10,6 @@ function pctSum(...vals: number[]): number {
 
 export function validatePipeline(params: Parameters, result: PipelineResult): ValidationIssue[] {
   const issues: ValidationIssue[] = [];
-
-  // Rule 1: cumulative house placements vs. total houses across expected rotations
-  const rotationWeeks = Math.max(1, Math.round(fullCycleDays(params) / 7));
-  const expectedRotations = params.planningHorizonWeeks / rotationWeeks;
-  const cumulativeHouses = result.placement.reduce((s, r) => s + r.farmsPlacing, 0);
-  const maxAllowed = params.houseCount * expectedRotations;
-  if (cumulativeHouses > maxAllowed * 1.02) {
-    issues.push({
-      level: "warning",
-      step: "Placement Plan",
-      message: `Cumulative house placements (${Math.round(
-        cumulativeHouses
-      )}) exceed the expected ${params.houseCount} houses × ${expectedRotations.toFixed(
-        1
-      )} rotations (~${Math.round(maxAllowed)}) over the ${params.planningHorizonWeeks}-week horizon.`,
-    });
-  }
 
   // Rule 2: grade split sums to 100%
   const gradeSum = pctSum(params.gradeSplit.A, params.gradeSplit.B, params.gradeSplit.C);

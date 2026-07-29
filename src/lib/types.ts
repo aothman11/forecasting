@@ -81,7 +81,8 @@ export interface CarcassSizeDistribution {
 export type SizeKey = keyof CarcassSizeDistribution;
 
 export interface Parameters {
-  houseCount: number;
+  houseCount: number; // Quick Fill rate: houses placed per eligible day
+  housesPerFarm: number; // informational only — used to derive an approximate farm count
   chicksPerHouse: number;
   cycleLengthDays: number;
   downtimeDays: number;

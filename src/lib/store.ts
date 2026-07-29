@@ -2,12 +2,7 @@ import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import type { DemandWeek, Parameters, PlacementDayRow, PlantKey, ScenarioSnapshot } from "./types";
 import { DEFAULT_PARAMETERS } from "./defaults";
-import {
-  ensureDemandHorizon,
-  ensurePlacementDaysHorizon,
-  quickFillPlacementDays,
-  fullCycleDays,
-} from "./calculations";
+import { ensureDemandHorizon, ensurePlacementDaysHorizon, quickFillPlacementDays } from "./calculations";
 import type { FreshFrozen, WholeOrFpp } from "./salesPlanImport";
 
 export const STEPS = [
@@ -125,7 +120,6 @@ export const usePlanStore = create<PlanState>()(
             horizonDaysFor(s.params),
             s.params.houseCount,
             s.params.planStartDate,
-            fullCycleDays(s.params),
             s.params.fridayOff,
             s.params.chicksPerHouse
           ),
@@ -193,14 +187,20 @@ export const usePlanStore = create<PlanState>()(
     }),
     {
       name: "awp-broiler-forecast-store",
-      version: 3,
+      version: 4,
       // v2 switched Step 1 from weekly to daily placement rows (PlacementRow -> PlacementDayRow).
       // v3 replaced the farm-based model (totalFarms/dressingPct/chicksPerFarm) with the house-based
       // processing chain (houseCount/avgCarcassWeightKg/chicksPerHouse/...). Both changes touch nearly
-      // every field, so older persisted state is discarded wholesale rather than partially migrated.
+      // every field, so pre-v3 persisted state is discarded wholesale rather than partially migrated.
+      // v4 added housesPerFarm (purely additive/informational), so v3 state is backfilled instead.
       migrate: (persisted, version) => {
-        if (version >= 3) return persisted;
-        return { scenarios: [] };
+        if (version >= 4) return persisted;
+        if (version < 3) return { scenarios: [] };
+        const state = persisted as { params?: Parameters };
+        return {
+          ...(persisted as object),
+          params: state.params ? { ...DEFAULT_PARAMETERS, ...state.params } : undefined,
+        };
       },
       partialize: (s) => ({
         params: s.params,

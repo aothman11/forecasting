@@ -136,7 +136,22 @@ export function ParameterPanel() {
       </Section>
 
       <Section title="Flock & House Parameters">
-        <Field label="House count" value={params.houseCount} onChange={(v) => setParam({ houseCount: v })} />
+        <Field
+          label="Quick Fill rate (houses/day)"
+          value={params.houseCount}
+          onChange={(v) => setParam({ houseCount: v })}
+        />
+        <Field
+          label="Houses per farm"
+          value={params.housesPerFarm}
+          onChange={(v) => setParam({ housesPerFarm: v })}
+        />
+        <div className="flex items-center justify-between py-1 text-xs text-neutral-500">
+          <span>≈ Farms placing per day (derived)</span>
+          <span className="tabular-nums">
+            {params.housesPerFarm > 0 ? (params.houseCount / params.housesPerFarm).toFixed(2) : "—"}
+          </span>
+        </div>
         <Field
           label="Avg placed birds / house"
           value={params.chicksPerHouse}
@@ -302,7 +317,7 @@ export function ParameterPanel() {
           Reset to Defaults
         </button>
         <div className="text-[10px] text-neutral-400 mt-2 text-center">
-          Defaults reflect {DEFAULT_PARAMETERS.houseCount} houses · {DEFAULT_PARAMETERS.cycleLengthDays}d cycle
+          Defaults reflect {DEFAULT_PARAMETERS.houseCount} houses/day · {DEFAULT_PARAMETERS.cycleLengthDays}d cycle
         </div>
       </div>
     </aside>

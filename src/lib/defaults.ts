@@ -2,6 +2,7 @@ import type { CutYields, Parameters, SizeKey } from "./types";
 
 export const DEFAULT_PARAMETERS: Parameters = {
   houseCount: 27,
+  housesPerFarm: 16,
   chicksPerHouse: 28_500,
   cycleLengthDays: 25.5,
   downtimeDays: 14,

@@ -76,37 +76,23 @@ export function ensurePlacementDaysHorizon(
   return rows;
 }
 
-/**
- * Distributes `houseCount` houses evenly across each ~fullCycleDays rotation window, skipping
- * Fridays within that window when `fridayOff` is on, then tiles across the full horizon.
- */
+/** Places `houseCount` houses on every eligible day (skipping Fridays when `fridayOff` is on). */
 export function quickFillPlacementDays(
   horizonDays: number,
   houseCount: number,
   planStartDate: string,
-  fullCycleLenDays: number,
   fridayOff: boolean,
   chicksPerHouse: number = DEFAULT_CHICKS_PER_HOUSE
 ): PlacementDayRow[] {
-  const rotationDays = Math.max(1, Math.round(fullCycleLenDays));
-  const rows: PlacementDayRow[] = Array.from({ length: horizonDays }, (_, d) => ({
-    dayIndex: d,
-    date: dayIndexDate(planStartDate, d),
-    farmsPlacing: 0,
-    chicksPerHouse,
-  }));
-
-  for (let windowStart = 0; windowStart < horizonDays; windowStart += rotationDays) {
-    const windowEnd = Math.min(windowStart + rotationDays, horizonDays);
-    const eligible: number[] = [];
-    for (let d = windowStart; d < windowEnd; d++) {
-      if (!fridayOff || !isFridayDate(rows[d].date)) eligible.push(d);
-    }
-    if (eligible.length === 0) continue;
-    const base = Math.floor(houseCount / eligible.length);
-    const remainder = houseCount - base * eligible.length;
-    eligible.forEach((d, i) => {
-      rows[d].farmsPlacing = base + (i < remainder ? 1 : 0);
+  const rows: PlacementDayRow[] = [];
+  for (let d = 0; d < horizonDays; d++) {
+    const date = dayIndexDate(planStartDate, d);
+    const isOff = fridayOff && isFridayDate(date);
+    rows.push({
+      dayIndex: d,
+      date,
+      farmsPlacing: isOff ? 0 : houseCount,
+      chicksPerHouse,
     });
   }
   return rows;

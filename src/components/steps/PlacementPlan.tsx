@@ -125,8 +125,7 @@ export function PlacementPlan() {
         <SummaryCard
           label="Total House-Placements"
           value={totalHousesUsed.toLocaleString()}
-          sublabel={`vs. ${params.houseCount} houses in fleet`}
-          accent={totalHousesUsed > params.houseCount * (params.planningHorizonWeeks / 6) * 1.02 ? "alert" : "neutral"}
+          sublabel={`Quick Fill rate: ${params.houseCount}/day`}
         />
         <SummaryCard label="Horizon" value={`${placementDays.length} days`} sublabel={`${params.planningHorizonWeeks} weeks`} />
 
@@ -154,7 +153,7 @@ export function PlacementPlan() {
           onClick={quickFillPlacementPlan}
           className="text-xs font-medium px-3 py-1.5 rounded-md bg-brand-green text-white hover:bg-brand-green-dark transition-colors"
         >
-          Quick Fill ({params.houseCount} houses)
+          Quick Fill ({params.houseCount} houses/day)
         </button>
 
         <button
