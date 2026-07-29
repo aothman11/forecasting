@@ -56,12 +56,31 @@ const WEEK_OF_YEAR_PATTERN = /^week[\s#]*no\.?\s*(in|of)?\s*\d{4}$/i;
 
 const FIELD_KEYS = Object.keys(HEADER_MATCHERS) as (keyof SalesPlanRow)[];
 
+/** Find the 0-based row index that contains the actual column headers (tolerates title/blank rows above). */
+function findHeaderRowIndex(sheet: XLSX.WorkSheet): number {
+  const raw = XLSX.utils.sheet_to_json<unknown[]>(sheet, { header: 1, defval: "" });
+  for (let i = 0; i < Math.min(10, raw.length); i++) {
+    const cells = (raw[i] as unknown[]).map((c) => String(c ?? "").trim().toLowerCase());
+    const joined = cells.join(" ");
+    if (
+      joined.includes("division") ||
+      joined.includes("material category") ||
+      joined.includes("week no") ||
+      joined.includes("material code")
+    ) {
+      return i;
+    }
+  }
+  return 0;
+}
+
 export function parseSalesPlan(buffer: ArrayBuffer): SalesPlanRow[] {
   const workbook = XLSX.read(buffer, { type: "array" });
   const sheet = workbook.Sheets[workbook.SheetNames[0]];
   if (!sheet) return [];
 
-  const rawRows = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, { defval: "" });
+  const headerRow = findHeaderRowIndex(sheet);
+  const rawRows = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, { defval: "", range: headerRow });
   if (rawRows.length === 0) return [];
 
   const sourceKeys = Object.keys(rawRows[0]);
