@@ -132,7 +132,7 @@ export function HomeDashboard() {
       {/* Hero */}
       <div
         className="relative rounded-2xl overflow-hidden shadow-md border border-[var(--border-subtle)]"
-        style={{ backgroundImage: "url('/hero-bg.png')", backgroundSize: "cover", backgroundPosition: "center", minHeight: 200 }}
+        style={{ backgroundImage: "url('/hero-bg2.jpg')", backgroundSize: "cover", backgroundPosition: "center", minHeight: 200 }}
       >
         {/* subtle dark overlay to ensure text readability over the light image */}
         <div className="absolute inset-0 bg-gradient-to-b from-white/30 via-transparent to-black/20 pointer-events-none" />
