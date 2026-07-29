@@ -1,12 +1,12 @@
-// Domain types for the AWP Broiler Forecasting & Processing Plan pipeline.
+// Domain types for the AWP Production Forecast pipeline.
 // PlacementPlan -> LiveBirdForecast -> CarcassYield -> ProductFamilyAllocation -> CutPlan -> PlantDistribution
 
-/** Step 1 manual input — one row per calendar day. */
+/** Step 1 manual input — one row per calendar day. Friday rows are forced to 0 when fridayOff is on. */
 export interface PlacementDayRow {
   dayIndex: number; // 0-based offset from planStartDate
   date: string; // ISO date (yyyy-mm-dd)
-  farmsPlacing: number;
-  chicksPerFarm: number;
+  farmsPlacing: number; // houses placing that day
+  chicksPerHouse: number;
 }
 
 /** Weekly aggregate of the daily placement input, used by every downstream step. */
@@ -63,13 +63,36 @@ export type CutKey = keyof CutYields;
 
 export type PlantKey = "plant1" | "plant2" | "plant3";
 
+/** Fixed carcass weight classes (grams) used by the size-distribution breakdown. */
+export interface CarcassSizeDistribution {
+  size500: number;
+  size600: number;
+  size700: number;
+  size800: number;
+  size900: number;
+  size1000: number;
+  size1100: number;
+  size1200: number;
+  size1300: number;
+  size1400: number;
+  size1500: number;
+}
+
+export type SizeKey = keyof CarcassSizeDistribution;
+
 export interface Parameters {
-  totalFarms: number;
+  houseCount: number;
+  chicksPerHouse: number;
   cycleLengthDays: number;
   downtimeDays: number;
   mortalityRate: number;
   avgLiveWeightKg: number;
-  dressingPct: number;
+  avgCarcassWeightKg: number;
+  harvestMortalityRate: number;
+  doaRate: number;
+  culledRate: number;
+  pluckingRejectRate: number;
+  carcassSizeDistribution: CarcassSizeDistribution;
   hatcheryCapacity: number;
   hatchabilityRate: number;
   plantShares: PlantShares;
@@ -80,6 +103,7 @@ export interface Parameters {
   legSplitMode: boolean;
   planningHorizonWeeks: number;
   workingDaysPerWeek: number;
+  fridayOff: boolean;
   planStartDate: string; // ISO date for Week 1 start
 }
 
@@ -93,6 +117,15 @@ export interface LiveBirdWeek {
   totalPlantCapacity: number;
   utilizationPct: number;
   exceedsCapacity: boolean;
+  // Processing chain (Step A-F): harvestable -> dispatched -> electronic count -> slaughtered -> carcass weight.
+  harvestMortalityBirds: number;
+  dispatchedBirds: number;
+  doaBirds: number;
+  culledBirds: number;
+  electronicBirdCount: number;
+  pluckingRejectBirds: number;
+  slaughteredBirds: number;
+  slaughteredCarcassWeightKg: number;
 }
 
 export interface CarcassYieldWeek {
@@ -118,6 +151,11 @@ export type CutPlanWeek = {
   totalKg: number;
 };
 
+export interface CarcassSizeWeek {
+  week: number;
+  sizes: Record<SizeKey, { birds: number; kg: number }>;
+}
+
 export interface PlantWeek {
   week: number;
   plant: PlantKey;
@@ -140,6 +178,7 @@ export interface PipelineResult {
   placement: PlacementRow[];
   liveBird: LiveBirdWeek[];
   carcass: CarcassYieldWeek[];
+  carcassSizes: CarcassSizeWeek[];
   family: ProductFamilyWeek[];
   cuts: CutPlanWeek[];
   plants: PlantWeek[];

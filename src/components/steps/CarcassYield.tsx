@@ -2,17 +2,27 @@
 
 import { usePipeline } from "@/lib/usePipeline";
 import { usePlanStore } from "@/lib/store";
+import { carcassSizeDistributionSum } from "@/lib/calculations";
+import { SIZE_KEYS, SIZE_LABELS } from "@/lib/defaults";
 import { DataTable, type DataTableColumn } from "../shared/DataTable";
 import { SummaryCard } from "../shared/SummaryCard";
 import { GradeChart } from "../charts/GradeChart";
-import type { CarcassYieldWeek } from "@/lib/types";
+import type { CarcassYieldWeek, SizeKey } from "@/lib/types";
 
 function pct(v: number) {
-  return Math.round(v * 1000) / 10;
+  return Math.round(v * 10000) / 100;
 }
 
 function kg(n: number) {
   return Math.round(n).toLocaleString();
+}
+
+interface SizeRow {
+  key: SizeKey;
+  label: string;
+  distPct: number;
+  birds: number;
+  kg: number;
 }
 
 export function CarcassYield() {
@@ -73,12 +83,61 @@ export function CarcassYield() {
     },
   ];
 
+  const sizeDistSum = carcassSizeDistributionSum(params);
+  const sizeTotals: Record<SizeKey, { birds: number; kg: number }> = SIZE_KEYS.reduce((acc, key) => {
+    acc[key] = { birds: 0, kg: 0 };
+    return acc;
+  }, {} as Record<SizeKey, { birds: number; kg: number }>);
+  result.carcassSizes.forEach((week) => {
+    SIZE_KEYS.forEach((key) => {
+      sizeTotals[key].birds += week.sizes[key].birds;
+      sizeTotals[key].kg += week.sizes[key].kg;
+    });
+  });
+
+  const sizeRows: SizeRow[] = SIZE_KEYS.map((key) => ({
+    key,
+    label: SIZE_LABELS[key],
+    distPct: params.carcassSizeDistribution[key],
+    birds: sizeTotals[key].birds,
+    kg: sizeTotals[key].kg,
+  }));
+
+  const sizeColumns: DataTableColumn<SizeRow>[] = [
+    { key: "size", header: "Size", render: (r) => r.label },
+    {
+      key: "dist",
+      header: "Distribution %",
+      align: "right",
+      render: (r) => (
+        <input
+          type="number"
+          step={0.01}
+          value={pct(r.distPct)}
+          onChange={(e) =>
+            setParam({
+              carcassSizeDistribution: { ...params.carcassSizeDistribution, [r.key]: Number(e.target.value) / 100 },
+            })
+          }
+          className="w-16 text-right border border-[var(--border-subtle)] rounded px-1 py-0.5 tabular-nums"
+        />
+      ),
+      footer: (
+        <span className={Math.abs(sizeDistSum - 1) > 0.01 ? "text-brand-alert" : ""}>
+          Σ {(sizeDistSum * 100).toFixed(2)}%
+        </span>
+      ),
+    },
+    { key: "birds", header: "Bird Count", align: "right", render: (r) => Math.round(r.birds).toLocaleString() },
+    { key: "kg", header: "Weight (kg)", align: "right", render: (r) => kg(r.kg) },
+  ];
+
   return (
     <div className="space-y-4">
       <div>
         <h1 className="text-xl font-bold section-title">Step 3 — Carcass Yield &amp; Grade Split</h1>
         <p className="text-sm text-neutral-500 mt-0.5">
-          Live weight converted to carcass weight via dressing %, then split into grades.
+          Slaughtered carcass weight from the processing funnel, split into grades and weight classes.
         </p>
       </div>
 
@@ -115,6 +174,15 @@ export function CarcassYield() {
       <GradeChart data={rows} />
 
       <DataTable columns={columns} rows={rows} rowKey={(r) => r.week} />
+
+      <div>
+        <h2 className="text-base font-semibold section-title text-brand-green-dark">Carcass Size Distribution</h2>
+        <p className="text-xs text-neutral-500 mt-0.5">
+          Slaughtered birds split by carcass weight class, totalled over the full {rows.length}-week horizon.
+        </p>
+      </div>
+
+      <DataTable columns={sizeColumns} rows={sizeRows} rowKey={(r) => r.key} maxHeight="420px" />
     </div>
   );
 }

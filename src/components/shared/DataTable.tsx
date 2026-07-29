@@ -21,7 +21,7 @@ interface DataTableProps<T> {
 export function DataTable<T>({ columns, rows, rowKey, rowClassName, maxHeight }: DataTableProps<T>) {
   const hasFooter = columns.some((c) => c.footer !== undefined);
   return (
-    <div className="w-full overflow-x-auto rounded-lg border border-[var(--border-subtle)]">
+    <div className="w-full overflow-x-auto rounded-xl border border-[var(--border-subtle)] shadow-sm">
       <div className="overflow-y-auto" style={{ maxHeight: maxHeight ?? "560px" }}>
         <table className="data-grid text-sm tabular-nums">
           <thead>

@@ -34,6 +34,10 @@ body {
   letter-spacing: -0.01em;
 }
 
+.workbench-bg {
+  background: linear-gradient(180deg, #f2f8f4 0%, #fafbfa 320px, #fafbfa 100%);
+}
+
 table.data-grid {
   border-collapse: collapse;
   width: 100%;

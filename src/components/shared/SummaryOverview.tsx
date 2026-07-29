@@ -10,7 +10,7 @@ export function SummaryOverview({ result }: { result: PipelineResult }) {
 
   return (
     <div className="bg-white p-6" style={{ width: 900 }}>
-      <div className="text-xl font-bold text-brand-green mb-1">AWP Broiler Forecast — Summary</div>
+      <div className="text-xl font-bold text-brand-green mb-1">AWP Production Forecast — Summary</div>
       <div className="text-xs text-neutral-500 mb-4">
         {result.placement.length}-week planning horizon · generated {new Date().toLocaleDateString()}
       </div>

@@ -1,12 +1,30 @@
-import type { CutYields, Parameters } from "./types";
+import type { CutYields, Parameters, SizeKey } from "./types";
 
 export const DEFAULT_PARAMETERS: Parameters = {
-  totalFarms: 93,
+  houseCount: 27,
+  chicksPerHouse: 28_500,
   cycleLengthDays: 25.5,
   downtimeDays: 14,
   mortalityRate: 0.05,
-  avgLiveWeightKg: 1.75,
-  dressingPct: 0.72,
+  avgLiveWeightKg: 1.22,
+  avgCarcassWeightKg: 0.83,
+  harvestMortalityRate: 0.002,
+  doaRate: 0.005,
+  culledRate: 0.002,
+  pluckingRejectRate: 0.006,
+  carcassSizeDistribution: {
+    size500: 0.0135,
+    size600: 0.05,
+    size700: 0.163,
+    size800: 0.33,
+    size900: 0.305,
+    size1000: 0.116,
+    size1100: 0.02,
+    size1200: 0.002,
+    size1300: 0.0002,
+    size1400: 0.0002,
+    size1500: 0.0001,
+  },
   hatcheryCapacity: 1_235_000,
   hatchabilityRate: 0.87,
   plantShares: {
@@ -43,10 +61,11 @@ export const DEFAULT_PARAMETERS: Parameters = {
   legSplitMode: false,
   planningHorizonWeeks: 16,
   workingDaysPerWeek: 6,
+  fridayOff: true,
   planStartDate: new Date().toISOString().slice(0, 10),
 };
 
-export const DEFAULT_CHICKS_PER_FARM = 30_000;
+export const DEFAULT_CHICKS_PER_HOUSE = 28_500;
 
 export const CUT_LABELS: Record<keyof CutYields, string> = {
   breastBoneIn: "Breast (bone-in)",
@@ -64,6 +83,48 @@ export const PLANT_LABELS: Record<"plant1" | "plant2" | "plant3", string> = {
   plant1: "Plant 1",
   plant2: "Plant 2",
   plant3: "Plant 3",
+};
+
+export const SIZE_KEYS: SizeKey[] = [
+  "size500",
+  "size600",
+  "size700",
+  "size800",
+  "size900",
+  "size1000",
+  "size1100",
+  "size1200",
+  "size1300",
+  "size1400",
+  "size1500",
+];
+
+export const SIZE_KG: Record<SizeKey, number> = {
+  size500: 0.5,
+  size600: 0.6,
+  size700: 0.7,
+  size800: 0.8,
+  size900: 0.9,
+  size1000: 1.0,
+  size1100: 1.1,
+  size1200: 1.2,
+  size1300: 1.3,
+  size1400: 1.4,
+  size1500: 1.5,
+};
+
+export const SIZE_LABELS: Record<SizeKey, string> = {
+  size500: "500g",
+  size600: "600g",
+  size700: "700g",
+  size800: "800g",
+  size900: "900g",
+  size1000: "1000g",
+  size1100: "1100g",
+  size1200: "1200g",
+  size1300: "1300g",
+  size1400: "1400g",
+  size1500: "1500g",
 };
 
 export const MIN_HORIZON_WEEKS = 16;

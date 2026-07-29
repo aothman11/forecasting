@@ -4,16 +4,16 @@ import { format } from "date-fns";
 export interface ParsedPlacementRow {
   date: string;
   farmsPlacing?: number;
-  chicksPerFarm?: number;
+  chicksPerHouse?: number;
 }
 
 // Matches "House Placing" (current label) and "Farms Placing" (older templates), but never the
-// "Chicks per Farm" column, which also contains the substring "farm".
+// "Chicks per House" column, which also contains the substring "farm".
 function isHouseColumnHeader(h: string): boolean {
   return h.includes("house") || (h.includes("farm") && !h.includes("chick"));
 }
 
-/** Parses a CSV with headers Placement Date, House Placing, Chicks per Farm (order-insensitive). */
+/** Parses a CSV with headers Placement Date, House Placing, Chicks per House (order-insensitive). */
 export function parsePlacementCSV(text: string): ParsedPlacementRow[] {
   const lines = text.trim().split(/\r?\n/);
   if (lines.length < 2) return [];
@@ -21,7 +21,7 @@ export function parsePlacementCSV(text: string): ParsedPlacementRow[] {
   const idx = {
     date: headers.findIndex((h) => h.includes("date")),
     farmsPlacing: headers.findIndex(isHouseColumnHeader),
-    chicksPerFarm: headers.findIndex((h) => h.includes("chick")),
+    chicksPerHouse: headers.findIndex((h) => h.includes("chick")),
   };
   if (idx.date < 0) return [];
 
@@ -32,7 +32,7 @@ export function parsePlacementCSV(text: string): ParsedPlacementRow[] {
       const cells = line.split(",").map((c) => c.trim());
       const row: ParsedPlacementRow = { date: cells[idx.date] };
       if (idx.farmsPlacing >= 0) row.farmsPlacing = Number(cells[idx.farmsPlacing]);
-      if (idx.chicksPerFarm >= 0) row.chicksPerFarm = Number(cells[idx.chicksPerFarm]);
+      if (idx.chicksPerHouse >= 0) row.chicksPerHouse = Number(cells[idx.chicksPerHouse]);
       return row;
     });
 }
@@ -42,7 +42,7 @@ function normalizeDateCell(value: unknown): string {
   return String(value ?? "").trim();
 }
 
-/** Parses the first sheet of an .xlsx/.xls workbook with headers Placement Date, House Placing, Chicks per Farm. */
+/** Parses the first sheet of an .xlsx/.xls workbook with headers Placement Date, House Placing, Chicks per House. */
 export function parsePlacementExcel(buffer: ArrayBuffer): ParsedPlacementRow[] {
   const workbook = XLSX.read(buffer, { type: "array", cellDates: true });
   const sheet = workbook.Sheets[workbook.SheetNames[0]];
@@ -59,7 +59,7 @@ export function parsePlacementExcel(buffer: ArrayBuffer): ParsedPlacementRow[] {
 
       const parsed: ParsedPlacementRow = { date: dateKey ? normalizeDateCell(row[dateKey]) : "" };
       if (farmsKey) parsed.farmsPlacing = Number(row[farmsKey]);
-      if (chicksKey) parsed.chicksPerFarm = Number(row[chicksKey]);
+      if (chicksKey) parsed.chicksPerHouse = Number(row[chicksKey]);
       return parsed;
     })
     .filter((r) => r.date);

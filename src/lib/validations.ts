@@ -1,5 +1,5 @@
 import type { Parameters, PipelineResult, ValidationIssue } from "./types";
-import { activeCutKeys, cutYieldSum, fullCycleDays } from "./calculations";
+import { activeCutKeys, carcassSizeDistributionSum, cutYieldSum, fullCycleDays } from "./calculations";
 
 const PCT_TOLERANCE = 0.005; // 0.5 percentage points for exact-100 checks
 const CUT_TOLERANCE = 0.02; // ±2% for cut plan yields
@@ -11,18 +11,18 @@ function pctSum(...vals: number[]): number {
 export function validatePipeline(params: Parameters, result: PipelineResult): ValidationIssue[] {
   const issues: ValidationIssue[] = [];
 
-  // Rule 1: cumulative farm placements vs. total farms across expected rotations
+  // Rule 1: cumulative house placements vs. total houses across expected rotations
   const rotationWeeks = Math.max(1, Math.round(fullCycleDays(params) / 7));
   const expectedRotations = params.planningHorizonWeeks / rotationWeeks;
-  const cumulativeFarms = result.placement.reduce((s, r) => s + r.farmsPlacing, 0);
-  const maxAllowed = params.totalFarms * expectedRotations;
-  if (cumulativeFarms > maxAllowed * 1.02) {
+  const cumulativeHouses = result.placement.reduce((s, r) => s + r.farmsPlacing, 0);
+  const maxAllowed = params.houseCount * expectedRotations;
+  if (cumulativeHouses > maxAllowed * 1.02) {
     issues.push({
       level: "warning",
       step: "Placement Plan",
-      message: `Cumulative farm placements (${Math.round(
-        cumulativeFarms
-      )}) exceed the expected ${params.totalFarms} farms × ${expectedRotations.toFixed(
+      message: `Cumulative house placements (${Math.round(
+        cumulativeHouses
+      )}) exceed the expected ${params.houseCount} houses × ${expectedRotations.toFixed(
         1
       )} rotations (~${Math.round(maxAllowed)}) over the ${params.planningHorizonWeeks}-week horizon.`,
     });
@@ -61,6 +61,16 @@ export function validatePipeline(params: Parameters, result: PipelineResult): Va
       message: `Cut yields (${mode} mode) sum to ${(cutSum * 100).toFixed(
         1
       )}%, outside the ±2% tolerance around 100%.`,
+    });
+  }
+
+  // Rule 4b: carcass size distribution must sum to ~100% (±1%)
+  const sizeSum = carcassSizeDistributionSum(params);
+  if (Math.abs(sizeSum - 1) > 0.01) {
+    issues.push({
+      level: "warning",
+      step: "Carcass Size Distribution",
+      message: `Carcass size distribution sums to ${(sizeSum * 100).toFixed(2)}%, not 100%.`,
     });
   }
 

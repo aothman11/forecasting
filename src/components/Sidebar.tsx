@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { STEPS, usePlanStore } from "@/lib/store";
 
 export function Sidebar() {
@@ -10,9 +11,10 @@ export function Sidebar() {
 
   return (
     <aside className="w-64 shrink-0 border-r border-[var(--border-subtle)] bg-white flex flex-col">
-      <div className="px-4 py-4 border-b border-[var(--border-subtle)]">
+      <div className="px-4 py-4 border-b border-[var(--border-subtle)] bg-gradient-to-br from-brand-green-tint to-white">
+        <Image src="/alwatania-logo-white.png" alt="Al-Watania Poultry" width={140} height={70} className="h-10 w-auto mb-2" priority />
         <div className="text-lg font-bold text-brand-green section-title leading-tight">
-          AWP Broiler Forecast
+          AWP Production Forecast
         </div>
         <div className="text-[11px] text-neutral-500 mt-0.5">Placement → Processing Plan</div>
       </div>
@@ -37,8 +39,8 @@ export function Sidebar() {
               }`}
             >
               <span
-                className={`flex items-center justify-center w-5 h-5 rounded-full text-[11px] shrink-0 ${
-                  active ? "bg-brand-green text-white" : "bg-neutral-200 text-neutral-600"
+                className={`flex items-center justify-center w-6 h-6 rounded-full text-[11px] font-semibold shrink-0 transition-shadow ${
+                  active ? "bg-brand-green text-white shadow-sm shadow-brand-green/30" : "bg-neutral-200 text-neutral-600"
                 }`}
               >
                 {step.id}
@@ -60,8 +62,8 @@ export function Sidebar() {
           }`}
         >
           <span
-            className={`flex items-center justify-center w-5 h-5 rounded-full text-[11px] shrink-0 ${
-              compareOpen ? "bg-brand-green text-white" : "bg-neutral-200 text-neutral-600"
+            className={`flex items-center justify-center w-6 h-6 rounded-full text-[11px] font-semibold shrink-0 transition-shadow ${
+              compareOpen ? "bg-brand-green text-white shadow-sm shadow-brand-green/30" : "bg-neutral-200 text-neutral-600"
             }`}
           >
             ⇄

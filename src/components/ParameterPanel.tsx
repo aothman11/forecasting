@@ -1,8 +1,8 @@
 "use client";
 
 import { usePlanStore } from "@/lib/store";
-import { DEFAULT_PARAMETERS, MAX_HORIZON_WEEKS, MIN_HORIZON_WEEKS } from "@/lib/defaults";
-import { fullCycleDays } from "@/lib/calculations";
+import { DEFAULT_PARAMETERS, MAX_HORIZON_WEEKS, MIN_HORIZON_WEEKS, SIZE_KEYS, SIZE_LABELS } from "@/lib/defaults";
+import { carcassSizeDistributionSum, carcassYieldPct, fullCycleDays } from "@/lib/calculations";
 import type { Parameters } from "@/lib/types";
 
 function Field({
@@ -39,18 +39,20 @@ function PercentField({
   label,
   value,
   onChange,
+  step = 0.5,
 }: {
   label: string;
   value: number;
   onChange: (v: number) => void;
+  step?: number;
 }) {
   return (
     <Field
       label={label}
-      value={Math.round(value * 1000) / 10}
+      value={Math.round(value * 10000) / 100}
       onChange={(v) => onChange(v / 100)}
       suffix="%"
-      step={0.5}
+      step={step}
     />
   );
 }
@@ -90,6 +92,12 @@ export function ParameterPanel() {
     setParam({ cutYields: { ...params.cutYields, [key]: v } });
   };
 
+  const patchSize = (key: (typeof SIZE_KEYS)[number], v: number) => {
+    setParam({ carcassSizeDistribution: { ...params.carcassSizeDistribution, [key]: v } });
+  };
+
+  const sizeSum = carcassSizeDistributionSum(params);
+
   return (
     <aside className="w-[320px] shrink-0 border-l border-[var(--border-subtle)] bg-white flex flex-col overflow-y-auto">
       <div className="px-4 py-3 border-b border-[var(--border-subtle)] flex items-center justify-between sticky top-0 bg-white z-10">
@@ -117,10 +125,24 @@ export function ParameterPanel() {
           />
         </label>
         <Field label="Working days / week" value={params.workingDaysPerWeek} onChange={(v) => setParam({ workingDaysPerWeek: v })} />
+        <label className="flex items-center justify-between gap-2 py-1 text-xs">
+          <span className="text-neutral-600">Friday off (placement &amp; catching)</span>
+          <input
+            type="checkbox"
+            checked={params.fridayOff}
+            onChange={(e) => setParam({ fridayOff: e.target.checked })}
+          />
+        </label>
       </Section>
 
-      <Section title="Flock & Farm Parameters">
-        <Field label="Total broiler farms" value={params.totalFarms} onChange={(v) => setParam({ totalFarms: v })} />
+      <Section title="Flock & House Parameters">
+        <Field label="House count" value={params.houseCount} onChange={(v) => setParam({ houseCount: v })} />
+        <Field
+          label="Avg placed birds / house"
+          value={params.chicksPerHouse}
+          step={100}
+          onChange={(v) => setParam({ chicksPerHouse: v })}
+        />
         <Field
           label="Cycle length (days)"
           value={params.cycleLengthDays}
@@ -134,13 +156,52 @@ export function ParameterPanel() {
         </div>
         <PercentField label="Mortality rate" value={params.mortalityRate} onChange={(v) => setParam({ mortalityRate: v })} />
         <Field
-          label="Avg live weight"
+          label="Avg live weight (ALW)"
           value={params.avgLiveWeightKg}
-          step={0.05}
+          step={0.01}
           suffix="kg"
           onChange={(v) => setParam({ avgLiveWeightKg: v })}
         />
-        <PercentField label="Dressing %" value={params.dressingPct} onChange={(v) => setParam({ dressingPct: v })} />
+        <Field
+          label="Avg carcass weight (ACW)"
+          value={params.avgCarcassWeightKg}
+          step={0.01}
+          suffix="kg"
+          onChange={(v) => setParam({ avgCarcassWeightKg: v })}
+        />
+        <div className="flex items-center justify-between py-1 text-xs text-neutral-500">
+          <span>Carcass yield % (derived = ACW / ALW)</span>
+          <span className="tabular-nums font-semibold text-brand-green-dark">
+            {(carcassYieldPct(params) * 100).toFixed(2)}%
+          </span>
+        </div>
+      </Section>
+
+      <Section title="Processing Losses">
+        <PercentField
+          label="Harvest mortality %"
+          value={params.harvestMortalityRate}
+          step={0.05}
+          onChange={(v) => setParam({ harvestMortalityRate: v })}
+        />
+        <PercentField
+          label="Dead on arrival (DOA) %"
+          value={params.doaRate}
+          step={0.05}
+          onChange={(v) => setParam({ doaRate: v })}
+        />
+        <PercentField
+          label="Culled birds %"
+          value={params.culledRate}
+          step={0.05}
+          onChange={(v) => setParam({ culledRate: v })}
+        />
+        <PercentField
+          label="Plucking reject %"
+          value={params.pluckingRejectRate}
+          step={0.05}
+          onChange={(v) => setParam({ pluckingRejectRate: v })}
+        />
       </Section>
 
       <Section title="Hatchery">
@@ -178,6 +239,21 @@ export function ParameterPanel() {
         <PercentField label="Grade A" value={params.gradeSplit.A} onChange={(v) => setParam({ gradeSplit: { ...params.gradeSplit, A: v } })} />
         <PercentField label="Grade B" value={params.gradeSplit.B} onChange={(v) => setParam({ gradeSplit: { ...params.gradeSplit, B: v } })} />
         <PercentField label="Grade C / Reject" value={params.gradeSplit.C} onChange={(v) => setParam({ gradeSplit: { ...params.gradeSplit, C: v } })} />
+      </Section>
+
+      <Section title="Carcass Size Distribution">
+        {SIZE_KEYS.map((key) => (
+          <PercentField
+            key={key}
+            label={SIZE_LABELS[key]}
+            value={params.carcassSizeDistribution[key]}
+            step={0.01}
+            onChange={(v) => patchSize(key, v)}
+          />
+        ))}
+        <div className={`text-xs mt-1 ${Math.abs(sizeSum - 1) > 0.01 ? "text-brand-alert font-semibold" : "text-neutral-400"}`}>
+          Σ {(sizeSum * 100).toFixed(2)}%
+        </div>
       </Section>
 
       <Section title="Product Family Allocation">
@@ -226,7 +302,7 @@ export function ParameterPanel() {
           Reset to Defaults
         </button>
         <div className="text-[10px] text-neutral-400 mt-2 text-center">
-          Defaults reflect {DEFAULT_PARAMETERS.totalFarms} farms · {DEFAULT_PARAMETERS.cycleLengthDays}d cycle
+          Defaults reflect {DEFAULT_PARAMETERS.houseCount} houses · {DEFAULT_PARAMETERS.cycleLengthDays}d cycle
         </div>
       </div>
     </aside>

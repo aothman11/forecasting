@@ -1,7 +1,7 @@
 import * as XLSX from "xlsx";
 import type { PipelineResult } from "./types";
 import { activeCutKeys } from "./calculations";
-import { CUT_LABELS, DEFAULT_CHICKS_PER_FARM, PLANT_LABELS } from "./defaults";
+import { CUT_LABELS, DEFAULT_CHICKS_PER_HOUSE, PLANT_LABELS, SIZE_KEYS, SIZE_LABELS } from "./defaults";
 import type { Parameters as PlanParameters, PlacementDayRow } from "./types";
 
 function round(n: number, dp = 1): number {
@@ -17,20 +17,20 @@ export function exportPlacementTemplate(
   const sheet = placementDays.map((d) => ({
     "Placement Date": d.date,
     "House Placing": "",
-    "Chicks per Farm": DEFAULT_CHICKS_PER_FARM,
+    "Chicks per House": DEFAULT_CHICKS_PER_HOUSE,
   }));
   XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(sheet), "Placement Plan");
   XLSX.writeFile(wb, fileName);
 }
 
-export function exportPipelineToExcel(result: PipelineResult, params: PlanParameters, fileName = "awp-broiler-plan.xlsx") {
+export function exportPipelineToExcel(result: PipelineResult, params: PlanParameters, fileName = "awp-production-plan.xlsx") {
   const wb = XLSX.utils.book_new();
 
   const placementSheet = result.placementDays.map((r) => ({
     "Placement Date": r.date,
     "House Placing": r.farmsPlacing,
-    "Chicks per Farm": r.chicksPerFarm,
-    "Total Chicks Placed": r.farmsPlacing * r.chicksPerFarm,
+    "Chicks per House": r.chicksPerHouse,
+    "Total Chicks Placed": r.farmsPlacing * r.chicksPerHouse,
   }));
   XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(placementSheet), "Placement Plan");
 
@@ -46,6 +46,20 @@ export function exportPipelineToExcel(result: PipelineResult, params: PlanParame
   }));
   XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(liveBirdSheet), "Live Bird Forecast");
 
+  const funnelSheet = result.liveBird.map((r) => ({
+    Week: r.week,
+    "Harvestable Birds": round(r.harvestableBirds, 0),
+    "Harvest Mortality (0.2%)": round(r.harvestMortalityBirds, 0),
+    "Dispatched Birds": round(r.dispatchedBirds, 0),
+    "DOA (0.5%)": round(r.doaBirds, 0),
+    "Culled (0.2%)": round(r.culledBirds, 0),
+    "Electronic Bird Count": round(r.electronicBirdCount, 0),
+    "Plucking Rejects (0.6%)": round(r.pluckingRejectBirds, 0),
+    "Slaughtered Birds": round(r.slaughteredBirds, 0),
+    "Slaughtered Carcass Weight (kg)": round(r.slaughteredCarcassWeightKg, 0),
+  }));
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(funnelSheet), "Processing Funnel");
+
   const carcassSheet = result.carcass.map((r) => ({
     Week: r.week,
     "Carcass (PC)": round(r.carcassCountPc, 0),
@@ -55,6 +69,24 @@ export function exportPipelineToExcel(result: PipelineResult, params: PlanParame
     "Grade C (kg)": round(r.gradeCKg, 0),
   }));
   XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(carcassSheet), "Carcass Yield");
+
+  const sizeTotals = SIZE_KEYS.reduce((acc, key) => {
+    acc[key] = { birds: 0, kg: 0 };
+    return acc;
+  }, {} as Record<(typeof SIZE_KEYS)[number], { birds: number; kg: number }>);
+  result.carcassSizes.forEach((week) => {
+    SIZE_KEYS.forEach((key) => {
+      sizeTotals[key].birds += week.sizes[key].birds;
+      sizeTotals[key].kg += week.sizes[key].kg;
+    });
+  });
+  const sizeSheet = SIZE_KEYS.map((key) => ({
+    Size: SIZE_LABELS[key],
+    "Distribution %": round(params.carcassSizeDistribution[key] * 100, 2),
+    "Bird Count": round(sizeTotals[key].birds, 0),
+    "Weight (kg)": round(sizeTotals[key].kg, 0),
+  }));
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(sizeSheet), "Carcass Size Distribution");
 
   const familySheet = result.family.map((r) => ({
     Week: r.week,
@@ -93,7 +125,7 @@ export function exportPipelineToExcel(result: PipelineResult, params: PlanParame
   XLSX.writeFile(wb, fileName);
 }
 
-export async function exportSummaryToPDF(elementId: string, fileName = "awp-broiler-summary.pdf") {
+export async function exportSummaryToPDF(elementId: string, fileName = "awp-production-summary.pdf") {
   const [{ default: html2canvas }, { jsPDF }] = await Promise.all([
     import("html2canvas"),
     import("jspdf"),

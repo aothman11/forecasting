@@ -1,5 +1,6 @@
 import { addDays, differenceInCalendarDays, format } from "date-fns";
 import type {
+  CarcassSizeWeek,
   CarcassYieldWeek,
   CutKey,
   CutPlanWeek,
@@ -12,7 +13,7 @@ import type {
   PlantWeek,
   ProductFamilyWeek,
 } from "./types";
-import { DEFAULT_CHICKS_PER_FARM } from "./defaults";
+import { DEFAULT_CHICKS_PER_HOUSE, SIZE_KEYS, SIZE_KG } from "./defaults";
 
 // ---------- shared helpers ----------
 
@@ -22,6 +23,11 @@ export function weekStartDate(planStartDate: string, week: number): string {
 
 export function dayIndexDate(planStartDate: string, dayIndex: number): string {
   return format(addDays(new Date(planStartDate), dayIndex), "yyyy-MM-dd");
+}
+
+/** JS Date.getDay(): 0=Sun ... 5=Fri ... 6=Sat. */
+export function isFridayDate(dateStr: string): boolean {
+  return new Date(dateStr).getDay() === 5;
 }
 
 export function harvestOffsetWeeks(cycleLengthDays: number): number {
@@ -45,47 +51,60 @@ export function ensurePlacementDaysHorizon(
   existing: PlacementDayRow[],
   horizonDays: number,
   planStartDate: string,
-  defaultChicksPerFarm: number = DEFAULT_CHICKS_PER_FARM
+  fridayOff: boolean,
+  defaultChicksPerHouse: number = DEFAULT_CHICKS_PER_HOUSE
 ): PlacementDayRow[] {
   const byIndex = new Map(existing.map((r) => [r.dayIndex, r]));
   const rows: PlacementDayRow[] = [];
   for (let d = 0; d < horizonDays; d++) {
+    const date = dayIndexDate(planStartDate, d);
     const prior = byIndex.get(d);
+    const forceOff = fridayOff && isFridayDate(date);
     rows.push(
       prior
-        ? { ...prior, date: dayIndexDate(planStartDate, d) }
+        ? { ...prior, date, farmsPlacing: forceOff ? 0 : prior.farmsPlacing }
         : {
             dayIndex: d,
-            date: dayIndexDate(planStartDate, d),
+            date,
             farmsPlacing: 0,
-            chicksPerFarm: defaultChicksPerFarm,
+            chicksPerHouse: defaultChicksPerHouse,
           }
     );
   }
   return rows;
 }
 
-/** Distributes `totalFarms` evenly across a rotation of ~fullCycleDays days, then tiles it across the horizon. */
+/**
+ * Distributes `houseCount` houses evenly across each ~fullCycleDays rotation window, skipping
+ * Fridays within that window when `fridayOff` is on, then tiles across the full horizon.
+ */
 export function quickFillPlacementDays(
   horizonDays: number,
-  totalFarms: number,
+  houseCount: number,
   planStartDate: string,
   fullCycleLenDays: number,
-  chicksPerFarm: number = DEFAULT_CHICKS_PER_FARM
+  fridayOff: boolean,
+  chicksPerHouse: number = DEFAULT_CHICKS_PER_HOUSE
 ): PlacementDayRow[] {
   const rotationDays = Math.max(1, Math.round(fullCycleLenDays));
-  const base = Math.floor(totalFarms / rotationDays);
-  const remainder = totalFarms - base * rotationDays;
-  // first `remainder` days of the rotation get one extra farm so the rotation sums to totalFarms exactly
-  const pattern = Array.from({ length: rotationDays }, (_, i) => base + (i < remainder ? 1 : 0));
+  const rows: PlacementDayRow[] = Array.from({ length: horizonDays }, (_, d) => ({
+    dayIndex: d,
+    date: dayIndexDate(planStartDate, d),
+    farmsPlacing: 0,
+    chicksPerHouse,
+  }));
 
-  const rows: PlacementDayRow[] = [];
-  for (let d = 0; d < horizonDays; d++) {
-    rows.push({
-      dayIndex: d,
-      date: dayIndexDate(planStartDate, d),
-      farmsPlacing: pattern[d % rotationDays],
-      chicksPerFarm,
+  for (let windowStart = 0; windowStart < horizonDays; windowStart += rotationDays) {
+    const windowEnd = Math.min(windowStart + rotationDays, horizonDays);
+    const eligible: number[] = [];
+    for (let d = windowStart; d < windowEnd; d++) {
+      if (!fridayOff || !isFridayDate(rows[d].date)) eligible.push(d);
+    }
+    if (eligible.length === 0) continue;
+    const base = Math.floor(houseCount / eligible.length);
+    const remainder = houseCount - base * eligible.length;
+    eligible.forEach((d, i) => {
+      rows[d].farmsPlacing = base + (i < remainder ? 1 : 0);
     });
   }
   return rows;
@@ -94,7 +113,7 @@ export function quickFillPlacementDays(
 /** Rolls the daily placement input up into weekly totals consumed by every downstream step. */
 export function aggregateToWeeklyPlacement(
   days: PlacementDayRow[],
-  params: Pick<Parameters, "planningHorizonWeeks" | "planStartDate">
+  params: Pick<Parameters, "planningHorizonWeeks" | "planStartDate" | "fridayOff">
 ): PlacementRow[] {
   const start = new Date(params.planStartDate);
   const weeks: PlacementRow[] = [];
@@ -102,13 +121,54 @@ export function aggregateToWeeklyPlacement(
     weeks.push({ week: w, weekStarting: weekStartDate(params.planStartDate, w), farmsPlacing: 0, totalChicksPlaced: 0 });
   }
   for (const day of days) {
+    if (params.fridayOff && isFridayDate(day.date)) continue;
     const week = Math.floor(differenceInCalendarDays(new Date(day.date), start) / 7) + 1;
     const target = weeks[week - 1];
     if (!target) continue;
     target.farmsPlacing += day.farmsPlacing;
-    target.totalChicksPlaced += day.farmsPlacing * day.chicksPerFarm;
+    target.totalChicksPlaced += day.farmsPlacing * day.chicksPerHouse;
   }
   return weeks;
+}
+
+// ---------- Processing Funnel (Steps A-G): harvestable -> dispatched -> electronic count -> slaughtered -> carcass ----------
+
+export interface ProcessingFunnel {
+  harvestMortalityBirds: number;
+  dispatchedBirds: number;
+  doaBirds: number;
+  culledBirds: number;
+  electronicBirdCount: number;
+  pluckingRejectBirds: number;
+  slaughteredBirds: number;
+  slaughteredCarcassWeightKg: number;
+}
+
+export function computeProcessingFunnel(harvestableBirds: number, params: Parameters): ProcessingFunnel {
+  const harvestMortalityBirds = harvestableBirds * params.harvestMortalityRate;
+  const dispatchedBirds = harvestableBirds - harvestMortalityBirds;
+  const doaBirds = dispatchedBirds * params.doaRate;
+  const culledBirds = dispatchedBirds * params.culledRate;
+  const electronicBirdCount = dispatchedBirds - doaBirds - culledBirds;
+  const pluckingRejectBirds = electronicBirdCount * params.pluckingRejectRate;
+  const slaughteredBirds = electronicBirdCount - pluckingRejectBirds;
+  const slaughteredCarcassWeightKg = slaughteredBirds * params.avgCarcassWeightKg;
+
+  return {
+    harvestMortalityBirds,
+    dispatchedBirds,
+    doaBirds,
+    culledBirds,
+    electronicBirdCount,
+    pluckingRejectBirds,
+    slaughteredBirds,
+    slaughteredCarcassWeightKg,
+  };
+}
+
+/** Step G: Carcass Yield % = ACW / ALW — a derived ratio, not an editable input. */
+export function carcassYieldPct(params: Parameters): number {
+  return params.avgLiveWeightKg > 0 ? params.avgCarcassWeightKg / params.avgLiveWeightKg : 0;
 }
 
 // ---------- Step 2: Live Bird Forecast ----------
@@ -129,6 +189,7 @@ export function computeLiveBirdForecast(
     const harvestableBirds = chicksPlaced * (1 - params.mortalityRate);
     const totalLiveWeightKg = harvestableBirds * params.avgLiveWeightKg;
     const utilizationPct = capacity > 0 ? (harvestableBirds / capacity) * 100 : 0;
+    const funnel = computeProcessingFunnel(harvestableBirds, params);
 
     return {
       week,
@@ -143,6 +204,7 @@ export function computeLiveBirdForecast(
       totalPlantCapacity: capacity,
       utilizationPct,
       exceedsCapacity: harvestableBirds > capacity,
+      ...funnel,
     };
   });
 }
@@ -154,16 +216,35 @@ export function computeCarcassYield(
   params: Parameters
 ): CarcassYieldWeek[] {
   return liveBird.map((lb): CarcassYieldWeek => {
-    const carcassWeightKg = lb.totalLiveWeightKg * params.dressingPct;
+    const carcassWeightKg = lb.slaughteredCarcassWeightKg;
     return {
       week: lb.week,
-      carcassCountPc: lb.harvestableBirds,
+      carcassCountPc: lb.slaughteredBirds,
       carcassWeightKg,
       gradeAKg: carcassWeightKg * params.gradeSplit.A,
       gradeBKg: carcassWeightKg * params.gradeSplit.B,
       gradeCKg: carcassWeightKg * params.gradeSplit.C,
     };
   });
+}
+
+/** Step 4-of-Step-3 add-on: distributes each week's slaughtered birds across fixed carcass weight classes. */
+export function computeCarcassSizeDistribution(
+  liveBird: LiveBirdWeek[],
+  params: Parameters
+): CarcassSizeWeek[] {
+  return liveBird.map((lb): CarcassSizeWeek => {
+    const sizes = {} as CarcassSizeWeek["sizes"];
+    for (const key of SIZE_KEYS) {
+      const birds = lb.slaughteredBirds * params.carcassSizeDistribution[key];
+      sizes[key] = { birds, kg: birds * SIZE_KG[key] };
+    }
+    return { week: lb.week, sizes };
+  });
+}
+
+export function carcassSizeDistributionSum(params: Parameters): number {
+  return SIZE_KEYS.reduce((sum, key) => sum + params.carcassSizeDistribution[key], 0);
 }
 
 // ---------- Step 4: Product Family Allocation ----------
@@ -240,7 +321,7 @@ export function computePlantDistribution(
     for (const lb of liveBird) {
       const birds = lb.harvestableBirds * share;
       const liveWeightKg = birds * params.avgLiveWeightKg;
-      const carcassKg = liveWeightKg * params.dressingPct;
+      const carcassKg = computeProcessingFunnel(birds, params).slaughteredCarcassWeightKg;
       const gradeAKg = carcassKg * params.gradeSplit.A;
       const gradeBKg = carcassKg * params.gradeSplit.B;
       const gradeCKg = carcassKg * params.gradeSplit.C;
@@ -277,10 +358,11 @@ export function runPipeline(placementDays: PlacementDayRow[], params: Parameters
   const placement = aggregateToWeeklyPlacement(placementDays, params);
   const liveBird = computeLiveBirdForecast(placement, params);
   const carcass = computeCarcassYield(liveBird, params);
+  const carcassSizes = computeCarcassSizeDistribution(liveBird, params);
   const family = computeProductFamily(carcass, params);
   const cuts = computeCutPlan(family, params);
   const plants = computePlantDistribution(liveBird, params);
-  return { placementDays, placement, liveBird, carcass, family, cuts, plants };
+  return { placementDays, placement, liveBird, carcass, carcassSizes, family, cuts, plants };
 }
 
 // ---------- summary metrics (used by overview cards / PDF export / mobile view) ----------

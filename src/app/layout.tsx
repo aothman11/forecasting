@@ -8,7 +8,7 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "AWP Broiler Forecast",
+  title: "AWP Production Forecast",
   description: "Al-Watania Poultry broiler placement to processing plan workbench",
 };
 

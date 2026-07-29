@@ -74,7 +74,7 @@ export default function Home() {
 
           <ValidationBanner issues={issues} />
 
-          <main className="flex-1 overflow-y-auto p-6">
+          <main className="workbench-bg flex-1 overflow-y-auto p-6">
             {compareOpen ? <ScenarioCompare /> : <StepContent step={selectedStep} />}
           </main>
         </div>
@@ -84,7 +84,7 @@ export default function Home() {
 
       {/* Mobile fallback */}
       <div className="md:hidden min-h-screen bg-[var(--background)] p-4">
-        <div className="text-lg font-bold text-brand-green mb-1">AWP Broiler Forecast</div>
+        <div className="text-lg font-bold text-brand-green mb-1">AWP Production Forecast</div>
         <div className="text-xs text-neutral-500 mb-4">
           This planning workbench is built for wide, spreadsheet-style tables. Use a desktop or tablet
           (768px+) for the full 6-step workflow. Here&apos;s a read-only summary of the current plan.

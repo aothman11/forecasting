@@ -51,7 +51,9 @@ export const usePlanStore = create<PlanState>()(
       placementDays: ensurePlacementDaysHorizon(
         [],
         horizonDaysFor(DEFAULT_PARAMETERS),
-        DEFAULT_PARAMETERS.planStartDate
+        DEFAULT_PARAMETERS.planStartDate,
+        DEFAULT_PARAMETERS.fridayOff,
+        DEFAULT_PARAMETERS.chicksPerHouse
       ),
       selectedStep: 1,
       selectedPlant: "all",
@@ -60,9 +62,21 @@ export const usePlanStore = create<PlanState>()(
       scenarios: [],
 
       setParam: (patch) =>
-        set((s) => ({
-          params: { ...s.params, ...patch },
-        })),
+        set((s) => {
+          const params = { ...s.params, ...patch };
+          // Friday-off is a hard scheduling rule, so flipping it re-clamps any existing Friday entries.
+          const placementDays =
+            "fridayOff" in patch
+              ? ensurePlacementDaysHorizon(
+                  s.placementDays,
+                  horizonDaysFor(params),
+                  params.planStartDate,
+                  params.fridayOff,
+                  params.chicksPerHouse
+                )
+              : s.placementDays;
+          return { params, placementDays };
+        }),
 
       setNestedParam: (key, value) =>
         set((s) => ({
@@ -80,22 +94,36 @@ export const usePlanStore = create<PlanState>()(
         set((s) => ({
           placementDays: quickFillPlacementDays(
             horizonDaysFor(s.params),
-            s.params.totalFarms,
+            s.params.houseCount,
             s.params.planStartDate,
-            fullCycleDays(s.params)
+            fullCycleDays(s.params),
+            s.params.fridayOff,
+            s.params.chicksPerHouse
           ),
         })),
 
       setHorizonWeeks: (weeks) =>
         set((s) => ({
           params: { ...s.params, planningHorizonWeeks: weeks },
-          placementDays: ensurePlacementDaysHorizon(s.placementDays, weeks * 7, s.params.planStartDate),
+          placementDays: ensurePlacementDaysHorizon(
+            s.placementDays,
+            weeks * 7,
+            s.params.planStartDate,
+            s.params.fridayOff,
+            s.params.chicksPerHouse
+          ),
         })),
 
       setPlanStartDate: (date) =>
         set((s) => ({
           params: { ...s.params, planStartDate: date },
-          placementDays: ensurePlacementDaysHorizon(s.placementDays, horizonDaysFor(s.params), date),
+          placementDays: ensurePlacementDaysHorizon(
+            s.placementDays,
+            horizonDaysFor(s.params),
+            date,
+            s.params.fridayOff,
+            s.params.chicksPerHouse
+          ),
         })),
 
       resetToDefaults: () =>
@@ -104,7 +132,9 @@ export const usePlanStore = create<PlanState>()(
           placementDays: ensurePlacementDaysHorizon(
             [],
             horizonDaysFor(DEFAULT_PARAMETERS),
-            DEFAULT_PARAMETERS.planStartDate
+            DEFAULT_PARAMETERS.planStartDate,
+            DEFAULT_PARAMETERS.fridayOff,
+            DEFAULT_PARAMETERS.chicksPerHouse
           ),
         })),
 
@@ -131,20 +161,14 @@ export const usePlanStore = create<PlanState>()(
     }),
     {
       name: "awp-broiler-forecast-store",
-      version: 2,
+      version: 3,
       // v2 switched Step 1 from weekly to daily placement rows (PlacementRow -> PlacementDayRow).
-      // Older persisted scenarios carry the pre-v2 shape and would crash the pipeline, so drop them.
+      // v3 replaced the farm-based model (totalFarms/dressingPct/chicksPerFarm) with the house-based
+      // processing chain (houseCount/avgCarcassWeightKg/chicksPerHouse/...). Both changes touch nearly
+      // every field, so older persisted state is discarded wholesale rather than partially migrated.
       migrate: (persisted, version) => {
-        if (version >= 2) return persisted;
-        const state = persisted as { params?: Parameters; placementDays?: unknown };
-        const days = state.placementDays;
-        const looksDaily =
-          Array.isArray(days) && days.length > 0 && typeof (days[0] as { dayIndex?: unknown })?.dayIndex === "number";
-        return {
-          params: state.params,
-          ...(looksDaily ? { placementDays: days } : {}),
-          scenarios: [],
-        };
+        if (version >= 3) return persisted;
+        return { scenarios: [] };
       },
       partialize: (s) => ({
         params: s.params,
