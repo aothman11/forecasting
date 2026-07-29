@@ -8,12 +8,14 @@ import { CHANNEL_KEYS, CHANNEL_LABELS, PRODUCT_CATEGORY_LABELS } from "@/lib/def
 import {
   aggregateSalesPlanByProductChannelWeek,
   autoMapProduct,
+  createProductFromRow,
   distinctRowSignatures,
   distinctValues,
   distinctWeeksOfYear,
   isSalesPlanFile,
   normalizeChannelKey,
   parseSalesPlan,
+  rowSignature,
   salesWeekNumber,
   type RowSignatureGroup,
   type SalesPlanRow,
@@ -29,6 +31,7 @@ export function SalesPlanImportPanel({ onClose }: { onClose: () => void }) {
   const setDemandCell = usePlanStore((s) => s.setDemandCell);
   const savedProductMap = usePlanStore((s) => s.salesPlanProductMap);
   const savedChannelMap = usePlanStore((s) => s.salesPlanChannelMap);
+  const addDemandProduct = usePlanStore((s) => s.addDemandProduct);
   const setSalesPlanProductMap = usePlanStore((s) => s.setSalesPlanProductMap);
   const setSalesPlanChannelMap = usePlanStore((s) => s.setSalesPlanChannelMap);
 
@@ -127,6 +130,20 @@ export function SalesPlanImportPanel({ onClose }: { onClose: () => void }) {
   const unmappedSignatures = signatures.filter((g) => !productDraft[g.signature] || productDraft[g.signature] === NONE);
   const autoMappedChannels = channelValues.filter((v) => channelDraft[v] && channelDraft[v] !== IGNORE).length;
 
+  const handleCreateMissingProducts = () => {
+    if (!rows) return;
+    const newProductDraft = { ...productDraft };
+    unmappedSignatures.forEach((g) => {
+      // Find a representative row for this signature
+      const rep = rows.find((r) => rowSignature(r) === g.signature);
+      if (!rep) return;
+      const product = createProductFromRow(rep, Date.now().toString(36) + Math.random().toString(36).slice(2, 5));
+      addDemandProduct(product);
+      newProductDraft[g.signature] = product.id;
+    });
+    setProductDraft(newProductDraft);
+  };
+
   const applyToHorizon = () => {
     const fileWeekToPlanWeek = new Map<number, number>();
     horizonWeeks.forEach((w) => {
@@ -224,8 +241,16 @@ export function SalesPlanImportPanel({ onClose }: { onClose: () => void }) {
               {/* Unmatched only */}
               {unmappedSignatures.length > 0 ? (
                 <>
-                  <div className="text-[11px] text-amber-700 mb-1.5">
-                    {unmappedSignatures.length} row type{unmappedSignatures.length !== 1 ? "s" : ""} need manual mapping:
+                  <div className="flex items-center justify-between mb-1.5">
+                    <span className="text-[11px] text-amber-700">
+                      {unmappedSignatures.length} row type{unmappedSignatures.length !== 1 ? "s" : ""} not in catalog
+                    </span>
+                    <button
+                      onClick={handleCreateMissingProducts}
+                      className="text-[11px] font-medium px-2 py-1 rounded-md bg-brand-green text-white hover:bg-brand-green-dark transition-colors"
+                    >
+                      + Create all as products
+                    </button>
                   </div>
                   <div className="space-y-1 max-h-52 overflow-y-auto pr-1">
                     {unmappedSignatures.map((g) => (

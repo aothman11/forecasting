@@ -315,6 +315,35 @@ export function aggregateSalesPlanByProductChannelWeek(
   return { totals, summary: { mappedRows, unmappedRows } };
 }
 
+/**
+ * Creates a new DemandProduct from a representative SalesPlanRow.
+ * idSuffix should be unique (e.g. Date.now().toString(36)) to avoid collisions.
+ */
+export function createProductFromRow(row: SalesPlanRow, idSuffix: string): DemandProduct {
+  const cat = deriveCategoryFromRow(row) ?? "cuts";
+  const name = (row.materialDescription || row.materialCategory || "Unknown").trim();
+  const id = `import-${cat}-${name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "")}-${idSuffix}`;
+
+  if (cat === "wholeChicken") {
+    return {
+      id,
+      category: "wholeChicken",
+      name,
+      grade: parseGrade(row.grading, row.whGrading) ?? "A",
+      weightBucketG: parseWeightG(row.size) ?? 900,
+      freshFrozen: parseFreshFrozen(row.division) ?? "fresh",
+      unit: "ton",
+    };
+  }
+  if (cat === "fpp") {
+    return { id, category: "fpp", name, yieldPct: 0.15, unit: "ton" };
+  }
+  if (cat === "eggs") {
+    return { id, category: "eggs", name, unit: "tray" };
+  }
+  return { id, category: "cuts", name, unit: "ton" };
+}
+
 export function isSalesPlanFile(file: File): boolean {
   return /\.(xlsx|xls|csv)$/i.test(file.name);
 }
