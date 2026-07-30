@@ -1,5 +1,6 @@
 "use client";
 
+import { addDays, format } from "date-fns";
 import { usePipeline } from "@/lib/usePipeline";
 import { carcassYieldPct } from "@/lib/calculations";
 import { DataTable, type DataTableColumn } from "../shared/DataTable";
@@ -88,9 +89,13 @@ export function LiveBirdForecast() {
     },
     {
       key: "ref",
-      header: "Birds from Placement Wk #",
-      align: "center",
-      render: (r) => (r.placementWeekRef ? `W${r.placementWeekRef}` : "—"),
+      header: "Placement Date Range",
+      render: (r) => {
+        const offset = -Math.round(params.cycleLengthDays);
+        const start = format(addDays(new Date(r.harvestDateStart), offset), "yyyy-MM-dd");
+        const end = format(addDays(new Date(r.harvestDateEnd), offset), "yyyy-MM-dd");
+        return <span className="text-neutral-500 text-[11px]">{start} → {end}</span>;
+      },
     },
     {
       key: "birds",
