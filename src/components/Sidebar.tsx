@@ -55,10 +55,23 @@ export function Sidebar() {
 
   return (
     <aside
-      className={`shrink-0 border-r border-[var(--border-subtle)] bg-white flex flex-col transition-all duration-200 ${collapsed ? "w-14" : "w-64"}`}
+      className={`relative shrink-0 border-r border-[var(--border-subtle)] bg-white flex flex-col transition-all duration-200 ${collapsed ? "w-14" : "w-64"}`}
     >
+      {/* Collapse / expand tab — sticks out from the right edge */}
+      <button
+        onClick={() => setCollapsed((c) => !c)}
+        title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+        className="absolute -right-3.5 top-6 z-10 flex items-center justify-center w-7 h-7 rounded-full bg-white border border-[var(--border-subtle)] shadow-md text-neutral-500 hover:text-brand-green hover:border-brand-green transition-colors"
+      >
+        {collapsed ? (
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M6 3l5 5-5 5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
+        ) : (
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M10 3L5 8l5 5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
+        )}
+      </button>
+
       {/* Header */}
-      <div className={`border-b border-[var(--border-subtle)] bg-gradient-to-br from-brand-green-tint to-white flex items-start justify-between ${collapsed ? "px-2 py-3" : "px-4 py-4"}`}>
+      <div className={`border-b border-[var(--border-subtle)] bg-gradient-to-br from-brand-green-tint to-white ${collapsed ? "px-2 py-3 flex justify-center" : "px-4 py-4"}`}>
         {!collapsed && (
           <div>
             <Image src="/alwatania-logo-white.png" alt="Al-Watania Poultry" width={140} height={70} className="h-10 w-auto mb-2" priority />
@@ -67,19 +80,8 @@ export function Sidebar() {
           </div>
         )}
         {collapsed && (
-          <Image src="/alwatania-logo-white.png" alt="" width={32} height={32} className="h-7 w-auto mx-auto" priority />
+          <Image src="/alwatania-logo-white.png" alt="" width={32} height={32} className="h-7 w-auto" priority />
         )}
-        <button
-          onClick={() => setCollapsed((c) => !c)}
-          title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-          className={`shrink-0 text-neutral-400 hover:text-brand-green transition-colors rounded p-0.5 hover:bg-brand-green-tint ${collapsed ? "mt-0 mx-auto block" : "mt-1"}`}
-        >
-          {collapsed ? (
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M6 3l5 5-5 5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>
-          ) : (
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M10 3L5 8l5 5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>
-          )}
-        </button>
       </div>
 
       <nav className="flex-1 py-3 overflow-y-auto overflow-x-hidden">
