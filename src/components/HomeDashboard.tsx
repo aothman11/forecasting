@@ -160,7 +160,7 @@ export function HomeDashboard() {
         <div className="absolute inset-0 bg-gradient-to-b from-white/70 via-white/20 to-transparent pointer-events-none" />
 
         {/* Centre text */}
-        <div className="relative z-10 flex flex-col items-center justify-center py-5 px-6 text-center">
+        <div className="relative z-10 w-full flex flex-col items-center justify-center py-5 px-6 text-center">
           <div
             className="text-[10px] font-semibold tracking-[0.25em] uppercase text-brand-green-dark/80 mb-0.5"
             style={{ letterSpacing: "0.3em" }}
