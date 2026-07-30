@@ -64,11 +64,11 @@ export function PlacementPlan() {
       key: "date",
       header: "Harvest Date",
       render: (r) => {
-        const harvestDate = addDays(new Date(r.date), Math.round(params.cycleLengthDays));
+        const placementDate = addDays(new Date(r.date), -Math.round(params.cycleLengthDays));
         return (
           <div>
-            <div className="font-medium">{format(harvestDate, "yyyy-MM-dd")} ({format(harvestDate, "EEE")})</div>
-            <div className="text-[11px] text-neutral-400">Place: {r.date} ({format(new Date(r.date), "EEE")})</div>
+            <div className="font-medium">{r.date} ({format(new Date(r.date), "EEE")})</div>
+            <div className="text-[11px] text-neutral-400">Place: {format(placementDate, "yyyy-MM-dd")} ({format(placementDate, "EEE")})</div>
           </div>
         );
       },

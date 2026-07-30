@@ -163,14 +163,12 @@ export function computeLiveBirdForecast(
   placement: PlacementRow[],
   params: Parameters
 ): LiveBirdWeek[] {
-  const offset = harvestOffsetWeeks(params.cycleLengthDays);
   const capacity = totalPlantCapacity(params);
   const placementByWeek = new Map(placement.map((r) => [r.week, r]));
 
   return placement.map((row): LiveBirdWeek => {
     const week = row.week;
-    const refWeek = week - offset;
-    const refRow = placementByWeek.get(refWeek);
+    const refRow = placementByWeek.get(week);
     const chicksPlaced = refRow ? refRow.totalChicksPlaced : 0;
     const harvestableBirds = chicksPlaced * (1 - params.mortalityRate);
     const totalLiveWeightKg = harvestableBirds * params.avgLiveWeightKg;
@@ -184,7 +182,7 @@ export function computeLiveBirdForecast(
         addDays(new Date(weekStartDate(params.planStartDate, week)), 6),
         "yyyy-MM-dd"
       ),
-      placementWeekRef: refRow ? refWeek : null,
+      placementWeekRef: refRow ? week : null,
       harvestableBirds,
       totalLiveWeightKg,
       totalPlantCapacity: capacity,

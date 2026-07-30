@@ -1,4 +1,4 @@
-import { activeCutKeys, harvestOffsetWeeks } from "./calculations";
+import { activeCutKeys } from "./calculations";
 import { getDemandQtyAllChannels } from "./demandPlan";
 import type {
   DemandPlanQty,
@@ -62,7 +62,6 @@ export function computeSupplyRequirements(
   const wcYield = wcYieldFromCarcass(params);
   const fppYield = fppYieldFromCarcass(params);
   const cutsYield = cutsYieldFromCarcass(params);
-  const offset = harvestOffsetWeeks(params.cycleLengthDays);
 
   const carcassByWeek = new Map(pipeline.carcass.map((r) => [r.week, r.carcassWeightKg]));
   const lbByWeek = new Map(pipeline.liveBird.map((r) => [r.week, r]));
@@ -115,7 +114,7 @@ export function computeSupplyRequirements(
       requiredCarcassKg,
       requiredHarvestableBirds,
       requiredChicksPlaced,
-      placementWeek: week - offset,
+      placementWeek: week,
       bindingCategory,
       plannedCarcassKg,
       plannedHarvestableBirds: lbRow?.harvestableBirds ?? 0,
