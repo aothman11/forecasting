@@ -154,7 +154,7 @@ export function HomeDashboard() {
       {/* Hero */}
       <div
         className="relative rounded-2xl overflow-hidden shadow-md border border-[var(--border-subtle)]"
-        style={{ backgroundImage: "url('/hero-bg6.svg')", backgroundSize: "100% 100%", backgroundPosition: "center center", minHeight: 100 }}
+        style={{ backgroundColor: "#fff", backgroundImage: "url('/hero-bg6.svg')", backgroundSize: "100% 100%", backgroundPosition: "center center", minHeight: 100 }}
       >
         {/* gradient: white at top for text → transparent at bottom to reveal green waves */}
         <div className="absolute inset-0 bg-gradient-to-b from-white/70 via-white/20 to-transparent pointer-events-none" />
