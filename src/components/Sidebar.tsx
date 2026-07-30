@@ -10,6 +10,8 @@ export function Sidebar() {
   const setCompareOpen = usePlanStore((s) => s.setCompareOpen);
   const demandOpen = usePlanStore((s) => s.demandOpen);
   const setDemandOpen = usePlanStore((s) => s.setDemandOpen);
+  const supplyOpen = usePlanStore((s) => s.supplyOpen);
+  const setSupplyOpen = usePlanStore((s) => s.setSupplyOpen);
   const homeOpen = usePlanStore((s) => s.homeOpen);
   const setHomeOpen = usePlanStore((s) => s.setHomeOpen);
 
@@ -28,6 +30,7 @@ export function Sidebar() {
           onClick={() => {
             setCompareOpen(false);
             setDemandOpen(false);
+            setSupplyOpen(false);
             setHomeOpen(true);
           }}
           className={`w-full text-left px-4 py-2.5 flex items-center gap-3 text-sm transition-colors mb-2 ${
@@ -57,6 +60,7 @@ export function Sidebar() {
               onClick={() => {
                 setCompareOpen(false);
                 setDemandOpen(false);
+                setSupplyOpen(false);
                 setHomeOpen(false);
                 setSelectedStep(step.id);
               }}
@@ -87,6 +91,7 @@ export function Sidebar() {
         <button
           onClick={() => {
             setCompareOpen(false);
+            setSupplyOpen(false);
             setHomeOpen(false);
             setDemandOpen(true);
           }}
@@ -107,7 +112,30 @@ export function Sidebar() {
         </button>
         <button
           onClick={() => {
+            setCompareOpen(false);
             setDemandOpen(false);
+            setHomeOpen(false);
+            setSupplyOpen(true);
+          }}
+          className={`w-full text-left px-4 py-2.5 flex items-center gap-3 text-sm transition-colors ${
+            supplyOpen
+              ? "bg-brand-green-tint text-brand-green-dark font-semibold border-r-2 border-brand-green"
+              : "text-neutral-600 hover:bg-neutral-50"
+          }`}
+        >
+          <span
+            className={`flex items-center justify-center w-6 h-6 rounded-full text-[11px] font-semibold shrink-0 transition-shadow ${
+              supplyOpen ? "bg-brand-green text-white shadow-sm shadow-brand-green/30" : "bg-neutral-200 text-neutral-600"
+            }`}
+          >
+            🔗
+          </span>
+          Supply Requirements
+        </button>
+        <button
+          onClick={() => {
+            setDemandOpen(false);
+            setSupplyOpen(false);
             setHomeOpen(false);
             setCompareOpen(true);
           }}

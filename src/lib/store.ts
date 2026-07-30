@@ -40,6 +40,7 @@ interface PlanState {
   assumptionsOpen: boolean;
   compareOpen: boolean;
   demandOpen: boolean;
+  supplyOpen: boolean;
   homeOpen: boolean;
   scenarios: ScenarioSnapshot[];
 
@@ -64,6 +65,7 @@ interface PlanState {
   toggleAssumptions: () => void;
   setCompareOpen: (open: boolean) => void;
   setDemandOpen: (open: boolean) => void;
+  setSupplyOpen: (open: boolean) => void;
   setHomeOpen: (open: boolean) => void;
   saveScenario: (name: string) => void;
   deleteScenario: (id: string) => void;
@@ -89,6 +91,7 @@ export const usePlanStore = create<PlanState>()(
       assumptionsOpen: false,
       compareOpen: false,
       demandOpen: false,
+      supplyOpen: false,
       homeOpen: true,
       scenarios: [],
 
@@ -206,6 +209,7 @@ export const usePlanStore = create<PlanState>()(
       toggleAssumptions: () => set((s) => ({ assumptionsOpen: !s.assumptionsOpen })),
       setCompareOpen: (open) => set({ compareOpen: open }),
       setDemandOpen: (open) => set({ demandOpen: open }),
+      setSupplyOpen: (open) => set({ supplyOpen: open }),
       setHomeOpen: (open) => set({ homeOpen: open }),
 
       saveScenario: (name) =>

@@ -5,6 +5,7 @@ import { usePlanStore } from "@/lib/store";
 import { activeCutKeys, computeSummaryMetrics } from "@/lib/calculations";
 import { CHANNEL_KEYS, CHANNEL_LABELS, CUT_LABELS, EGG_TRAYS_PER_CARTON, PLANT_LABELS, PRODUCT_CATEGORY_LABELS } from "@/lib/defaults";
 import { categoryTotal } from "@/lib/demandPlan";
+import { computeSupplyRequirements } from "@/lib/supplyRequirements";
 import { SummaryCard } from "./shared/SummaryCard";
 import { CapacityChart } from "./charts/CapacityChart";
 import { GradeChart } from "./charts/GradeChart";
@@ -72,6 +73,7 @@ export function HomeDashboard() {
   const demandQty = usePlanStore((s) => s.demandQty);
   const setSelectedStep = usePlanStore((s) => s.setSelectedStep);
   const setDemandOpen = usePlanStore((s) => s.setDemandOpen);
+  const setSupplyOpen = usePlanStore((s) => s.setSupplyOpen);
   const setHomeOpen = usePlanStore((s) => s.setHomeOpen);
 
   const openStep = (step: number) => {
@@ -81,7 +83,13 @@ export function HomeDashboard() {
   };
   const openDemand = () => {
     setHomeOpen(false);
+    setSupplyOpen(false);
     setDemandOpen(true);
+  };
+  const openSupply = () => {
+    setHomeOpen(false);
+    setDemandOpen(false);
+    setSupplyOpen(true);
   };
 
   const m = computeSummaryMetrics(result);
@@ -109,6 +117,10 @@ export function HomeDashboard() {
     ),
   })).sort((a, b) => b.car - a.car);
   const channelMax = channelDemand[0]?.car || 1;
+
+  const supplyRows = computeSupplyRequirements(demandProducts, demandQty, params, result, horizonWeeks);
+  const supplyDeficitWeeks = supplyRows.filter((r) => r.carcassGapKg < -r.requiredCarcassKg * 0.02 && r.requiredCarcassKg > 0).length;
+  const totalRequiredCarcass = supplyRows.reduce((s, r) => s + r.requiredCarcassKg, 0);
 
   const runningChicks = result.placement.reduce((s, r) => s + r.totalChicksPlaced, 0);
   const totalHouses = result.placement.reduce((s, r) => s + r.farmsPlacing, 0);
@@ -244,6 +256,28 @@ export function HomeDashboard() {
             })}
             {demandTotalTon === 0 && (
               <div className="text-[11px] text-neutral-400 mt-1">No demand entered — open Demand Plan to get started.</div>
+            )}
+          </div>
+        </DashCard>
+
+        <DashCard icon="🔗" title="Supply Requirements" description="Demand-driven placement needs vs plan" onOpen={openSupply}>
+          <div className="mt-2 space-y-2">
+            <div className="flex items-center justify-between text-xs">
+              <span className="text-neutral-600">Required carcass</span>
+              <span className="font-semibold tabular-nums">{totalRequiredCarcass > 0 ? `${Math.round(totalRequiredCarcass / 1000).toLocaleString()} t` : <span className="text-neutral-300">—</span>}</span>
+            </div>
+            <div className="flex items-center justify-between text-xs">
+              <span className="text-neutral-600">Planned supply</span>
+              <span className="font-semibold tabular-nums">{`${Math.round(m.totalCarcassKg / 1000).toLocaleString()} t`}</span>
+            </div>
+            <div className="flex items-center justify-between text-xs">
+              <span className="text-neutral-600">Deficit weeks</span>
+              <span className={`font-semibold tabular-nums ${supplyDeficitWeeks > 0 ? "text-red-600" : "text-green-700"}`}>
+                {supplyDeficitWeeks > 0 ? `${supplyDeficitWeeks} week${supplyDeficitWeeks > 1 ? "s" : ""}` : "None"}
+              </span>
+            </div>
+            {totalRequiredCarcass === 0 && (
+              <div className="text-[11px] text-neutral-400">No demand entered — open Demand Plan first.</div>
             )}
           </div>
         </DashCard>

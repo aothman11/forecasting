@@ -175,6 +175,30 @@ export interface DemandProduct {
 /** Sparse quantity map keyed by `${productId}::${channel}::${week}`. */
 export type DemandPlanQty = Record<string, number>;
 
+/** Module 2: one row per harvest week — demand requirements vs planned supply. */
+export interface SupplyRequirementsWeek {
+  week: number;
+  // aggregated demand (tons; eggs in trays)
+  wcDemandTons: number;
+  fppDemandTons: number;
+  cutsDemandTons: number;
+  eggsDemandTrays: number;
+  // required supply (reverse BOM)
+  requiredCarcassKg: number;
+  requiredHarvestableBirds: number;
+  requiredChicksPlaced: number;
+  placementWeek: number; // week - harvestOffset; may be ≤ 0 for early weeks
+  bindingCategory: ProductCategory | null;
+  // planned supply (from forward pipeline)
+  plannedCarcassKg: number;
+  plannedHarvestableBirds: number;
+  plannedWcKg: number;
+  plannedFppKg: number;
+  // gaps (planned − required; positive = surplus)
+  carcassGapKg: number;
+  harvestableGapBirds: number;
+}
+
 export interface CarcassSizeWeek {
   week: number;
   sizes: Record<SizeKey, { birds: number; kg: number }>;
