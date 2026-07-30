@@ -75,29 +75,16 @@ export function HomeDashboard() {
   const setDemandOpen = usePlanStore((s) => s.setDemandOpen);
   const setSupplyOpen = usePlanStore((s) => s.setSupplyOpen);
   const setReconcileOpen = usePlanStore((s) => s.setReconcileOpen);
+  const setDdpOpen = usePlanStore((s) => s.setDdpOpen);
+  const setReportOpen = usePlanStore((s) => s.setReportOpen);
   const setHomeOpen = usePlanStore((s) => s.setHomeOpen);
 
-  const openStep = (step: number) => {
-    setHomeOpen(false);
-    setDemandOpen(false);
-    setSelectedStep(step);
-  };
-  const openDemand = () => {
-    setHomeOpen(false);
-    setSupplyOpen(false);
-    setDemandOpen(true);
-  };
-  const openSupply = () => {
-    setHomeOpen(false);
-    setDemandOpen(false);
-    setSupplyOpen(true);
-  };
-  const openReconcile = () => {
-    setHomeOpen(false);
-    setDemandOpen(false);
-    setSupplyOpen(false);
-    setReconcileOpen(true);
-  };
+  const openStep = (step: number) => { setHomeOpen(false); setDemandOpen(false); setSelectedStep(step); };
+  const openDemand = () => { setHomeOpen(false); setSupplyOpen(false); setDemandOpen(true); };
+  const openSupply = () => { setHomeOpen(false); setDemandOpen(false); setSupplyOpen(true); };
+  const openReconcile = () => { setHomeOpen(false); setDemandOpen(false); setSupplyOpen(false); setReconcileOpen(true); };
+  const openDdp = () => { setHomeOpen(false); setReconcileOpen(false); setDdpOpen(true); };
+  const openReport = () => { setHomeOpen(false); setDdpOpen(false); setReportOpen(true); };
 
   const m = computeSummaryMetrics(result);
   const horizonWeeks = Array.from({ length: params.planningHorizonWeeks }, (_, i) => i + 1);
@@ -220,135 +207,177 @@ export function HomeDashboard() {
         />
       </div>
 
-      {/* Dashboards grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <DashCard icon="🐣" title="1 · Placement Plan" description="Daily house placements" onOpen={() => openStep(1)}>
-          <div className="grid grid-cols-2 gap-2 mt-2">
-            <SummaryCard label="Chicks Placed" value={Math.round(runningChicks).toLocaleString()} accent="green" />
-            <SummaryCard label="House-Placements" value={totalHouses.toLocaleString()} sublabel={`${params.houseCount}/day rate`} />
-          </div>
-        </DashCard>
+      {/* ── S&OP Modules ── */}
+      <div>
+        <div className="flex items-center gap-3 mb-3">
+          <h2 className="text-sm font-bold uppercase tracking-widest text-brand-green-dark">S&amp;OP Modules</h2>
+          <div className="flex-1 h-px bg-brand-green/20" />
+        </div>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <DashCard icon="📊" title="M1 · Demand Plan" description="Weekly demand by product × channel" onOpen={openDemand}>
+            <div className="mt-2 space-y-1.5">
+              {(["wholeChicken", "cuts", "fpp", "eggs"] as const).map((cat) => {
+                const qty = categoryTotal(demandProducts, demandQty, cat, "ALL", horizonWeeks);
+                const car = toCar(cat, qty);
+                return (
+                  <div key={cat} className="flex items-center justify-between text-xs">
+                    <span className="text-neutral-600">{PRODUCT_CATEGORY_LABELS[cat]}</span>
+                    <span className="font-semibold tabular-nums">
+                      {car > 0 ? `${car.toLocaleString()} CAR` : <span className="text-neutral-300">—</span>}
+                    </span>
+                  </div>
+                );
+              })}
+              {demandTotalTon === 0 && <div className="text-[11px] text-neutral-400 mt-1">No demand entered yet.</div>}
+            </div>
+          </DashCard>
 
-        <DashCard icon="🐔" title="2 · Live Bird Forecast" description="Harvest vs. plant capacity" onOpen={() => openStep(2)}>
-          <CapacityChart data={result.liveBird} />
-        </DashCard>
-
-        <DashCard icon="⚖️" title="3 · Carcass Yield & Grade Split" description="Grade A / B / C distribution" onOpen={() => openStep(3)}>
-          <GradeChart data={result.carcass} />
-        </DashCard>
-
-        <DashCard icon="📦" title="4 · Product Family Allocation" description="Fresh / Frozen / FPP split" onOpen={() => openStep(4)}>
-          <FamilyDonut data={result.family} />
-        </DashCard>
-
-        <DashCard icon="🍗" title="5 · FPP Cut Plan" description="Top cuts by volume" onOpen={() => openStep(5)}>
-          <div className="mt-2 space-y-2">
-            {cutTotals.map((c, i) => (
-              <div key={c.key} className="flex items-center justify-between text-xs">
-                <span className="text-neutral-600">
-                  <span className="text-brand-gold font-semibold mr-1">#{i + 1}</span>
-                  {CUT_LABELS[c.key]}
-                </span>
-                <span className="font-semibold tabular-nums">{kg(c.total)} kg</span>
+          <DashCard icon="🔗" title="M2 · Supply Requirements" description="Reverse BOM: demand → carcass → chicks" onOpen={openSupply}>
+            <div className="mt-2 space-y-2">
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-neutral-600">Required carcass</span>
+                <span className="font-semibold tabular-nums">{totalRequiredCarcass > 0 ? `${Math.round(totalRequiredCarcass / 1000).toLocaleString()} t` : <span className="text-neutral-300">—</span>}</span>
               </div>
-            ))}
-          </div>
-        </DashCard>
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-neutral-600">Planned supply</span>
+                <span className="font-semibold tabular-nums">{`${Math.round(m.totalCarcassKg / 1000).toLocaleString()} t`}</span>
+              </div>
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-neutral-600">Deficit weeks</span>
+                <span className={`font-semibold tabular-nums ${supplyDeficitWeeks > 0 ? "text-red-600" : "text-green-700"}`}>
+                  {supplyDeficitWeeks > 0 ? `${supplyDeficitWeeks} wk` : "None"}
+                </span>
+              </div>
+              {totalRequiredCarcass === 0 && <div className="text-[11px] text-neutral-400">Enter demand first.</div>}
+            </div>
+          </DashCard>
 
-        <DashCard icon="🏭" title="6 · Processing Plan by Plant" description="Avg utilization by plant" onOpen={() => openStep(6)}>
-          <div className="mt-2">
-            {plantUtilization.map((p) => (
-              <UtilizationBar key={p.plant} label={PLANT_LABELS[p.plant]} pct={p.pct} />
-            ))}
-          </div>
-        </DashCard>
+          <DashCard icon="⇌" title="M3 · Reconciliation" description="Demand vs supply gap by category" onOpen={openReconcile}>
+            <div className="mt-2 space-y-2">
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-neutral-600">Total demand</span>
+                <span className="font-semibold tabular-nums">{totalDemandTons > 0 ? `${totalDemandTons.toFixed(0)} t` : <span className="text-neutral-300">—</span>}</span>
+              </div>
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-neutral-600">Total supply</span>
+                <span className="font-semibold tabular-nums">{`${totalSupplyTons.toFixed(0)} t`}</span>
+              </div>
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-neutral-600">Deficit weeks</span>
+                <span className={`font-semibold tabular-nums ${reconcileDeficitWeeks > 0 ? "text-red-600" : "text-green-700"}`}>
+                  {reconcileDeficitWeeks > 0 ? `${reconcileDeficitWeeks} wk` : "None"}
+                </span>
+              </div>
+              {totalDemandTons === 0 && <div className="text-[11px] text-neutral-400">Enter demand first.</div>}
+            </div>
+          </DashCard>
 
-        <DashCard icon="📊" title="Demand Plan" description="Weekly demand by product category" onOpen={openDemand}>
-          <div className="mt-2 space-y-1.5">
-            {(["wholeChicken", "cuts", "fpp", "eggs"] as const).map((cat) => {
-              const qty = categoryTotal(demandProducts, demandQty, cat, "ALL", horizonWeeks);
-              const car = toCar(cat, qty);
-              const display = car > 0 ? `${car.toLocaleString()} CAR` : null;
-              return (
-                <div key={cat} className="flex items-center justify-between text-xs">
-                  <span className="text-neutral-600">{PRODUCT_CATEGORY_LABELS[cat]}</span>
-                  <span className="font-semibold tabular-nums">
-                    {display ?? <span className="text-neutral-300">—</span>}
+          <DashCard icon="🎯" title="M4 · Demand-Driven Placement" description="Write demand requirements into placement calendar" onOpen={openDdp}>
+            <div className="mt-2 space-y-2">
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-neutral-600">Required chicks</span>
+                <span className="font-semibold tabular-nums">
+                  {supplyRows.reduce((s, r) => s + r.requiredChicksPlaced, 0) > 0
+                    ? Math.round(supplyRows.reduce((s, r) => s + r.requiredChicksPlaced, 0)).toLocaleString()
+                    : <span className="text-neutral-300">—</span>}
+                </span>
+              </div>
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-neutral-600">Actionable weeks</span>
+                <span className="font-semibold tabular-nums">
+                  {supplyRows.filter((r) => r.placementWeek > 0 && r.requiredChicksPlaced > 0).length}
+                </span>
+              </div>
+              {totalRequiredCarcass === 0 && <div className="text-[11px] text-neutral-400">Enter demand first.</div>}
+            </div>
+          </DashCard>
+
+          <DashCard icon="📋" title="M5 · S&OP Report" description="Traffic-light weekly review for S&OP meetings" onOpen={openReport}>
+            <div className="mt-2 space-y-2">
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-neutral-600">Deficit weeks</span>
+                <span className={`font-semibold tabular-nums ${reconcileDeficitWeeks > 0 ? "text-red-600" : "text-green-700"}`}>
+                  {reconcileDeficitWeeks > 0 ? `${reconcileDeficitWeeks} wk` : "None"}
+                </span>
+              </div>
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-neutral-600">Planning horizon</span>
+                <span className="font-semibold tabular-nums">{params.planningHorizonWeeks} weeks</span>
+              </div>
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-neutral-600">Export</span>
+                <span className="font-semibold text-brand-green-dark">PDF · Print</span>
+              </div>
+            </div>
+          </DashCard>
+
+          <DashCard icon="🏪" title="Demand by Channel" description="Total CAR per sales channel" onOpen={openDemand}>
+            <div className="mt-2 space-y-1.5">
+              {channelDemand.map(({ ch, car }) => (
+                <div key={ch} className="flex items-center gap-2 text-xs">
+                  <span className="w-24 shrink-0 text-neutral-600">{CHANNEL_LABELS[ch]}</span>
+                  <div className="flex-1 h-2 rounded-full bg-neutral-100 overflow-hidden">
+                    <div className="h-full rounded-full bg-brand-green" style={{ width: `${(car / channelMax) * 100}%` }} />
+                  </div>
+                  <span className="w-20 text-right font-semibold tabular-nums shrink-0">
+                    {car > 0 ? `${car.toLocaleString()} CAR` : <span className="text-neutral-300">—</span>}
                   </span>
                 </div>
-              );
-            })}
-            {demandTotalTon === 0 && (
-              <div className="text-[11px] text-neutral-400 mt-1">No demand entered — open Demand Plan to get started.</div>
-            )}
-          </div>
-        </DashCard>
+              ))}
+              {demandTotalCar === 0 && <div className="text-[11px] text-neutral-400 mt-1">No demand entered yet.</div>}
+            </div>
+          </DashCard>
+        </div>
+      </div>
 
-        <DashCard icon="🔗" title="Supply Requirements" description="Demand-driven placement needs vs plan" onOpen={openSupply}>
-          <div className="mt-2 space-y-2">
-            <div className="flex items-center justify-between text-xs">
-              <span className="text-neutral-600">Required carcass</span>
-              <span className="font-semibold tabular-nums">{totalRequiredCarcass > 0 ? `${Math.round(totalRequiredCarcass / 1000).toLocaleString()} t` : <span className="text-neutral-300">—</span>}</span>
+      {/* ── Production Pipeline ── */}
+      <div>
+        <div className="flex items-center gap-3 mb-3">
+          <h2 className="text-sm font-bold uppercase tracking-widest text-neutral-400">Production Pipeline</h2>
+          <div className="flex-1 h-px bg-neutral-200" />
+        </div>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <DashCard icon="🐣" title="1 · Placement Plan" description="Daily house placements" onOpen={() => openStep(1)}>
+            <div className="grid grid-cols-2 gap-2 mt-2">
+              <SummaryCard label="Chicks Placed" value={Math.round(runningChicks).toLocaleString()} accent="green" />
+              <SummaryCard label="House-Placements" value={totalHouses.toLocaleString()} sublabel={`${params.houseCount}/day rate`} />
             </div>
-            <div className="flex items-center justify-between text-xs">
-              <span className="text-neutral-600">Planned supply</span>
-              <span className="font-semibold tabular-nums">{`${Math.round(m.totalCarcassKg / 1000).toLocaleString()} t`}</span>
-            </div>
-            <div className="flex items-center justify-between text-xs">
-              <span className="text-neutral-600">Deficit weeks</span>
-              <span className={`font-semibold tabular-nums ${supplyDeficitWeeks > 0 ? "text-red-600" : "text-green-700"}`}>
-                {supplyDeficitWeeks > 0 ? `${supplyDeficitWeeks} week${supplyDeficitWeeks > 1 ? "s" : ""}` : "None"}
-              </span>
-            </div>
-            {totalRequiredCarcass === 0 && (
-              <div className="text-[11px] text-neutral-400">No demand entered — open Demand Plan first.</div>
-            )}
-          </div>
-        </DashCard>
+          </DashCard>
 
-        <DashCard icon="⇌" title="Reconciliation" description="Demand vs supply gap by category" onOpen={openReconcile}>
-          <div className="mt-2 space-y-2">
-            <div className="flex items-center justify-between text-xs">
-              <span className="text-neutral-600">Total demand</span>
-              <span className="font-semibold tabular-nums">{totalDemandTons > 0 ? `${totalDemandTons.toFixed(0)} t` : <span className="text-neutral-300">—</span>}</span>
-            </div>
-            <div className="flex items-center justify-between text-xs">
-              <span className="text-neutral-600">Total supply</span>
-              <span className="font-semibold tabular-nums">{`${totalSupplyTons.toFixed(0)} t`}</span>
-            </div>
-            <div className="flex items-center justify-between text-xs">
-              <span className="text-neutral-600">Deficit weeks</span>
-              <span className={`font-semibold tabular-nums ${reconcileDeficitWeeks > 0 ? "text-red-600" : "text-green-700"}`}>
-                {reconcileDeficitWeeks > 0 ? `${reconcileDeficitWeeks} week${reconcileDeficitWeeks > 1 ? "s" : ""}` : "None"}
-              </span>
-            </div>
-            {totalDemandTons === 0 && (
-              <div className="text-[11px] text-neutral-400">No demand entered — open Demand Plan first.</div>
-            )}
-          </div>
-        </DashCard>
+          <DashCard icon="🐔" title="2 · Live Bird Forecast" description="Harvest vs. plant capacity" onOpen={() => openStep(2)}>
+            <CapacityChart data={result.liveBird} />
+          </DashCard>
 
-        <DashCard icon="🏪" title="Demand by Channel" description="Total CAR per sales channel" onOpen={openDemand}>
-          <div className="mt-2 space-y-1.5">
-            {channelDemand.map(({ ch, car }) => (
-              <div key={ch} className="flex items-center gap-2 text-xs">
-                <span className="w-24 shrink-0 text-neutral-600">{CHANNEL_LABELS[ch]}</span>
-                <div className="flex-1 h-2 rounded-full bg-neutral-100 overflow-hidden">
-                  <div
-                    className="h-full rounded-full bg-brand-green"
-                    style={{ width: `${(car / channelMax) * 100}%` }}
-                  />
+          <DashCard icon="⚖️" title="3 · Carcass Yield & Grade Split" description="Grade A / B / C distribution" onOpen={() => openStep(3)}>
+            <GradeChart data={result.carcass} />
+          </DashCard>
+
+          <DashCard icon="📦" title="4 · Product Family Allocation" description="Fresh / Frozen / FPP split" onOpen={() => openStep(4)}>
+            <FamilyDonut data={result.family} />
+          </DashCard>
+
+          <DashCard icon="🍗" title="5 · FPP Cut Plan" description="Top cuts by volume" onOpen={() => openStep(5)}>
+            <div className="mt-2 space-y-2">
+              {cutTotals.map((c, i) => (
+                <div key={c.key} className="flex items-center justify-between text-xs">
+                  <span className="text-neutral-600">
+                    <span className="text-brand-gold font-semibold mr-1">#{i + 1}</span>
+                    {CUT_LABELS[c.key]}
+                  </span>
+                  <span className="font-semibold tabular-nums">{kg(c.total)} kg</span>
                 </div>
-                <span className="w-20 text-right font-semibold tabular-nums shrink-0">
-                  {car > 0 ? `${car.toLocaleString()} CAR` : <span className="text-neutral-300">—</span>}
-                </span>
-              </div>
-            ))}
-            {demandTotalCar === 0 && (
-              <div className="text-[11px] text-neutral-400 mt-1">No demand entered yet.</div>
-            )}
-          </div>
-        </DashCard>
+              ))}
+            </div>
+          </DashCard>
+
+          <DashCard icon="🏭" title="6 · Processing Plan by Plant" description="Avg utilization by plant" onOpen={() => openStep(6)}>
+            <div className="mt-2">
+              {plantUtilization.map((p) => (
+                <UtilizationBar key={p.plant} label={PLANT_LABELS[p.plant]} pct={p.pct} />
+              ))}
+            </div>
+          </DashCard>
+        </div>
       </div>
     </div>
   );

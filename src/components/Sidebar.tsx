@@ -41,8 +41,8 @@ export function Sidebar() {
           Home
         </button>
 
-        {/* ── Planning Steps ── */}
-        <div className="px-4 text-[11px] uppercase tracking-wide text-neutral-400 font-semibold mb-1">Production Pipeline</div>
+        {/* ── S&OP Modules ── */}
+        <div className="px-4 text-[11px] uppercase tracking-wide text-neutral-400 font-semibold mb-1">S&amp;OP Modules</div>
         {STEPS.map((step) => {
           const active = !compareOpen && !demandOpen && !supplyOpen && !reconcileOpen && !ddpOpen && !reportOpen && !homeOpen && selectedStep === step.id;
           return (
@@ -57,9 +57,6 @@ export function Sidebar() {
             </button>
           );
         })}
-
-        {/* ── S&OP Modules ── */}
-        <div className="px-4 text-[11px] uppercase tracking-wide text-neutral-400 font-semibold mt-4 mb-1">S&amp;OP Modules</div>
 
         {/* M1 — Demand Plan */}
         <button
