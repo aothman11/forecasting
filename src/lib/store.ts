@@ -8,9 +8,10 @@ import type {
   PlacementDayRow,
   PlantKey,
   ScenarioSnapshot,
+  SupplyRequirementsWeek,
 } from "./types";
 import { DEFAULT_DEMAND_PRODUCTS, DEFAULT_PARAMETERS } from "./defaults";
-import { ensurePlacementDaysHorizon, quickFillPlacementDays } from "./calculations";
+import { ensurePlacementDaysHorizon, isFridayDate, quickFillPlacementDays } from "./calculations";
 import { bulkAdjustDemand, copyDemandWeekForward, demandCellKey, type BulkAdjustOptions } from "./demandPlan";
 
 export const STEPS = [
@@ -50,6 +51,7 @@ interface PlanState {
   setPlacementDayRow: (dayIndex: number, patch: Partial<PlacementDayRow>) => void;
   setPlacementDays: (rows: PlacementDayRow[]) => void;
   quickFillPlacementPlan: () => void;
+  applyDemandDrivenPlacement: (rows: SupplyRequirementsWeek[]) => void;
   addDemandProduct: (product: DemandProduct) => void;
   updateDemandProduct: (id: string, patch: Partial<DemandProduct>) => void;
   removeDemandProduct: (id: string) => void;
@@ -157,6 +159,43 @@ export const usePlanStore = create<PlanState>()(
 
       setSalesPlanProductMap: (map) => set({ salesPlanProductMap: map }),
       setSalesPlanChannelMap: (map) => set({ salesPlanChannelMap: map }),
+
+      applyDemandDrivenPlacement: (rows) =>
+        set((s) => {
+          // Group requiredChicksPlaced by placement week
+          const chicksMap = new Map<number, number>();
+          for (const row of rows) {
+            if (row.placementWeek > 0 && row.requiredChicksPlaced > 0) {
+              chicksMap.set(row.placementWeek, (chicksMap.get(row.placementWeek) ?? 0) + row.requiredChicksPlaced);
+            }
+          }
+
+          // Count working days per week from the existing calendar
+          const workDaysMap = new Map<number, number>();
+          for (const day of s.placementDays) {
+            const week = Math.floor(day.dayIndex / 7) + 1;
+            if (!(s.params.fridayOff && isFridayDate(day.date))) {
+              workDaysMap.set(week, (workDaysMap.get(week) ?? 0) + 1);
+            }
+          }
+
+          // Required houses per working day per placement week
+          const housesMap = new Map<number, number>();
+          for (const [week, chicks] of chicksMap) {
+            const workDays = workDaysMap.get(week) ?? s.params.workingDaysPerWeek;
+            housesMap.set(week, Math.ceil(chicks / workDays / s.params.chicksPerHouse));
+          }
+
+          const placementDays = s.placementDays.map((day) => {
+            const week = Math.floor(day.dayIndex / 7) + 1;
+            const targetHouses = housesMap.get(week);
+            if (targetHouses === undefined) return day;
+            const isFri = s.params.fridayOff && isFridayDate(day.date);
+            return { ...day, farmsPlacing: isFri ? 0 : targetHouses };
+          });
+
+          return { placementDays };
+        }),
 
       quickFillPlacementPlan: () =>
         set((s) => ({
