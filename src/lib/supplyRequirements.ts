@@ -1,4 +1,4 @@
-import { activeCutKeys } from "./calculations";
+import { activeCutKeys, harvestOffsetWeeks } from "./calculations";
 import { getDemandQtyAllChannels } from "./demandPlan";
 import type {
   DemandPlanQty,
@@ -114,7 +114,7 @@ export function computeSupplyRequirements(
       requiredCarcassKg,
       requiredHarvestableBirds,
       requiredChicksPlaced,
-      placementWeek: week,
+      placementWeek: week - harvestOffsetWeeks(params.cycleLengthDays),
       bindingCategory,
       plannedCarcassKg,
       plannedHarvestableBirds: lbRow?.harvestableBirds ?? 0,
