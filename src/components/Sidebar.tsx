@@ -24,7 +24,7 @@ export function Sidebar() {
         <div className="text-lg font-bold text-brand-green section-title leading-tight">
           AWP Production Forecast
         </div>
-        <div className="text-[11px] text-neutral-500 mt-0.5">Placement → Processing Plan</div>
+        <div className="text-[11px] text-neutral-500 mt-0.5">Demand → Supply · S&amp;OP</div>
       </div>
 
       <nav className="flex-1 py-3 overflow-y-auto">

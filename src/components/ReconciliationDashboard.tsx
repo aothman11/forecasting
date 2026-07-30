@@ -279,8 +279,12 @@ export function ReconciliationDashboard() {
                 <tr
                   key={r.week}
                   className={`border-t border-[var(--border-subtle)] hover:bg-brand-green-tint/20 transition-colors ${
-                    i % 2 === 0 ? "bg-white" : "bg-neutral-50/50"
-                  } ${r.status === "deficit" && r.totalDemandTons > 0 ? "bg-red-50!" : ""}`}
+                    r.status === "deficit" && r.totalDemandTons > 0
+                      ? "bg-red-50"
+                      : i % 2 === 0
+                      ? "bg-white"
+                      : "bg-neutral-50/50"
+                  }`}
                 >
                   <td className="sticky left-0 bg-inherit px-3 py-2 font-semibold text-brand-green-dark">W{r.week}</td>
 
