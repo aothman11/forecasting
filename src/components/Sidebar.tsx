@@ -42,7 +42,7 @@ export function Sidebar() {
         </button>
 
         {/* ── Planning Steps ── */}
-        <div className="px-4 text-[11px] uppercase tracking-wide text-neutral-400 font-semibold mb-1">Planning Steps</div>
+        <div className="px-4 text-[11px] uppercase tracking-wide text-neutral-400 font-semibold mb-1">Production Pipeline</div>
         {STEPS.map((step) => {
           const active = !compareOpen && !demandOpen && !supplyOpen && !reconcileOpen && !ddpOpen && !reportOpen && !homeOpen && selectedStep === step.id;
           return (
