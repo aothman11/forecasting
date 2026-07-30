@@ -1,5 +1,6 @@
 "use client";
 
+import { addDays, subDays, format } from "date-fns";
 import { usePlanStore } from "@/lib/store";
 import { DEFAULT_PARAMETERS, MAX_HORIZON_WEEKS, MIN_HORIZON_WEEKS, SIZE_KEYS, SIZE_LABELS } from "@/lib/defaults";
 import { carcassSizeDistributionSum, carcassYieldPct, fullCycleDays } from "@/lib/calculations";
@@ -116,11 +117,11 @@ export function ParameterPanel() {
           }
         />
         <label className="flex items-center justify-between gap-2 py-1 text-xs">
-          <span className="text-neutral-600">Plan start date</span>
+          <span className="text-neutral-600">Harvest start date</span>
           <input
             type="date"
-            value={params.planStartDate}
-            onChange={(e) => setParam({ planStartDate: e.target.value })}
+            value={format(addDays(new Date(params.planStartDate), Math.round(params.cycleLengthDays)), "yyyy-MM-dd")}
+            onChange={(e) => setParam({ planStartDate: format(subDays(new Date(e.target.value), Math.round(params.cycleLengthDays)), "yyyy-MM-dd") })}
             className="border border-[var(--border-subtle)] rounded px-1.5 py-0.5 text-xs"
           />
         </label>

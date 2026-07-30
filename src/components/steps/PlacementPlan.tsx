@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { format } from "date-fns";
+import { format, addDays } from "date-fns";
 import { usePlanStore } from "@/lib/store";
 import { isFridayDate } from "@/lib/calculations";
 import { isExcelFile, parsePlacementCSV, parsePlacementExcel, type ParsedPlacementRow } from "@/lib/placementImport";
@@ -42,7 +42,7 @@ export function PlacementPlan() {
     );
     setImportMessage(
       matched === 0
-        ? `No rows matched — check the "Placement Date" column uses yyyy-mm-dd and falls within the current ${placementDays.length}-day horizon.`
+        ? `No rows matched — check the "Placement Date" column uses yyyy-mm-dd and falls within the current ${placementDays.length}-day horizon. Tip: the template uses placement dates (harvest date − ${Math.round(params.cycleLengthDays)} days).`
         : `Matched ${matched} of ${parsed.length} imported rows to the current horizon.`
     );
   };
@@ -62,8 +62,16 @@ export function PlacementPlan() {
   const columns: DataTableColumn<PlacementDayRow>[] = [
     {
       key: "date",
-      header: "Placement Date",
-      render: (r) => `${r.date} (${format(new Date(r.date), "EEE")})`,
+      header: "Harvest Date",
+      render: (r) => {
+        const harvestDate = addDays(new Date(r.date), Math.round(params.cycleLengthDays));
+        return (
+          <div>
+            <div className="font-medium">{format(harvestDate, "yyyy-MM-dd")} ({format(harvestDate, "EEE")})</div>
+            <div className="text-[11px] text-neutral-400">Place: {r.date} ({format(new Date(r.date), "EEE")})</div>
+          </div>
+        );
+      },
     },
     {
       key: "farmsPlacing",
@@ -189,7 +197,7 @@ export function PlacementPlan() {
       )}
 
       <div className="text-xs text-neutral-400">
-        Expected columns: <span className="font-medium text-neutral-500">Placement Date</span> (yyyy-mm-dd),{" "}
+        Expected columns: <span className="font-medium text-neutral-500">Placement Date</span> (yyyy-mm-dd, the back-calculated placement date = harvest − {Math.round(params.cycleLengthDays)} days),{" "}
         <span className="font-medium text-neutral-500">House Placing</span>,{" "}
         <span className="font-medium text-neutral-500">Chicks per House</span>.
       </div>
