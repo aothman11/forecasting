@@ -3,8 +3,6 @@
 import { useState } from "react";
 import { exportPipelineToExcel, exportSummaryToPDF } from "@/lib/export";
 import { usePipeline } from "@/lib/usePipeline";
-import { usePlanStore } from "@/lib/store";
-
 export function ExportButtons() {
   const { result, params } = usePipeline();
   const [busy, setBusy] = useState<"xlsx" | "pdf" | null>(null);

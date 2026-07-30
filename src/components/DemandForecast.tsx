@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { usePlanStore } from "@/lib/store";
-import { categoryTotal, grandTotal, slugifyProductName } from "@/lib/demandPlan";
+import { categoryTotal, slugifyProductName } from "@/lib/demandPlan";
 import { CHANNEL_KEYS, CHANNEL_LABELS, EGG_TRAYS_PER_CARTON, PRODUCT_CATEGORY_LABELS } from "@/lib/defaults";
 import { exportDemandPlanToExcel } from "@/lib/export";
 import { SummaryCard } from "./shared/SummaryCard";

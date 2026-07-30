@@ -1,11 +1,10 @@
 "use client";
 
-import Image from "next/image";
 import { usePipeline } from "@/lib/usePipeline";
 import { usePlanStore } from "@/lib/store";
 import { activeCutKeys, computeSummaryMetrics } from "@/lib/calculations";
 import { CHANNEL_KEYS, CHANNEL_LABELS, CUT_LABELS, EGG_TRAYS_PER_CARTON, PLANT_LABELS, PRODUCT_CATEGORY_LABELS } from "@/lib/defaults";
-import { categoryTotal, grandTotal } from "@/lib/demandPlan";
+import { categoryTotal } from "@/lib/demandPlan";
 import { SummaryCard } from "./shared/SummaryCard";
 import { CapacityChart } from "./charts/CapacityChart";
 import { GradeChart } from "./charts/GradeChart";
