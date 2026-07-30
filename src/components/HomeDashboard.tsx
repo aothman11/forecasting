@@ -154,15 +154,15 @@ export function HomeDashboard() {
       {/* Hero */}
       <div
         className="relative rounded-2xl overflow-hidden shadow-md border border-[var(--border-subtle)]"
-        style={{ backgroundImage: "url('/hero-bg3.jpg')", backgroundSize: "cover", backgroundPosition: "center 65%", minHeight: 280 }}
+        style={{ backgroundImage: "url('/hero-bg3.jpg')", backgroundSize: "cover", backgroundPosition: "center 65%", minHeight: 160 }}
       >
         {/* gradient: white at top for text → transparent at bottom to reveal green waves */}
         <div className="absolute inset-0 bg-gradient-to-b from-white/70 via-white/20 to-transparent pointer-events-none" />
 
         {/* Centre text */}
-        <div className="relative z-10 flex flex-col items-center justify-center py-10 px-6 text-center">
+        <div className="relative z-10 flex flex-col items-center justify-center py-5 px-6 text-center">
           <div
-            className="text-[11px] font-semibold tracking-[0.25em] uppercase text-brand-green-dark/80 mb-1"
+            className="text-[10px] font-semibold tracking-[0.25em] uppercase text-brand-green-dark/80 mb-0.5"
             style={{ letterSpacing: "0.3em" }}
           >
             Al-Watania Poultry
@@ -170,7 +170,7 @@ export function HomeDashboard() {
           <div
             className="font-serif leading-tight"
             style={{
-              fontSize: "clamp(1.75rem, 4vw, 2.75rem)",
+              fontSize: "clamp(1.1rem, 2.5vw, 1.6rem)",
               fontWeight: 700,
               color: "#1a3d1a",
               textShadow: "0 1px 4px rgba(255,255,255,0.6)",
@@ -180,7 +180,7 @@ export function HomeDashboard() {
             Sales and Operations Planning
           </div>
           <div
-            className="mt-2 text-sm font-medium tracking-widest uppercase"
+            className="mt-1 text-[11px] font-medium tracking-widest uppercase"
             style={{ color: "#2d6a2d", letterSpacing: "0.18em" }}
           >
             Smarter Planning · Better Production
