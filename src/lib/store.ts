@@ -41,6 +41,7 @@ interface PlanState {
   compareOpen: boolean;
   demandOpen: boolean;
   supplyOpen: boolean;
+  reconcileOpen: boolean;
   homeOpen: boolean;
   scenarios: ScenarioSnapshot[];
 
@@ -66,6 +67,7 @@ interface PlanState {
   setCompareOpen: (open: boolean) => void;
   setDemandOpen: (open: boolean) => void;
   setSupplyOpen: (open: boolean) => void;
+  setReconcileOpen: (open: boolean) => void;
   setHomeOpen: (open: boolean) => void;
   saveScenario: (name: string) => void;
   deleteScenario: (id: string) => void;
@@ -92,6 +94,7 @@ export const usePlanStore = create<PlanState>()(
       compareOpen: false,
       demandOpen: false,
       supplyOpen: false,
+      reconcileOpen: false,
       homeOpen: true,
       scenarios: [],
 
@@ -210,6 +213,7 @@ export const usePlanStore = create<PlanState>()(
       setCompareOpen: (open) => set({ compareOpen: open }),
       setDemandOpen: (open) => set({ demandOpen: open }),
       setSupplyOpen: (open) => set({ supplyOpen: open }),
+      setReconcileOpen: (open) => set({ reconcileOpen: open }),
       setHomeOpen: (open) => set({ homeOpen: open }),
 
       saveScenario: (name) =>

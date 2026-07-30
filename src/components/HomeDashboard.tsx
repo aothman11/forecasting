@@ -74,6 +74,7 @@ export function HomeDashboard() {
   const setSelectedStep = usePlanStore((s) => s.setSelectedStep);
   const setDemandOpen = usePlanStore((s) => s.setDemandOpen);
   const setSupplyOpen = usePlanStore((s) => s.setSupplyOpen);
+  const setReconcileOpen = usePlanStore((s) => s.setReconcileOpen);
   const setHomeOpen = usePlanStore((s) => s.setHomeOpen);
 
   const openStep = (step: number) => {
@@ -90,6 +91,12 @@ export function HomeDashboard() {
     setHomeOpen(false);
     setDemandOpen(false);
     setSupplyOpen(true);
+  };
+  const openReconcile = () => {
+    setHomeOpen(false);
+    setDemandOpen(false);
+    setSupplyOpen(false);
+    setReconcileOpen(true);
   };
 
   const m = computeSummaryMetrics(result);
@@ -117,6 +124,23 @@ export function HomeDashboard() {
     ),
   })).sort((a, b) => b.car - a.car);
   const channelMax = channelDemand[0]?.car || 1;
+
+  const totalWcDemandTons = categoryTotal(demandProducts, demandQty, "wholeChicken", "ALL", horizonWeeks);
+  const totalFppDemandTons = categoryTotal(demandProducts, demandQty, "fpp", "ALL", horizonWeeks);
+  const totalCutsDemandTons = categoryTotal(demandProducts, demandQty, "cuts", "ALL", horizonWeeks);
+  const totalDemandTons = totalWcDemandTons + totalFppDemandTons + totalCutsDemandTons;
+  const totalSupplyTons = (m.totalWcFreshKg + m.totalWcFrozenKg + m.totalFppKg) / 1000;
+  const reconcileDeficitWeeks = horizonWeeks.filter((w) => {
+    const fam = result.family.find((r) => r.week === w);
+    const cuts = result.cuts.find((r) => r.week === w);
+    const wc = categoryTotal(demandProducts, demandQty, "wholeChicken", "ALL", [w]);
+    const fpp = categoryTotal(demandProducts, demandQty, "fpp", "ALL", [w]);
+    const cutsD = categoryTotal(demandProducts, demandQty, "cuts", "ALL", [w]);
+    const wcS = fam ? (fam.wcFreshKg + fam.wcFrozenKg) / 1000 : 0;
+    const fppS = fam ? fam.fppKg / 1000 : 0;
+    const cutsS = cuts ? cuts.totalKg / 1000 : 0;
+    return (wc > 0 && wcS - wc < -wc * 0.02) || (fpp > 0 && fppS - fpp < -fpp * 0.02) || (cutsD > 0 && cutsS - cutsD < -cutsD * 0.02);
+  }).length;
 
   const supplyRows = computeSupplyRequirements(demandProducts, demandQty, params, result, horizonWeeks);
   const supplyDeficitWeeks = supplyRows.filter((r) => r.carcassGapKg < -r.requiredCarcassKg * 0.02 && r.requiredCarcassKg > 0).length;
@@ -277,6 +301,28 @@ export function HomeDashboard() {
               </span>
             </div>
             {totalRequiredCarcass === 0 && (
+              <div className="text-[11px] text-neutral-400">No demand entered — open Demand Plan first.</div>
+            )}
+          </div>
+        </DashCard>
+
+        <DashCard icon="⇌" title="Reconciliation" description="Demand vs supply gap by category" onOpen={openReconcile}>
+          <div className="mt-2 space-y-2">
+            <div className="flex items-center justify-between text-xs">
+              <span className="text-neutral-600">Total demand</span>
+              <span className="font-semibold tabular-nums">{totalDemandTons > 0 ? `${totalDemandTons.toFixed(0)} t` : <span className="text-neutral-300">—</span>}</span>
+            </div>
+            <div className="flex items-center justify-between text-xs">
+              <span className="text-neutral-600">Total supply</span>
+              <span className="font-semibold tabular-nums">{`${totalSupplyTons.toFixed(0)} t`}</span>
+            </div>
+            <div className="flex items-center justify-between text-xs">
+              <span className="text-neutral-600">Deficit weeks</span>
+              <span className={`font-semibold tabular-nums ${reconcileDeficitWeeks > 0 ? "text-red-600" : "text-green-700"}`}>
+                {reconcileDeficitWeeks > 0 ? `${reconcileDeficitWeeks} week${reconcileDeficitWeeks > 1 ? "s" : ""}` : "None"}
+              </span>
+            </div>
+            {totalDemandTons === 0 && (
               <div className="text-[11px] text-neutral-400">No demand entered — open Demand Plan first.</div>
             )}
           </div>

@@ -12,6 +12,8 @@ export function Sidebar() {
   const setDemandOpen = usePlanStore((s) => s.setDemandOpen);
   const supplyOpen = usePlanStore((s) => s.supplyOpen);
   const setSupplyOpen = usePlanStore((s) => s.setSupplyOpen);
+  const reconcileOpen = usePlanStore((s) => s.reconcileOpen);
+  const setReconcileOpen = usePlanStore((s) => s.setReconcileOpen);
   const homeOpen = usePlanStore((s) => s.homeOpen);
   const setHomeOpen = usePlanStore((s) => s.setHomeOpen);
 
@@ -31,6 +33,7 @@ export function Sidebar() {
             setCompareOpen(false);
             setDemandOpen(false);
             setSupplyOpen(false);
+            setReconcileOpen(false);
             setHomeOpen(true);
           }}
           className={`w-full text-left px-4 py-2.5 flex items-center gap-3 text-sm transition-colors mb-2 ${
@@ -53,7 +56,7 @@ export function Sidebar() {
           Planning Steps
         </div>
         {STEPS.map((step) => {
-          const active = !compareOpen && !demandOpen && !homeOpen && selectedStep === step.id;
+          const active = !compareOpen && !demandOpen && !supplyOpen && !reconcileOpen && !homeOpen && selectedStep === step.id;
           return (
             <button
               key={step.id}
@@ -61,6 +64,7 @@ export function Sidebar() {
                 setCompareOpen(false);
                 setDemandOpen(false);
                 setSupplyOpen(false);
+                setReconcileOpen(false);
                 setHomeOpen(false);
                 setSelectedStep(step.id);
               }}
@@ -92,6 +96,7 @@ export function Sidebar() {
           onClick={() => {
             setCompareOpen(false);
             setSupplyOpen(false);
+            setReconcileOpen(false);
             setHomeOpen(false);
             setDemandOpen(true);
           }}
@@ -114,6 +119,7 @@ export function Sidebar() {
           onClick={() => {
             setCompareOpen(false);
             setDemandOpen(false);
+            setReconcileOpen(false);
             setHomeOpen(false);
             setSupplyOpen(true);
           }}
@@ -134,8 +140,32 @@ export function Sidebar() {
         </button>
         <button
           onClick={() => {
+            setCompareOpen(false);
             setDemandOpen(false);
             setSupplyOpen(false);
+            setHomeOpen(false);
+            setReconcileOpen(true);
+          }}
+          className={`w-full text-left px-4 py-2.5 flex items-center gap-3 text-sm transition-colors ${
+            reconcileOpen
+              ? "bg-brand-green-tint text-brand-green-dark font-semibold border-r-2 border-brand-green"
+              : "text-neutral-600 hover:bg-neutral-50"
+          }`}
+        >
+          <span
+            className={`flex items-center justify-center w-6 h-6 rounded-full text-[11px] font-semibold shrink-0 transition-shadow ${
+              reconcileOpen ? "bg-brand-green text-white shadow-sm shadow-brand-green/30" : "bg-neutral-200 text-neutral-600"
+            }`}
+          >
+            ⇌
+          </span>
+          Reconciliation
+        </button>
+        <button
+          onClick={() => {
+            setDemandOpen(false);
+            setSupplyOpen(false);
+            setReconcileOpen(false);
             setHomeOpen(false);
             setCompareOpen(true);
           }}
