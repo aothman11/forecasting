@@ -14,6 +14,8 @@ export function Sidebar() {
   const setSupplyOpen = usePlanStore((s) => s.setSupplyOpen);
   const reconcileOpen = usePlanStore((s) => s.reconcileOpen);
   const setReconcileOpen = usePlanStore((s) => s.setReconcileOpen);
+  const reportOpen = usePlanStore((s) => s.reportOpen);
+  const setReportOpen = usePlanStore((s) => s.setReportOpen);
   const homeOpen = usePlanStore((s) => s.homeOpen);
   const setHomeOpen = usePlanStore((s) => s.setHomeOpen);
 
@@ -34,6 +36,7 @@ export function Sidebar() {
             setDemandOpen(false);
             setSupplyOpen(false);
             setReconcileOpen(false);
+            setReportOpen(false);
             setHomeOpen(true);
           }}
           className={`w-full text-left px-4 py-2.5 flex items-center gap-3 text-sm transition-colors mb-2 ${
@@ -56,7 +59,7 @@ export function Sidebar() {
           Planning Steps
         </div>
         {STEPS.map((step) => {
-          const active = !compareOpen && !demandOpen && !supplyOpen && !reconcileOpen && !homeOpen && selectedStep === step.id;
+          const active = !compareOpen && !demandOpen && !supplyOpen && !reconcileOpen && !reportOpen && !homeOpen && selectedStep === step.id;
           return (
             <button
               key={step.id}
@@ -65,6 +68,7 @@ export function Sidebar() {
                 setDemandOpen(false);
                 setSupplyOpen(false);
                 setReconcileOpen(false);
+                setReportOpen(false);
                 setHomeOpen(false);
                 setSelectedStep(step.id);
               }}
@@ -97,6 +101,7 @@ export function Sidebar() {
             setCompareOpen(false);
             setSupplyOpen(false);
             setReconcileOpen(false);
+            setReportOpen(false);
             setHomeOpen(false);
             setDemandOpen(true);
           }}
@@ -120,6 +125,7 @@ export function Sidebar() {
             setCompareOpen(false);
             setDemandOpen(false);
             setReconcileOpen(false);
+            setReportOpen(false);
             setHomeOpen(false);
             setSupplyOpen(true);
           }}
@@ -143,6 +149,7 @@ export function Sidebar() {
             setCompareOpen(false);
             setDemandOpen(false);
             setSupplyOpen(false);
+            setReportOpen(false);
             setHomeOpen(false);
             setReconcileOpen(true);
           }}
@@ -163,9 +170,34 @@ export function Sidebar() {
         </button>
         <button
           onClick={() => {
+            setCompareOpen(false);
             setDemandOpen(false);
             setSupplyOpen(false);
             setReconcileOpen(false);
+            setHomeOpen(false);
+            setReportOpen(true);
+          }}
+          className={`w-full text-left px-4 py-2.5 flex items-center gap-3 text-sm transition-colors ${
+            reportOpen
+              ? "bg-brand-green-tint text-brand-green-dark font-semibold border-r-2 border-brand-green"
+              : "text-neutral-600 hover:bg-neutral-50"
+          }`}
+        >
+          <span
+            className={`flex items-center justify-center w-6 h-6 rounded-full text-[11px] font-semibold shrink-0 transition-shadow ${
+              reportOpen ? "bg-brand-green text-white shadow-sm shadow-brand-green/30" : "bg-neutral-200 text-neutral-600"
+            }`}
+          >
+            📋
+          </span>
+          S&amp;OP Report
+        </button>
+        <button
+          onClick={() => {
+            setDemandOpen(false);
+            setSupplyOpen(false);
+            setReconcileOpen(false);
+            setReportOpen(false);
             setHomeOpen(false);
             setCompareOpen(true);
           }}

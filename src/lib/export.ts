@@ -198,6 +198,81 @@ export function exportDemandPlanToExcel(
   XLSX.writeFile(wb, fileName);
 }
 
+export interface SOPReportRow {
+  week: number;
+  wcDemandTons: number;
+  wcSupplyTons: number;
+  fppDemandTons: number;
+  fppSupplyTons: number;
+  cutsDemandTons: number;
+  cutsSupplyTons: number;
+  placementWeek: number;
+  overallStatus: "green" | "amber" | "red" | "na";
+}
+
+export function exportSOPReportToExcel(
+  rows: SOPReportRow[],
+  planStartDate: string,
+  fileName = "awp-sop-report.xlsx"
+) {
+  const wb = XLSX.utils.book_new();
+
+  const ragLabel = (s: SOPReportRow["overallStatus"]) =>
+    s === "green" ? "OK" : s === "amber" ? "TIGHT" : s === "red" ? "DEFICIT" : "No demand";
+
+  const covPct = (d: number, s: number) =>
+    d > 0 ? round((s / d) * 100, 1) : null;
+
+  const sheet = rows.map((r) => ({
+    Week: `W${r.week}`,
+    "WC Demand (t)": round(r.wcDemandTons, 1),
+    "WC Supply (t)": round(r.wcSupplyTons, 1),
+    "WC Coverage %": covPct(r.wcDemandTons, r.wcSupplyTons) ?? "—",
+    "FPP Demand (t)": round(r.fppDemandTons, 1),
+    "FPP Supply (t)": round(r.fppSupplyTons, 1),
+    "FPP Coverage %": covPct(r.fppDemandTons, r.fppSupplyTons) ?? "—",
+    "Cuts Demand (t)": round(r.cutsDemandTons, 1),
+    "Cuts Supply (t)": round(r.cutsSupplyTons, 1),
+    "Cuts Coverage %": covPct(r.cutsDemandTons, r.cutsSupplyTons) ?? "—",
+    "Placement Wk": r.placementWeek > 0 ? `Wk ${r.placementWeek}` : "pre-plan",
+    Status: ragLabel(r.overallStatus),
+  }));
+
+  const ws = XLSX.utils.json_to_sheet(sheet);
+  ws["!cols"] = Object.keys(sheet[0] ?? {}).map(() => ({ wch: 16 }));
+  XLSX.utils.book_append_sheet(wb, ws, "S&OP Report");
+
+  // Summary tab
+  const totals = rows.reduce(
+    (acc, r) => {
+      acc.wcD += r.wcDemandTons; acc.wcS += r.wcSupplyTons;
+      acc.fppD += r.fppDemandTons; acc.fppS += r.fppSupplyTons;
+      acc.cutsD += r.cutsDemandTons; acc.cutsS += r.cutsSupplyTons;
+      return acc;
+    },
+    { wcD: 0, wcS: 0, fppD: 0, fppS: 0, cutsD: 0, cutsS: 0 }
+  );
+  const summarySheet = [
+    { Metric: "Plan Start Date", Value: planStartDate },
+    { Metric: "Planning Weeks", Value: rows.length },
+    { Metric: "WC Total Demand (t)", Value: round(totals.wcD, 1) },
+    { Metric: "WC Total Supply (t)", Value: round(totals.wcS, 1) },
+    { Metric: "WC Coverage %", Value: totals.wcD > 0 ? round((totals.wcS / totals.wcD) * 100, 1) : "—" },
+    { Metric: "FPP Total Demand (t)", Value: round(totals.fppD, 1) },
+    { Metric: "FPP Total Supply (t)", Value: round(totals.fppS, 1) },
+    { Metric: "FPP Coverage %", Value: totals.fppD > 0 ? round((totals.fppS / totals.fppD) * 100, 1) : "—" },
+    { Metric: "Cuts Total Demand (t)", Value: round(totals.cutsD, 1) },
+    { Metric: "Cuts Total Supply (t)", Value: round(totals.cutsS, 1) },
+    { Metric: "Cuts Coverage %", Value: totals.cutsD > 0 ? round((totals.cutsS / totals.cutsD) * 100, 1) : "—" },
+    { Metric: "Deficit Weeks", Value: rows.filter((r) => r.overallStatus === "red").length },
+    { Metric: "Tight Weeks", Value: rows.filter((r) => r.overallStatus === "amber").length },
+    { Metric: "OK Weeks", Value: rows.filter((r) => r.overallStatus === "green").length },
+  ];
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(summarySheet), "Summary");
+
+  XLSX.writeFile(wb, fileName);
+}
+
 export async function exportSummaryToPDF(elementId: string, fileName = "awp-production-summary.pdf") {
   const [{ default: html2canvas }, { jsPDF }] = await Promise.all([
     import("html2canvas"),
