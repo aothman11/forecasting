@@ -154,10 +154,10 @@ export function HomeDashboard() {
       {/* Hero */}
       <div
         className="relative rounded-2xl overflow-hidden shadow-md border border-[var(--border-subtle)]"
-        style={{ backgroundImage: "url('/hero-bg3.jpg')", backgroundSize: "cover", backgroundPosition: "center", minHeight: 200 }}
+        style={{ backgroundImage: "url('/hero-bg3.jpg')", backgroundSize: "cover", backgroundPosition: "center 65%", minHeight: 280 }}
       >
-        {/* subtle dark overlay to ensure text readability over the light image */}
-        <div className="absolute inset-0 bg-gradient-to-b from-white/30 via-transparent to-black/20 pointer-events-none" />
+        {/* gradient: white at top for text → transparent at bottom to reveal green waves */}
+        <div className="absolute inset-0 bg-gradient-to-b from-white/70 via-white/20 to-transparent pointer-events-none" />
 
         {/* Centre text */}
         <div className="relative z-10 flex flex-col items-center justify-center py-10 px-6 text-center">
