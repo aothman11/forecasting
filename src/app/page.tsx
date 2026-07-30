@@ -85,8 +85,6 @@ export default function Home() {
             </div>
           </header>
 
-          <StepJourney />
-
           <ValidationBanner issues={issues} />
 
           <main className="workbench-bg flex-1 overflow-y-auto p-6">

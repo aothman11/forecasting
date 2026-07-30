@@ -43,6 +43,54 @@ export function Sidebar() {
 
         {/* ── S&OP Modules ── */}
         <div className="px-4 text-[11px] uppercase tracking-wide text-neutral-400 font-semibold mb-1">S&amp;OP Modules</div>
+
+        {/* M1 — Demand Plan */}
+        <button
+          onClick={() => { setCompareOpen(false); setSupplyOpen(false); setReconcileOpen(false); setDdpOpen(false); setReportOpen(false); setHomeOpen(false); setDemandOpen(true); }}
+          className={`w-full text-left px-4 py-2.5 flex items-center gap-3 text-sm transition-colors ${demandOpen ? "bg-brand-green-tint text-brand-green-dark font-semibold border-r-2 border-brand-green" : "text-neutral-600 hover:bg-neutral-50"}`}
+        >
+          <span className={`flex items-center justify-center w-6 h-6 rounded-full text-[11px] font-semibold shrink-0 transition-shadow ${demandOpen ? "bg-brand-green text-white shadow-sm shadow-brand-green/30" : "bg-neutral-200 text-neutral-600"}`}>M1</span>
+          Demand Plan
+        </button>
+
+        {/* M2 — Supply Requirements */}
+        <button
+          onClick={() => { setCompareOpen(false); setDemandOpen(false); setReconcileOpen(false); setDdpOpen(false); setReportOpen(false); setHomeOpen(false); setSupplyOpen(true); }}
+          className={`w-full text-left px-4 py-2.5 flex items-center gap-3 text-sm transition-colors ${supplyOpen ? "bg-brand-green-tint text-brand-green-dark font-semibold border-r-2 border-brand-green" : "text-neutral-600 hover:bg-neutral-50"}`}
+        >
+          <span className={`flex items-center justify-center w-6 h-6 rounded-full text-[11px] font-semibold shrink-0 transition-shadow ${supplyOpen ? "bg-brand-green text-white shadow-sm shadow-brand-green/30" : "bg-neutral-200 text-neutral-600"}`}>M2</span>
+          Supply Requirements
+        </button>
+
+        {/* M3 — Reconciliation */}
+        <button
+          onClick={() => { setCompareOpen(false); setDemandOpen(false); setSupplyOpen(false); setDdpOpen(false); setReportOpen(false); setHomeOpen(false); setReconcileOpen(true); }}
+          className={`w-full text-left px-4 py-2.5 flex items-center gap-3 text-sm transition-colors ${reconcileOpen ? "bg-brand-green-tint text-brand-green-dark font-semibold border-r-2 border-brand-green" : "text-neutral-600 hover:bg-neutral-50"}`}
+        >
+          <span className={`flex items-center justify-center w-6 h-6 rounded-full text-[11px] font-semibold shrink-0 transition-shadow ${reconcileOpen ? "bg-brand-green text-white shadow-sm shadow-brand-green/30" : "bg-neutral-200 text-neutral-600"}`}>M3</span>
+          Reconciliation
+        </button>
+
+        {/* M4 — Demand-Driven Placement */}
+        <button
+          onClick={() => { setCompareOpen(false); setDemandOpen(false); setSupplyOpen(false); setReconcileOpen(false); setReportOpen(false); setHomeOpen(false); setDdpOpen(true); }}
+          className={`w-full text-left px-4 py-2.5 flex items-center gap-3 text-sm transition-colors ${ddpOpen ? "bg-brand-green-tint text-brand-green-dark font-semibold border-r-2 border-brand-green" : "text-neutral-600 hover:bg-neutral-50"}`}
+        >
+          <span className={`flex items-center justify-center w-6 h-6 rounded-full text-[11px] font-semibold shrink-0 transition-shadow ${ddpOpen ? "bg-brand-green text-white shadow-sm shadow-brand-green/30" : "bg-neutral-200 text-neutral-600"}`}>M4</span>
+          Demand-Driven Placement
+        </button>
+
+        {/* M5 — S&OP Report */}
+        <button
+          onClick={() => { setCompareOpen(false); setDemandOpen(false); setSupplyOpen(false); setReconcileOpen(false); setDdpOpen(false); setHomeOpen(false); setReportOpen(true); }}
+          className={`w-full text-left px-4 py-2.5 flex items-center gap-3 text-sm transition-colors ${reportOpen ? "bg-brand-green-tint text-brand-green-dark font-semibold border-r-2 border-brand-green" : "text-neutral-600 hover:bg-neutral-50"}`}
+        >
+          <span className={`flex items-center justify-center w-6 h-6 rounded-full text-[11px] font-semibold shrink-0 transition-shadow ${reportOpen ? "bg-brand-green text-white shadow-sm shadow-brand-green/30" : "bg-neutral-200 text-neutral-600"}`}>M5</span>
+          S&amp;OP Report
+        </button>
+
+        {/* ── Production Pipeline ── */}
+        <div className="px-4 text-[11px] uppercase tracking-wide text-neutral-400 font-semibold mt-4 mb-1">Production Pipeline</div>
         {STEPS.map((step) => {
           const active = !compareOpen && !demandOpen && !supplyOpen && !reconcileOpen && !ddpOpen && !reportOpen && !homeOpen && selectedStep === step.id;
           return (
@@ -57,51 +105,6 @@ export function Sidebar() {
             </button>
           );
         })}
-
-        {/* M1 — Demand Plan */}
-        <button
-          onClick={() => { setCompareOpen(false); setSupplyOpen(false); setReconcileOpen(false); setDdpOpen(false); setReportOpen(false); setHomeOpen(false); setDemandOpen(true); }}
-          className={`w-full text-left px-4 py-2.5 flex items-center gap-3 text-sm transition-colors ${demandOpen ? "bg-brand-green-tint text-brand-green-dark font-semibold border-r-2 border-brand-green" : "text-neutral-600 hover:bg-neutral-50"}`}
-        >
-          <span className={`flex items-center justify-center w-6 h-6 rounded-full text-[11px] font-semibold shrink-0 transition-shadow ${demandOpen ? "bg-brand-green text-white shadow-sm shadow-brand-green/30" : "bg-neutral-200 text-neutral-600"}`}>📊</span>
-          Demand Plan
-        </button>
-
-        {/* M2 — Supply Requirements */}
-        <button
-          onClick={() => { setCompareOpen(false); setDemandOpen(false); setReconcileOpen(false); setDdpOpen(false); setReportOpen(false); setHomeOpen(false); setSupplyOpen(true); }}
-          className={`w-full text-left px-4 py-2.5 flex items-center gap-3 text-sm transition-colors ${supplyOpen ? "bg-brand-green-tint text-brand-green-dark font-semibold border-r-2 border-brand-green" : "text-neutral-600 hover:bg-neutral-50"}`}
-        >
-          <span className={`flex items-center justify-center w-6 h-6 rounded-full text-[11px] font-semibold shrink-0 transition-shadow ${supplyOpen ? "bg-brand-green text-white shadow-sm shadow-brand-green/30" : "bg-neutral-200 text-neutral-600"}`}>🔗</span>
-          Supply Requirements
-        </button>
-
-        {/* M3 — Reconciliation */}
-        <button
-          onClick={() => { setCompareOpen(false); setDemandOpen(false); setSupplyOpen(false); setDdpOpen(false); setReportOpen(false); setHomeOpen(false); setReconcileOpen(true); }}
-          className={`w-full text-left px-4 py-2.5 flex items-center gap-3 text-sm transition-colors ${reconcileOpen ? "bg-brand-green-tint text-brand-green-dark font-semibold border-r-2 border-brand-green" : "text-neutral-600 hover:bg-neutral-50"}`}
-        >
-          <span className={`flex items-center justify-center w-6 h-6 rounded-full text-[11px] font-semibold shrink-0 transition-shadow ${reconcileOpen ? "bg-brand-green text-white shadow-sm shadow-brand-green/30" : "bg-neutral-200 text-neutral-600"}`}>⇌</span>
-          Reconciliation
-        </button>
-
-        {/* M4 — Demand-Driven Placement */}
-        <button
-          onClick={() => { setCompareOpen(false); setDemandOpen(false); setSupplyOpen(false); setReconcileOpen(false); setReportOpen(false); setHomeOpen(false); setDdpOpen(true); }}
-          className={`w-full text-left px-4 py-2.5 flex items-center gap-3 text-sm transition-colors ${ddpOpen ? "bg-brand-green-tint text-brand-green-dark font-semibold border-r-2 border-brand-green" : "text-neutral-600 hover:bg-neutral-50"}`}
-        >
-          <span className={`flex items-center justify-center w-6 h-6 rounded-full text-[11px] font-semibold shrink-0 transition-shadow ${ddpOpen ? "bg-brand-green text-white shadow-sm shadow-brand-green/30" : "bg-neutral-200 text-neutral-600"}`}>🎯</span>
-          Demand-Driven Placement
-        </button>
-
-        {/* M5 — S&OP Report */}
-        <button
-          onClick={() => { setCompareOpen(false); setDemandOpen(false); setSupplyOpen(false); setReconcileOpen(false); setDdpOpen(false); setHomeOpen(false); setReportOpen(true); }}
-          className={`w-full text-left px-4 py-2.5 flex items-center gap-3 text-sm transition-colors ${reportOpen ? "bg-brand-green-tint text-brand-green-dark font-semibold border-r-2 border-brand-green" : "text-neutral-600 hover:bg-neutral-50"}`}
-        >
-          <span className={`flex items-center justify-center w-6 h-6 rounded-full text-[11px] font-semibold shrink-0 transition-shadow ${reportOpen ? "bg-brand-green text-white shadow-sm shadow-brand-green/30" : "bg-neutral-200 text-neutral-600"}`}>📋</span>
-          S&amp;OP Report
-        </button>
 
         {/* ── Tools ── */}
         <div className="px-4 text-[11px] uppercase tracking-wide text-neutral-400 font-semibold mt-4 mb-1">Tools</div>
