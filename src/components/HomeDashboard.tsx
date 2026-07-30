@@ -315,7 +315,7 @@ export function HomeDashboard() {
             <div className="mt-2 space-y-1.5">
               {channelDemand.map(({ ch, car }) => (
                 <div key={ch} className="flex items-center gap-2 text-xs">
-                  <span className="w-24 shrink-0 text-neutral-600">{CHANNEL_LABELS[ch]}</span>
+                  <span className="w-28 shrink-0 text-neutral-600 whitespace-nowrap">{CHANNEL_LABELS[ch]}</span>
                   <div className="flex-1 h-2 rounded-full bg-neutral-100 overflow-hidden">
                     <div className="h-full rounded-full bg-brand-green" style={{ width: `${(car / channelMax) * 100}%` }} />
                   </div>
