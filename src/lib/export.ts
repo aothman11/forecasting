@@ -2,7 +2,8 @@ import * as XLSX from "xlsx";
 import type { PipelineResult } from "./types";
 import { activeCutKeys } from "./calculations";
 import { CHANNEL_KEYS, CUT_LABELS, DEFAULT_CHICKS_PER_HOUSE, PLANT_LABELS, SIZE_KEYS, SIZE_LABELS } from "./defaults";
-import type { ChannelKey, DemandPlanQty, DemandProduct, Parameters as PlanParameters, PlacementDayRow } from "./types";
+import type { ChannelKey, DemandPlanQty, DemandProduct, Farm, Parameters as PlanParameters, PlacementDayRow } from "./types";
+import type { FarmWeekRollup } from "./farmQuota";
 
 function round(n: number, dp = 1): number {
   return Math.round(n * 10 ** dp) / 10 ** dp;
@@ -155,6 +156,63 @@ export function exportPipelineToExcel(
     "Capacity Breach": r.capacityBreach ? "YES" : "",
   }));
   XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(plantSheet), "Processing by Plant");
+
+  XLSX.writeFile(wb, fileName);
+}
+
+/**
+ * SAP MEQ1 Quota Arrangement upload workbook.
+ * Two sheets:
+ *   "Quota Arrangement" — one row per farm per week (the batch-upload ready data)
+ *   "Daily Detail"       — one row per farm per placement day (full audit trail)
+ */
+export function exportMEQ1ToExcel(
+  rollups: FarmWeekRollup[],
+  farms: Farm[],
+  placementDays: PlacementDayRow[],
+  chicksPerHouse: number,
+  fileName = "awp-meq1-quota-arrangement.xlsx"
+) {
+  const wb = XLSX.utils.book_new();
+
+  // Sheet 1: Weekly quota arrangement (MEQ1 upload format)
+  const quotaSheet = rollups.map((r, i) => ({
+    "Item No.": i + 1,
+    "Quota Arr. Key": `AWP-QA-${r.week.toString().padStart(2, "0")}`,
+    "Valid From": r.weekStart,
+    "Material": "CHICK-DOC",
+    "Plant": "AWP1",
+    "Vendor Code (SAP)": r.sapVendorCode,
+    "Farm Name": r.farmName,
+    "Quota Share %": r.quotaSharePct,
+    "Week": `W${r.week}`,
+    "Houses to Place": r.totalHouses,
+    "Chicks to Place": r.totalChicks,
+  }));
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(quotaSheet), "Quota Arrangement");
+
+  // Sheet 2: Daily detail per farm
+  const farmMap = new Map(farms.map((f) => [f.id, f]));
+  const activeFarms = farms.filter((f) => f.active);
+  const totalShare = activeFarms.reduce((s, f) => s + f.quotaSharePct, 0) || 1;
+  const dailyRows: Record<string, string | number>[] = [];
+
+  for (const day of placementDays) {
+    for (const farm of activeFarms) {
+      const share = farm.quotaSharePct / totalShare;
+      const houses = Math.round(day.farmsPlacing * share);
+      dailyRows.push({
+        "Placement Date": day.date,
+        "Vendor Code (SAP)": farm.sapVendorCode,
+        "Farm Name": farm.name,
+        "Quota Share %": farm.quotaSharePct,
+        "Total Houses (Day)": day.farmsPlacing,
+        "Houses Allocated": houses,
+        "Chicks Allocated": houses * chicksPerHouse,
+      });
+    }
+  }
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(dailyRows), "Daily Detail");
 
   XLSX.writeFile(wb, fileName);
 }

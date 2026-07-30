@@ -197,3 +197,15 @@ export const PRODUCT_CATEGORY_LABELS: Record<DemandProduct["category"], string> 
   fpp: "FPP (Further Processed Products)",
   eggs: "Eggs",
 };
+
+// ---------- Farm Quota (Step 7) ----------
+
+import type { Farm } from "./types";
+
+export const DEFAULT_FARMS: Farm[] = [
+  { id: "farm-01", name: "Al-Watania Farm 01", sapVendorCode: "V1001", quotaSharePct: 25, maxHousesPerDay: 0, active: true },
+  { id: "farm-02", name: "Al-Watania Farm 02", sapVendorCode: "V1002", quotaSharePct: 20, maxHousesPerDay: 0, active: true },
+  { id: "farm-03", name: "Al-Watania Farm 03", sapVendorCode: "V1003", quotaSharePct: 20, maxHousesPerDay: 0, active: true },
+  { id: "farm-04", name: "Al-Watania Farm 04", sapVendorCode: "V1004", quotaSharePct: 20, maxHousesPerDay: 0, active: true },
+  { id: "farm-05", name: "Al-Watania Farm 05", sapVendorCode: "V1005", quotaSharePct: 15, maxHousesPerDay: 0, active: true },
+];

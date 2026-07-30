@@ -23,6 +23,7 @@ import { CarcassYield } from "@/components/steps/CarcassYield";
 import { ProductFamily } from "@/components/steps/ProductFamily";
 import { CutPlan } from "@/components/steps/CutPlan";
 import { ProcessingPlan } from "@/components/steps/ProcessingPlan";
+import { FarmQuotaDistribution } from "@/components/steps/FarmQuotaDistribution";
 
 function StepContent({ step }: { step: number }) {
   switch (step) {
@@ -38,6 +39,8 @@ function StepContent({ step }: { step: number }) {
       return <CutPlan />;
     case 6:
       return <ProcessingPlan />;
+    case 7:
+      return <FarmQuotaDistribution />;
     default:
       return null;
   }

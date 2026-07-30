@@ -4,13 +4,14 @@ import type {
   ChannelKey,
   DemandPlanQty,
   DemandProduct,
+  Farm,
   Parameters,
   PlacementDayRow,
   PlantKey,
   ScenarioSnapshot,
   SupplyRequirementsWeek,
 } from "./types";
-import { DEFAULT_DEMAND_PRODUCTS, DEFAULT_PARAMETERS } from "./defaults";
+import { DEFAULT_DEMAND_PRODUCTS, DEFAULT_FARMS, DEFAULT_PARAMETERS } from "./defaults";
 import { ensurePlacementDaysHorizon, isFridayDate, quickFillPlacementDays } from "./calculations";
 import { bulkAdjustDemand, copyDemandWeekForward, demandCellKey, type BulkAdjustOptions } from "./demandPlan";
 
@@ -21,6 +22,7 @@ export const STEPS = [
   { id: 4, label: "Product Family Allocation", short: "Products", icon: "📦" },
   { id: 5, label: "FPP Cut Plan", short: "Cuts", icon: "🍗" },
   { id: 6, label: "Processing Plan by Plant", short: "Plants", icon: "🏭" },
+  { id: 7, label: "Farm Quota Distribution", short: "Farms", icon: "🌾" },
 ] as const;
 
 export type PlantFilter = PlantKey | "all";
@@ -36,6 +38,7 @@ interface PlanState {
   demandQty: DemandPlanQty;
   salesPlanProductMap: Record<string, string>;
   salesPlanChannelMap: Record<string, ChannelKey>;
+  farms: Farm[];
   selectedStep: number;
   selectedPlant: PlantFilter;
   assumptionsOpen: boolean;
@@ -62,6 +65,10 @@ interface PlanState {
   copyDemandWeekForwardAction: (channel: ChannelKey | "ALL", fromWeek: number, toWeek: number) => void;
   setSalesPlanProductMap: (map: Record<string, string>) => void;
   setSalesPlanChannelMap: (map: Record<string, ChannelKey>) => void;
+  addFarm: (farm: Farm) => void;
+  updateFarm: (id: string, patch: Partial<Farm>) => void;
+  removeFarm: (id: string) => void;
+  setFarms: (farms: Farm[]) => void;
   setHorizonWeeks: (weeks: number) => void;
   setPlanStartDate: (date: string) => void;
   resetToDefaults: () => void;
@@ -94,6 +101,7 @@ export const usePlanStore = create<PlanState>()(
       demandQty: {},
       salesPlanProductMap: {},
       salesPlanChannelMap: {},
+      farms: DEFAULT_FARMS,
       selectedStep: 1,
       selectedPlant: "all",
       assumptionsOpen: false,
@@ -165,6 +173,12 @@ export const usePlanStore = create<PlanState>()(
 
       setSalesPlanProductMap: (map) => set({ salesPlanProductMap: map }),
       setSalesPlanChannelMap: (map) => set({ salesPlanChannelMap: map }),
+
+      addFarm: (farm) => set((s) => ({ farms: [...s.farms, farm] })),
+      updateFarm: (id, patch) =>
+        set((s) => ({ farms: s.farms.map((f) => (f.id === id ? { ...f, ...patch } : f)) })),
+      removeFarm: (id) => set((s) => ({ farms: s.farms.filter((f) => f.id !== id) })),
+      setFarms: (farms) => set({ farms }),
 
       applyDemandDrivenPlacement: (rows) =>
         set((s) => {
@@ -281,7 +295,7 @@ export const usePlanStore = create<PlanState>()(
     }),
     {
       name: "awp-broiler-forecast-store",
-      version: 7,
+      version: 8,
       // v2 switched Step 1 from weekly to daily placement rows (PlacementRow -> PlacementDayRow).
       // v3 replaced the farm-based model (totalFarms/dressingPct/chicksPerFarm) with the house-based
       // processing chain (houseCount/avgCarcassWeightKg/chicksPerHouse/...). Both changes touch nearly
@@ -293,17 +307,20 @@ export const usePlanStore = create<PlanState>()(
       // v6 expanded WC weight buckets to 50g steps (500–1500g).
       // v7 corrected to 100g steps (500–1500g); demandProducts and demandQty reset again.
       migrate: (persisted, version) => {
-        if (version >= 7) return persisted;
+        if (version >= 8) return persisted;
         const state = persisted as { params?: Parameters; placementDays?: unknown; scenarios?: unknown };
         if (version < 3) return { scenarios: [] };
         const params = state.params ? { ...DEFAULT_PARAMETERS, ...state.params } : undefined;
-        // v5→v6: drop old demand catalog so new 50g-step WC buckets take effect
+        // v7→v8: additive — just seed farms from defaults; all prior state preserved
         return {
           params,
           placementDays: state.placementDays,
           scenarios: state.scenarios ?? [],
-          demandProducts: undefined,
-          demandQty: undefined,
+          demandProducts: (persisted as Record<string, unknown>).demandProducts,
+          demandQty: (persisted as Record<string, unknown>).demandQty,
+          salesPlanProductMap: (persisted as Record<string, unknown>).salesPlanProductMap,
+          salesPlanChannelMap: (persisted as Record<string, unknown>).salesPlanChannelMap,
+          farms: DEFAULT_FARMS,
         };
       },
       partialize: (s) => ({
@@ -313,6 +330,7 @@ export const usePlanStore = create<PlanState>()(
         demandQty: s.demandQty,
         salesPlanProductMap: s.salesPlanProductMap,
         salesPlanChannelMap: s.salesPlanChannelMap,
+        farms: s.farms,
         scenarios: s.scenarios,
       }),
     }

@@ -240,6 +240,25 @@ export interface ScenarioSnapshot {
   placementDays: PlacementDayRow[];
 }
 
+/** A contracted farm that receives chick placements. */
+export interface Farm {
+  id: string;
+  name: string;
+  sapVendorCode: string;   // SAP vendor/supplier number used in MEQ1 upload
+  quotaSharePct: number;   // 0–100, must sum to 100 across active farms
+  maxHousesPerDay: number; // capacity ceiling (0 = unlimited)
+  active: boolean;
+}
+
+/** One row in the day × farm allocation grid produced by the quota distribution calculation. */
+export interface FarmDayAllocation {
+  date: string;
+  dayIndex: number;
+  farmId: string;
+  housesAllocated: number;
+  chicksAllocated: number;
+}
+
 export interface ValidationIssue {
   level: "warning" | "error";
   step: string;
