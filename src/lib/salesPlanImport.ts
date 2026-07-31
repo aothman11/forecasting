@@ -379,7 +379,7 @@ export function aggregateSalesPlanByProductChannelWeek(
       continue;
     }
 
-    const qty = row.grossSalesVolumeUom;
+    const qty = product.unit === "ton" ? row.grossSalesVolumeUom / 1000 : row.grossSalesVolumeUom;
     const key = `${productId}::${channel}::${row.weekOfYear}`;
     totals.set(key, (totals.get(key) ?? 0) + qty);
     mappedRows++;
@@ -405,16 +405,16 @@ export function createProductFromRow(row: SalesPlanRow, idSuffix: string): Deman
       grade: parseGrade(row.grading, row.whGrading) ?? "A",
       weightBucketG: parseWeightG(row.size) ?? 900,
       freshFrozen: parseFreshFrozen(row.division) ?? "fresh",
-      unit: "kg",
+      unit: "ton",
     };
   }
   if (cat === "fpp") {
-    return { id, category: "fpp", name, yieldPct: 0.15, unit: "kg" };
+    return { id, category: "fpp", name, yieldPct: 0.15, unit: "ton" };
   }
   if (cat === "eggs") {
     return { id, category: "eggs", name, unit: "tray" };
   }
-  return { id, category: "cuts", name, unit: "kg" };
+  return { id, category: "cuts", name, unit: "ton" };
 }
 
 export function isSalesPlanFile(file: File): boolean {

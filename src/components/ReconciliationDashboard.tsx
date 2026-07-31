@@ -18,17 +18,17 @@ import { SummaryCard } from "./shared/SummaryCard";
 
 interface ReconciliationWeek {
   week: number;
-  wcDemandKg: number;
-  fppDemandKg: number;
-  cutsDemandKg: number;
-  totalDemandKg: number;
-  wcSupplyKg: number;
-  fppSupplyKg: number;
-  cutsSupplyKg: number;
-  totalSupplyKg: number;
-  wcGapKg: number;
-  fppGapKg: number;
-  cutsGapKg: number;
+  wcDemandTons: number;
+  fppDemandTons: number;
+  cutsDemandTons: number;
+  totalDemandTons: number;
+  wcSupplyTons: number;
+  fppSupplyTons: number;
+  cutsSupplyTons: number;
+  totalSupplyTons: number;
+  wcGapTons: number;
+  fppGapTons: number;
+  cutsGapTons: number;
   totalGapTons: number;
   status: "surplus" | "balanced" | "deficit";
 }
@@ -81,17 +81,17 @@ function CategoryCard({
       </div>
       <div className="flex justify-between text-xs text-neutral-500">
         <span>Demand</span>
-        <span className="font-medium tabular-nums text-neutral-800">{demandTons > 0 ? `${Math.round(demandTons).toLocaleString()} kg` : "—"}</span>
+        <span className="font-medium tabular-nums text-neutral-800">{demandTons > 0 ? `${demandTons.toFixed(0)} t` : "—"}</span>
       </div>
       <div className="flex justify-between text-xs text-neutral-500">
         <span>Supply</span>
-        <span className="font-medium tabular-nums text-neutral-800">{supplyTons > 0 ? `${Math.round(supplyTons).toLocaleString()} kg` : "—"}</span>
+        <span className="font-medium tabular-nums text-neutral-800">{supplyTons > 0 ? `${supplyTons.toFixed(0)} t` : "—"}</span>
       </div>
       <div className={`flex justify-between text-xs mt-1 border-t border-current/10 pt-1 ${gapText}`}>
         <span>Gap</span>
         <span className="tabular-nums">
           {demandTons > 0
-            ? `${gap >= 0 ? "+" : ""}${Math.round(gap).toLocaleString()} kg (${pct >= 0 ? "+" : ""}${pct.toFixed(1)}%)`
+            ? `${gap >= 0 ? "+" : ""}${gap.toFixed(0)} t (${pct >= 0 ? "+" : ""}${pct.toFixed(1)}%)`
             : "—"}
         </span>
       </div>
@@ -113,30 +113,30 @@ export function ReconciliationDashboard() {
     const fam = famByWeek.get(week);
     const cuts = cutsByWeek.get(week);
 
-    const wcDemandKg = categoryTotal(demandProducts, demandQty, "wholeChicken", "ALL", [week]);
-    const fppDemandKg = categoryTotal(demandProducts, demandQty, "fpp", "ALL", [week]);
-    const cutsDemandKg = categoryTotal(demandProducts, demandQty, "cuts", "ALL", [week]);
-    const totalDemandKg = wcDemandKg + fppDemandKg + cutsDemandKg;
+    const wcDemandTons = categoryTotal(demandProducts, demandQty, "wholeChicken", "ALL", [week]);
+    const fppDemandTons = categoryTotal(demandProducts, demandQty, "fpp", "ALL", [week]);
+    const cutsDemandTons = categoryTotal(demandProducts, demandQty, "cuts", "ALL", [week]);
+    const totalDemandTons = wcDemandTons + fppDemandTons + cutsDemandTons;
 
-    const wcSupplyKg = fam ? fam.wcFreshKg + fam.wcFrozenKg : 0;
-    const fppSupplyKg = fam ? fam.fppKg : 0;
-    const cutsSupplyKg = cuts ? cuts.totalKg : 0;
-    const totalSupplyKg = wcSupplyKg + fppSupplyKg + cutsSupplyKg;
+    const wcSupplyTons = fam ? (fam.wcFreshKg + fam.wcFrozenKg) / 1000 : 0;
+    const fppSupplyTons = fam ? fam.fppKg / 1000 : 0;
+    const cutsSupplyTons = cuts ? cuts.totalKg / 1000 : 0;
+    const totalSupplyTons = wcSupplyTons + fppSupplyTons + cutsSupplyTons;
 
-    const wcGapKg = wcSupplyKg - wcDemandKg;
-    const fppGapKg = fppSupplyKg - fppDemandKg;
-    const cutsGapKg = cutsSupplyKg - cutsDemandKg;
-    const totalGapTons = totalSupplyKg - totalDemandKg;
+    const wcGapTons = wcSupplyTons - wcDemandTons;
+    const fppGapTons = fppSupplyTons - fppDemandTons;
+    const cutsGapTons = cutsSupplyTons - cutsDemandTons;
+    const totalGapTons = totalSupplyTons - totalDemandTons;
 
     const hasDeficit =
-      (wcDemandKg > 0 && wcGapKg < -wcDemandKg * 0.02) ||
-      (fppDemandKg > 0 && fppGapKg < -fppDemandKg * 0.02) ||
-      (cutsDemandKg > 0 && cutsGapKg < -cutsDemandKg * 0.02);
+      (wcDemandTons > 0 && wcGapTons < -wcDemandTons * 0.02) ||
+      (fppDemandTons > 0 && fppGapTons < -fppDemandTons * 0.02) ||
+      (cutsDemandTons > 0 && cutsGapTons < -cutsDemandTons * 0.02);
     const hasTight =
       !hasDeficit &&
-      ((wcDemandKg > 0 && wcGapKg < wcDemandKg * 0.05) ||
-        (fppDemandKg > 0 && fppGapKg < fppDemandKg * 0.05) ||
-        (cutsDemandKg > 0 && cutsGapKg < cutsDemandKg * 0.05));
+      ((wcDemandTons > 0 && wcGapTons < wcDemandTons * 0.05) ||
+        (fppDemandTons > 0 && fppGapTons < fppDemandTons * 0.05) ||
+        (cutsDemandTons > 0 && cutsGapTons < cutsDemandTons * 0.05));
 
     const status: ReconciliationWeek["status"] = hasDeficit
       ? "deficit"
@@ -146,43 +146,43 @@ export function ReconciliationDashboard() {
 
     return {
       week,
-      wcDemandKg,
-      fppDemandKg,
-      cutsDemandKg,
-      totalDemandKg,
-      wcSupplyKg,
-      fppSupplyKg,
-      cutsSupplyKg,
-      totalSupplyKg,
-      wcGapKg,
-      fppGapKg,
-      cutsGapKg,
+      wcDemandTons,
+      fppDemandTons,
+      cutsDemandTons,
+      totalDemandTons,
+      wcSupplyTons,
+      fppSupplyTons,
+      cutsSupplyTons,
+      totalSupplyTons,
+      wcGapTons,
+      fppGapTons,
+      cutsGapTons,
       totalGapTons,
       status,
     };
   });
 
   // Horizon-level totals
-  const totalWcDemand = rows.reduce((s, r) => s + r.wcDemandKg, 0);
-  const totalFppDemand = rows.reduce((s, r) => s + r.fppDemandKg, 0);
-  const totalCutsDemand = rows.reduce((s, r) => s + r.cutsDemandKg, 0);
+  const totalWcDemand = rows.reduce((s, r) => s + r.wcDemandTons, 0);
+  const totalFppDemand = rows.reduce((s, r) => s + r.fppDemandTons, 0);
+  const totalCutsDemand = rows.reduce((s, r) => s + r.cutsDemandTons, 0);
   const totalDemand = totalWcDemand + totalFppDemand + totalCutsDemand;
 
-  const totalWcSupply = rows.reduce((s, r) => s + r.wcSupplyKg, 0);
-  const totalFppSupply = rows.reduce((s, r) => s + r.fppSupplyKg, 0);
-  const totalCutsSupply = rows.reduce((s, r) => s + r.cutsSupplyKg, 0);
+  const totalWcSupply = rows.reduce((s, r) => s + r.wcSupplyTons, 0);
+  const totalFppSupply = rows.reduce((s, r) => s + r.fppSupplyTons, 0);
+  const totalCutsSupply = rows.reduce((s, r) => s + r.cutsSupplyTons, 0);
   const totalSupply = totalWcSupply + totalFppSupply + totalCutsSupply;
 
-  const deficitWeeks = rows.filter((r) => r.status === "deficit" && r.totalDemandKg > 0).length;
+  const deficitWeeks = rows.filter((r) => r.status === "deficit" && r.totalDemandTons > 0).length;
   const hasDemand = totalDemand > 0;
 
   // Chart data
   const chartData = rows.map((r) => ({
     week: `W${r.week}`,
-    wcSupply: +r.wcSupplyKg.toFixed(1),
-    fppSupply: +r.fppSupplyKg.toFixed(1),
-    cutsSupply: +r.cutsSupplyKg.toFixed(1),
-    totalDemand: r.totalDemandKg > 0 ? +r.totalDemandKg.toFixed(1) : null,
+    wcSupply: +r.wcSupplyTons.toFixed(1),
+    fppSupply: +r.fppSupplyTons.toFixed(1),
+    cutsSupply: +r.cutsSupplyTons.toFixed(1),
+    totalDemand: r.totalDemandTons > 0 ? +r.totalDemandTons.toFixed(1) : null,
   }));
 
   return (
@@ -202,11 +202,11 @@ export function ReconciliationDashboard() {
 
       {/* Horizon summary cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <SummaryCard label="Total Demand" value={hasDemand ? `${Math.round(totalDemand).toLocaleString()} kg` : "—"} accent="green" icon="📊" />
-        <SummaryCard label="Total Supply" value={`${Math.round(totalSupply).toLocaleString()} kg`} icon="🏭" />
+        <SummaryCard label="Total Demand" value={hasDemand ? `${totalDemand.toFixed(0)} t` : "—"} accent="green" icon="📊" />
+        <SummaryCard label="Total Supply" value={`${totalSupply.toFixed(0)} t`} icon="🏭" />
         <SummaryCard
           label="Net Gap"
-          value={`${(totalSupply - totalDemand) >= 0 ? "+" : ""}${Math.round(totalSupply - totalDemand).toLocaleString()} kg`}
+          value={`${(totalSupply - totalDemand) >= 0 ? "+" : ""}${(totalSupply - totalDemand).toFixed(0)} t`}
           accent={(totalSupply - totalDemand) < 0 ? "alert" : "neutral"}
           icon="⚖️"
         />
@@ -228,7 +228,7 @@ export function ReconciliationDashboard() {
       {/* Chart */}
       <div className="rounded-xl border border-[var(--border-subtle)] bg-white shadow-sm p-4">
         <div className="text-xs font-semibold text-neutral-600 mb-3">
-          Weekly Supply (stacked) vs Total Demand (line) — kg
+          Weekly Supply (stacked) vs Total Demand (line) — tons
         </div>
         <div className="h-64">
           <ResponsiveContainer width="100%" height="100%">
@@ -236,7 +236,7 @@ export function ReconciliationDashboard() {
               <CartesianGrid strokeDasharray="3 3" stroke="#e2e5e3" />
               <XAxis dataKey="week" tick={{ fontSize: 11 }} />
               <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => `${v}t`} />
-              <Tooltip formatter={(v) => `${Math.round(Number(v)).toLocaleString()} kg`} />
+              <Tooltip formatter={(v) => `${Number(v).toFixed(1)} t`} />
               <Legend wrapperStyle={{ fontSize: 11 }} />
               <Bar dataKey="wcSupply" name="WC Supply" stackId="supply" fill="#047836" radius={[0, 0, 0, 0]} />
               <Bar dataKey="fppSupply" name="FPP Supply" stackId="supply" fill="#34a85a" radius={[0, 0, 0, 0]} />
@@ -279,7 +279,7 @@ export function ReconciliationDashboard() {
                 <tr
                   key={r.week}
                   className={`border-t border-[var(--border-subtle)] hover:bg-brand-green-tint/20 transition-colors ${
-                    r.status === "deficit" && r.totalDemandKg > 0
+                    r.status === "deficit" && r.totalDemandTons > 0
                       ? "bg-red-50"
                       : i % 2 === 0
                       ? "bg-white"
@@ -289,43 +289,43 @@ export function ReconciliationDashboard() {
                   <td className="sticky left-0 bg-inherit px-3 py-2 font-semibold text-brand-green-dark">W{r.week}</td>
 
                   <td className="px-3 py-2 text-right tabular-nums text-neutral-600">
-                    {r.wcDemandKg > 0 ? `${Math.round(r.wcDemandKg).toLocaleString()}` : <span className="text-neutral-300">—</span>}
+                    {r.wcDemandTons > 0 ? `${r.wcDemandTons.toFixed(1)}` : <span className="text-neutral-300">—</span>}
                   </td>
                   <td className="px-3 py-2 text-right tabular-nums text-neutral-700">
-                    {r.wcSupplyKg > 0 ? `${Math.round(r.wcSupplyKg).toLocaleString()}` : <span className="text-neutral-300">—</span>}
+                    {r.wcSupplyTons > 0 ? `${r.wcSupplyTons.toFixed(1)}` : <span className="text-neutral-300">—</span>}
                   </td>
-                  <td className={`px-3 py-2 text-right tabular-nums ${gapColor(r.wcGapKg, r.wcDemandKg)}`}>
-                    {r.wcDemandKg > 0
-                      ? `${r.wcGapKg >= 0 ? "+" : ""}${Math.round(r.wcGapKg).toLocaleString()}`
+                  <td className={`px-3 py-2 text-right tabular-nums ${gapColor(r.wcGapTons, r.wcDemandTons)}`}>
+                    {r.wcDemandTons > 0
+                      ? `${r.wcGapTons >= 0 ? "+" : ""}${r.wcGapTons.toFixed(1)}`
                       : <span className="text-neutral-300">—</span>}
                   </td>
 
                   <td className="px-3 py-2 text-right tabular-nums text-neutral-600">
-                    {r.fppDemandKg > 0 ? `${Math.round(r.fppDemandKg).toLocaleString()}` : <span className="text-neutral-300">—</span>}
+                    {r.fppDemandTons > 0 ? `${r.fppDemandTons.toFixed(1)}` : <span className="text-neutral-300">—</span>}
                   </td>
                   <td className="px-3 py-2 text-right tabular-nums text-neutral-700">
-                    {r.fppSupplyKg > 0 ? `${Math.round(r.fppSupplyKg).toLocaleString()}` : <span className="text-neutral-300">—</span>}
+                    {r.fppSupplyTons > 0 ? `${r.fppSupplyTons.toFixed(1)}` : <span className="text-neutral-300">—</span>}
                   </td>
-                  <td className={`px-3 py-2 text-right tabular-nums ${gapColor(r.fppGapKg, r.fppDemandKg)}`}>
-                    {r.fppDemandKg > 0
-                      ? `${r.fppGapKg >= 0 ? "+" : ""}${Math.round(r.fppGapKg).toLocaleString()}`
+                  <td className={`px-3 py-2 text-right tabular-nums ${gapColor(r.fppGapTons, r.fppDemandTons)}`}>
+                    {r.fppDemandTons > 0
+                      ? `${r.fppGapTons >= 0 ? "+" : ""}${r.fppGapTons.toFixed(1)}`
                       : <span className="text-neutral-300">—</span>}
                   </td>
 
                   <td className="px-3 py-2 text-right tabular-nums text-neutral-600">
-                    {r.cutsDemandKg > 0 ? `${Math.round(r.cutsDemandKg).toLocaleString()}` : <span className="text-neutral-300">—</span>}
+                    {r.cutsDemandTons > 0 ? `${r.cutsDemandTons.toFixed(1)}` : <span className="text-neutral-300">—</span>}
                   </td>
                   <td className="px-3 py-2 text-right tabular-nums text-neutral-700">
-                    {r.cutsSupplyKg > 0 ? `${Math.round(r.cutsSupplyKg).toLocaleString()}` : <span className="text-neutral-300">—</span>}
+                    {r.cutsSupplyTons > 0 ? `${r.cutsSupplyTons.toFixed(1)}` : <span className="text-neutral-300">—</span>}
                   </td>
-                  <td className={`px-3 py-2 text-right tabular-nums ${gapColor(r.cutsGapKg, r.cutsDemandKg)}`}>
-                    {r.cutsDemandKg > 0
-                      ? `${r.cutsGapKg >= 0 ? "+" : ""}${Math.round(r.cutsGapKg).toLocaleString()}`
+                  <td className={`px-3 py-2 text-right tabular-nums ${gapColor(r.cutsGapTons, r.cutsDemandTons)}`}>
+                    {r.cutsDemandTons > 0
+                      ? `${r.cutsGapTons >= 0 ? "+" : ""}${r.cutsGapTons.toFixed(1)}`
                       : <span className="text-neutral-300">—</span>}
                   </td>
 
                   <td className="px-3 py-2 text-center">
-                    {r.totalDemandKg > 0 ? (
+                    {r.totalDemandTons > 0 ? (
                       <StatusPill status={r.status} />
                     ) : (
                       <span className="text-neutral-300">—</span>
@@ -341,7 +341,7 @@ export function ReconciliationDashboard() {
       {/* Note on Eggs */}
       <p className="text-[11px] text-neutral-400">
         Eggs are excluded from this reconciliation — they have no carcass-side supply in the production pipeline.
-        All figures in kg. Gap = Supply − Demand; positive = surplus.
+        All figures in metric tons (t). Gap = Supply − Demand; positive = surplus.
       </p>
     </div>
   );

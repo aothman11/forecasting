@@ -56,7 +56,7 @@ export function DemandForecast() {
   const CARTON_KG: Partial<Record<ProductCategory, number>> = { wholeChicken: 15, cuts: 15, fpp: 10 };
 
   const toCar = (cat: ProductCategory, qty: number) =>
-    cat === "eggs" ? Math.round(qty / EGG_TRAYS_PER_CARTON) : Math.round(qty / CARTON_KG[cat]!);
+    cat === "eggs" ? Math.round(qty / EGG_TRAYS_PER_CARTON) : Math.round((qty * 1000) / CARTON_KG[cat]!);
 
   const categoryTotals = (["wholeChicken", "cuts", "fpp", "eggs"] as ProductCategory[]).map((cat) => {
     const qty = categoryTotal(demandProducts, demandQty, cat, channel, weeks);
@@ -75,14 +75,14 @@ export function DemandForecast() {
         grade: newGrade,
         weightBucketG: newWeight,
         freshFrozen: newFreshFrozen,
-        unit: "kg",
+        unit: "ton",
       });
     } else if (newCategory === "fpp") {
-      addDemandProduct({ id, category: "fpp", name: newName.trim(), yieldPct: newYieldPct / 100, unit: "kg" });
+      addDemandProduct({ id, category: "fpp", name: newName.trim(), yieldPct: newYieldPct / 100, unit: "ton" });
     } else if (newCategory === "eggs") {
       addDemandProduct({ id, category: "eggs", name: newName.trim(), unit: "tray" });
     } else {
-      addDemandProduct({ id, category: "cuts", name: newName.trim(), unit: "kg" });
+      addDemandProduct({ id, category: "cuts", name: newName.trim(), unit: "ton" });
     }
     setNewName("");
     setAddOpen(false);
@@ -108,7 +108,7 @@ export function DemandForecast() {
       <div>
         <h1 className="text-xl font-bold section-title">Demand Plan</h1>
         <p className="text-sm text-neutral-500 mt-0.5">
-          Weekly demand by product and sales channel, in kg (eggs in trays). The starting point for the supply
+          Weekly demand by product and sales channel, in tons (eggs in trays). The starting point for the supply
           plan.
         </p>
       </div>
