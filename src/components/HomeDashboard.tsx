@@ -12,6 +12,8 @@ import { CapacityChart } from "./charts/CapacityChart";
 import { UserGuideModal } from "./UserGuideModal";
 import { GradeChart } from "./charts/GradeChart";
 import { FamilyDonut } from "./charts/FamilyDonut";
+import { Bar, BarChart, CartesianGrid, Cell, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { weekLabel } from "@/lib/demandPlan";
 import type { PlantKey } from "@/lib/types";
 
 function kg(n: number) {
@@ -121,7 +123,7 @@ export function HomeDashboard() {
   const totalCutsDemandTons = categoryTotal(demandProducts, demandQty, "cuts", "ALL", horizonWeeks);
   const totalDemandTons = totalWcDemandTons + totalFppDemandTons + totalCutsDemandTons;
   const totalSupplyTons = (m.totalWcFreshKg + m.totalWcFrozenKg + m.totalFppKg) / 1000;
-  const reconcileDeficitWeeks = horizonWeeks.filter((w) => {
+  const reconcileDeficitWeekList = horizonWeeks.filter((w) => {
     const fam = result.family.find((r) => r.week === w);
     const cuts = result.cuts.find((r) => r.week === w);
     const wc = categoryTotal(demandProducts, demandQty, "wholeChicken", "ALL", [w]);
@@ -131,11 +133,33 @@ export function HomeDashboard() {
     const fppS = fam ? fam.fppKg / 1000 : 0;
     const cutsS = cuts ? cuts.totalKg / 1000 : 0;
     return (wc > 0 && wcS - wc < -wc * 0.02) || (fpp > 0 && fppS - fpp < -fpp * 0.02) || (cutsD > 0 && cutsS - cutsD < -cutsD * 0.02);
-  }).length;
+  });
+  const reconcileDeficitWeeks = reconcileDeficitWeekList.length;
 
   const supplyRows = computeSupplyRequirements(demandProducts, demandQty, params, result, horizonWeeks);
   const supplyDeficitWeeks = supplyRows.filter((r) => r.carcassGapKg < -r.requiredCarcassKg * 0.02 && r.requiredCarcassKg > 0).length;
   const totalRequiredCarcass = supplyRows.reduce((s, r) => s + r.requiredCarcassKg, 0);
+
+  const reconcileTightWeeks = horizonWeeks.filter((w) => {
+    if (reconcileDeficitWeekList.includes(w)) return false;
+    const fam = result.family.find((r) => r.week === w);
+    const cuts = result.cuts.find((r) => r.week === w);
+    const wc = categoryTotal(demandProducts, demandQty, "wholeChicken", "ALL", [w]);
+    const fpp = categoryTotal(demandProducts, demandQty, "fpp", "ALL", [w]);
+    const cutsD = categoryTotal(demandProducts, demandQty, "cuts", "ALL", [w]);
+    const wcS = fam ? (fam.wcFreshKg + fam.wcFrozenKg) / 1000 : 0;
+    const fppS = fam ? fam.fppKg / 1000 : 0;
+    const cutsS = cuts ? cuts.totalKg / 1000 : 0;
+    return (wc > 0 && wcS - wc < wc * 0.10) || (fpp > 0 && fppS - fpp < fpp * 0.10) || (cutsD > 0 && cutsS - cutsD < cutsD * 0.10);
+  }).length;
+  const sopCoverageP = totalDemandTons > 0 ? Math.min((totalSupplyTons / totalDemandTons) * 100, 999) : 0;
+  const sopStatus: "on-track" | "review" | "critical" =
+    reconcileDeficitWeeks === 0 && m.weeksWithCapacityBreach === 0
+      ? "on-track"
+      : reconcileDeficitWeeks <= 2
+      ? "review"
+      : "critical";
+  const nearestAlertWeeks = reconcileDeficitWeekList.slice(0, 3).map((w) => weekLabel(w, params.planStartDate));
 
   // ── Monthly breakdown ──────────────────────────────────────────────────────
   const monthGroups = groupWeeksByMonth(horizonWeeks, params.planStartDate);
@@ -166,6 +190,12 @@ export function HomeDashboard() {
 
   const runningChicks = result.placement.reduce((s, r) => s + r.totalChicksPlaced, 0);
   const totalHouses = result.placement.reduce((s, r) => s + r.farmsPlacing, 0);
+  const activeWeeks = result.placement.filter((r) => r.totalChicksPlaced > 0).length;
+  const peakPlacementRow = result.placement.reduce((best, r) => r.totalChicksPlaced > best.totalChicksPlaced ? r : best, result.placement[0]);
+  const placementChartData = result.placement.map((r) => ({
+    week: weekLabel(r.week, params.planStartDate),
+    chicks: Math.round(r.totalChicksPlaced),
+  }));
 
   const cutKeys = activeCutKeys(params.legSplitMode);
   const cutTotals = cutKeys
@@ -332,22 +362,47 @@ export function HomeDashboard() {
           <div className="flex-1 h-px bg-brand-green/20" />
         </div>
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          <DashCard icon="📊" title="M1 · Demand Plan" description="Weekly demand by product × channel" onOpen={openDemand}>
-            <div className="mt-2 space-y-1.5">
-              {(["wholeChicken", "cuts", "fpp", "eggs"] as const).map((cat) => {
-                const qty = categoryTotal(demandProducts, demandQty, cat, "ALL", horizonWeeks);
-                const car = toCar(cat, qty);
-                return (
-                  <div key={cat} className="flex items-center justify-between text-xs">
-                    <span className="text-neutral-600">{PRODUCT_CATEGORY_LABELS[cat]}</span>
-                    <span className="font-semibold tabular-nums">
-                      {car > 0 ? `${car.toLocaleString()} CAR` : <span className="text-neutral-300">—</span>}
-                    </span>
-                  </div>
-                );
-              })}
-              {demandTotalTon === 0 && <div className="text-[11px] text-neutral-400 mt-1">No demand entered yet.</div>}
-            </div>
+          <DashCard icon="📊" title="M1 · Demand Plan" description="Total demand by category and top channels" onOpen={openDemand}>
+            {demandTotalCar > 0 ? (
+              <>
+                <div className="mt-2 mb-3 flex items-end gap-1.5">
+                  <span className="text-xl font-bold text-brand-green-dark tabular-nums">{demandTotalCar.toLocaleString()}</span>
+                  <span className="text-xs text-neutral-400 mb-0.5">total cartons</span>
+                </div>
+                <div className="space-y-1.5 mb-3">
+                  {(["wholeChicken", "cuts", "fpp", "eggs"] as const).map((cat) => {
+                    const qty = categoryTotal(demandProducts, demandQty, cat, "ALL", horizonWeeks);
+                    const car = toCar(cat, qty);
+                    if (car === 0) return null;
+                    const pct = (car / demandTotalCar) * 100;
+                    return (
+                      <div key={cat} className="space-y-0.5">
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="text-neutral-600">{PRODUCT_CATEGORY_LABELS[cat]}</span>
+                          <span className="font-semibold tabular-nums">{car.toLocaleString()} CAR</span>
+                        </div>
+                        <div className="h-1 bg-neutral-100 rounded-full overflow-hidden">
+                          <div className="h-full bg-brand-green rounded-full" style={{ width: `${pct}%` }} />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+                <div className="border-t border-[var(--border-subtle)] pt-2 space-y-1">
+                  {channelDemand.filter((c) => c.car > 0).slice(0, 3).map((c, i) => (
+                    <div key={c.ch} className="flex items-center justify-between text-[11px]">
+                      <span className="text-neutral-500">
+                        <span className="font-semibold text-brand-gold mr-1">#{i + 1}</span>
+                        {CHANNEL_LABELS[c.ch]}
+                      </span>
+                      <span className="font-semibold tabular-nums">{c.car.toLocaleString()} CAR</span>
+                    </div>
+                  ))}
+                </div>
+              </>
+            ) : (
+              <div className="mt-3 text-[11px] text-neutral-400">No demand entered yet.</div>
+            )}
           </DashCard>
 
           <DashCard icon="🔗" title="M2 · Supply Requirements" description="Reverse BOM: demand → carcass → chicks" onOpen={openSupply}>
@@ -410,23 +465,49 @@ export function HomeDashboard() {
             </div>
           </DashCard>
 
-          <DashCard icon="📋" title="M5 · S&OP Report" description="Traffic-light weekly review for S&OP meetings" onOpen={openReport}>
-            <div className="mt-2 space-y-2">
-              <div className="flex items-center justify-between text-xs">
-                <span className="text-neutral-600">Deficit weeks</span>
-                <span className={`font-semibold tabular-nums ${reconcileDeficitWeeks > 0 ? "text-red-600" : "text-green-700"}`}>
-                  {reconcileDeficitWeeks > 0 ? `${reconcileDeficitWeeks} wk` : "None"}
-                </span>
+          <DashCard icon="📋" title="M5 · S&OP Report" description="Plan health for executive review" onOpen={openReport}>
+            <div className="mt-2 mb-2.5">
+              <span className={`inline-flex items-center gap-1.5 text-[11px] font-semibold px-2.5 py-0.5 rounded-full ${
+                sopStatus === "on-track" ? "bg-green-100 text-green-800" : sopStatus === "review" ? "bg-amber-100 text-amber-800" : "bg-red-100 text-red-800"
+              }`}>
+                <span className={`w-1.5 h-1.5 rounded-full inline-block ${
+                  sopStatus === "on-track" ? "bg-green-600" : sopStatus === "review" ? "bg-amber-500" : "bg-red-500"
+                }`} />
+                {sopStatus === "on-track" ? "On Track" : sopStatus === "review" ? "Review Needed" : "Action Required"}
+              </span>
+            </div>
+            <div className="grid grid-cols-2 gap-1.5">
+              <div className={`rounded-lg px-2.5 py-2 ${reconcileDeficitWeeks > 0 ? "bg-red-50 border border-red-200" : "bg-green-50 border border-green-200"}`}>
+                <div className="text-[9px] font-semibold uppercase tracking-wider text-neutral-500 mb-0.5">Deficit Wks</div>
+                <div className={`text-sm font-bold tabular-nums ${reconcileDeficitWeeks > 0 ? "text-red-700" : "text-green-700"}`}>
+                  {reconcileDeficitWeeks > 0 ? `${reconcileDeficitWeeks} wk` : "None ✓"}
+                </div>
               </div>
-              <div className="flex items-center justify-between text-xs">
-                <span className="text-neutral-600">Planning horizon</span>
-                <span className="font-semibold tabular-nums">{params.planningHorizonWeeks} weeks</span>
+              <div className={`rounded-lg px-2.5 py-2 ${reconcileTightWeeks > 0 ? "bg-amber-50 border border-amber-200" : "bg-neutral-50 border border-[var(--border-subtle)]"}`}>
+                <div className="text-[9px] font-semibold uppercase tracking-wider text-neutral-500 mb-0.5">Tight Wks</div>
+                <div className={`text-sm font-bold tabular-nums ${reconcileTightWeeks > 0 ? "text-amber-700" : "text-neutral-400"}`}>
+                  {reconcileTightWeeks > 0 ? `${reconcileTightWeeks} wk` : "—"}
+                </div>
               </div>
-              <div className="flex items-center justify-between text-xs">
-                <span className="text-neutral-600">Export</span>
-                <span className="font-semibold text-brand-green-dark">PDF · Print</span>
+              <div className={`rounded-lg px-2.5 py-2 ${m.weeksWithCapacityBreach > 0 ? "bg-red-50 border border-red-200" : "bg-neutral-50 border border-[var(--border-subtle)]"}`}>
+                <div className="text-[9px] font-semibold uppercase tracking-wider text-neutral-500 mb-0.5">Over-Capacity</div>
+                <div className={`text-sm font-bold tabular-nums ${m.weeksWithCapacityBreach > 0 ? "text-red-700" : "text-neutral-400"}`}>
+                  {m.weeksWithCapacityBreach > 0 ? `${m.weeksWithCapacityBreach} wk` : "None ✓"}
+                </div>
+              </div>
+              <div className={`rounded-lg px-2.5 py-2 ${totalDemandTons > 0 && sopCoverageP < 95 ? "bg-amber-50 border border-amber-200" : "bg-neutral-50 border border-[var(--border-subtle)]"}`}>
+                <div className="text-[9px] font-semibold uppercase tracking-wider text-neutral-500 mb-0.5">Supply Cover</div>
+                <div className={`text-sm font-bold tabular-nums ${totalDemandTons === 0 ? "text-neutral-400" : sopCoverageP >= 100 ? "text-green-700" : sopCoverageP >= 95 ? "text-amber-700" : "text-red-700"}`}>
+                  {totalDemandTons > 0 ? `${sopCoverageP.toFixed(1)}%` : "—"}
+                </div>
               </div>
             </div>
+            {nearestAlertWeeks.length > 0 && (
+              <div className="mt-2 text-[11px] text-neutral-500">
+                <span className="font-semibold text-red-600">Alert: </span>
+                {nearestAlertWeeks.join(" · ")}
+              </div>
+            )}
           </DashCard>
 
           <DashCard icon="🏪" title="Demand by Channel" description="CAR per channel by month" onOpen={openDemand}>
@@ -480,9 +561,41 @@ export function HomeDashboard() {
         </div>
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           <DashCard icon="🐣" title="1 · Placement Plan" description="Daily house placements" onOpen={() => openStep(1)}>
-            <div className="grid grid-cols-2 gap-2 mt-2">
-              <SummaryCard label="Chicks Placed" value={Math.round(runningChicks).toLocaleString()} accent="green" />
-              <SummaryCard label="House-Placements" value={totalHouses.toLocaleString()} sublabel={`${params.houseCount}/day rate`} />
+            {/* Stat row */}
+            <div className="grid grid-cols-3 gap-2 mt-2 mb-3">
+              <div className="rounded-lg bg-brand-green-tint/60 px-3 py-2">
+                <div className="text-[9.5px] font-semibold uppercase tracking-wider text-brand-green-dark/70 mb-0.5">Chicks Placed</div>
+                <div className="text-sm font-bold text-brand-green-dark tabular-nums">{Math.round(runningChicks).toLocaleString()}</div>
+              </div>
+              <div className="rounded-lg bg-neutral-50 border border-[var(--border-subtle)] px-3 py-2">
+                <div className="text-[9.5px] font-semibold uppercase tracking-wider text-neutral-400 mb-0.5">Active Weeks</div>
+                <div className="text-sm font-bold text-neutral-700 tabular-nums">{activeWeeks} <span className="text-[10px] font-normal text-neutral-400">/ {result.placement.length}</span></div>
+              </div>
+              <div className="rounded-lg bg-neutral-50 border border-[var(--border-subtle)] px-3 py-2">
+                <div className="text-[9.5px] font-semibold uppercase tracking-wider text-neutral-400 mb-0.5">Peak Week</div>
+                <div className="text-sm font-bold text-neutral-700 tabular-nums truncate">
+                  {peakPlacementRow ? weekLabel(peakPlacementRow.week, params.planStartDate) : "—"}
+                </div>
+              </div>
+            </div>
+            {/* Mini placement bar chart */}
+            <div className="h-36 w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={placementChartData} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e2e5e3" vertical={false} />
+                  <XAxis dataKey="week" tick={{ fontSize: 9 }} interval="preserveStartEnd" />
+                  <YAxis tick={{ fontSize: 9 }} tickFormatter={(v) => `${(v / 1_000_000).toFixed(1)}M`} width={32} />
+                  <Tooltip
+                    formatter={(v) => [typeof v === "number" ? v.toLocaleString() : "", "Chicks"]}
+                    contentStyle={{ fontSize: 11 }}
+                  />
+                  <Bar dataKey="chicks" name="Chicks Placed" radius={[2, 2, 0, 0]}>
+                    {placementChartData.map((_, i) => (
+                      <Cell key={i} fill={_.chicks === 0 ? "#e5e7eb" : "#047836"} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
             </div>
           </DashCard>
 
