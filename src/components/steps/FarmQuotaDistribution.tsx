@@ -11,7 +11,7 @@ import {
   farmMonthlyTotal,
   isDuplicate,
 } from "@/lib/farmQuota";
-import { exportMEQ1ToExcel } from "@/lib/export";
+import { exportMEQ1ToTxt } from "@/lib/export";
 
 // ─── Tab type ─────────────────────────────────────────────────────────────────
 
@@ -25,6 +25,13 @@ const TABS: { id: Tab; label: string }[] = [
 ];
 
 const BIRD_TYPES: BirdType[] = ["Cobb", "Ross", "GP"];
+
+const STATUS_CYCLE: FarmStatus[] = ["Active", "Inactive", "Under Maintenance"];
+
+function nextStatus(current: FarmStatus): FarmStatus {
+  const idx = STATUS_CYCLE.indexOf(current);
+  return STATUS_CYCLE[(idx + 1) % STATUS_CYCLE.length];
+}
 
 // ─── Small shared pieces ──────────────────────────────────────────────────────
 
@@ -54,15 +61,73 @@ function CheckBadge({ label }: { label: string }) {
 
 const fmt = (n: number) => n.toLocaleString();
 
+// ─── Sort helpers ─────────────────────────────────────────────────────────────
+
+type SortDir = "asc" | "desc";
+
+function SortHeader({
+  label,
+  col,
+  sortKey,
+  sortDir,
+  onSort,
+  className,
+}: {
+  label: string;
+  col: string;
+  sortKey: string;
+  sortDir: SortDir;
+  onSort: (col: string) => void;
+  className?: string;
+}) {
+  const active = sortKey === col;
+  return (
+    <th
+      className={`cursor-pointer select-none hover:bg-neutral-100 transition-colors ${className ?? ""}`}
+      onClick={() => onSort(col)}
+    >
+      <span className="inline-flex items-center gap-1">
+        {label}
+        <span className="text-[9px] text-neutral-400">
+          {active ? (sortDir === "asc" ? "▲" : "▼") : "⇅"}
+        </span>
+      </span>
+    </th>
+  );
+}
+
 // ─── Tab: Farm Master ─────────────────────────────────────────────────────────
 
 function FarmMasterTab({ farms }: { farms: Farm[] }) {
+  const updateFarm = usePlanStore((s) => s.updateFarm);
   const [statusFilter, setStatusFilter] = useState<FarmStatus | "All">("All");
+  const [sortKey, setSortKey] = useState("sequencePosition");
+  const [sortDir, setSortDir] = useState<SortDir>("asc");
 
-  const filtered = useMemo(
-    () => (statusFilter === "All" ? farms : farms.filter((f) => f.status === statusFilter)),
-    [farms, statusFilter]
-  );
+  function handleSort(col: string) {
+    if (sortKey === col) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    else { setSortKey(col); setSortDir("asc"); }
+  }
+
+  const filtered = useMemo(() => {
+    const base = statusFilter === "All" ? farms : farms.filter((f) => f.status === statusFilter);
+    return [...base].sort((a, b) => {
+      let av: string | number, bv: string | number;
+      switch (sortKey) {
+        case "sequencePosition": av = a.sequencePosition; bv = b.sequencePosition; break;
+        case "code": av = a.code; bv = b.code; break;
+        case "type": av = a.type; bv = b.type; break;
+        case "status": av = a.status; bv = b.status; break;
+        case "cycleLengthDays": av = a.cycleLengthDays; bv = b.cycleLengthDays; break;
+        case "cleaningDays": av = a.cleaningDays; bv = b.cleaningDays; break;
+        case "skip": av = a.skipThisCycle ? 1 : 0; bv = b.skipThisCycle ? 1 : 0; break;
+        default: av = a.sequencePosition; bv = b.sequencePosition;
+      }
+      if (av < bv) return sortDir === "asc" ? -1 : 1;
+      if (av > bv) return sortDir === "asc" ? 1 : -1;
+      return 0;
+    });
+  }, [farms, statusFilter, sortKey, sortDir]);
 
   const counts = useMemo(
     () => ({
@@ -80,13 +145,10 @@ function FarmMasterTab({ farms }: { farms: Farm[] }) {
       <div className="flex flex-wrap gap-2 text-xs">
         {(["All", "Active", "Inactive", "Under Maintenance"] as const).map((s) => {
           const count =
-            s === "All"
-              ? counts.total
-              : s === "Active"
-              ? counts.active
-              : s === "Inactive"
-              ? counts.inactive
-              : counts.maintenance;
+            s === "All" ? counts.total :
+            s === "Active" ? counts.active :
+            s === "Inactive" ? counts.inactive :
+            counts.maintenance;
           return (
             <button
               key={s}
@@ -106,20 +168,27 @@ function FarmMasterTab({ farms }: { farms: Farm[] }) {
         </span>
       </div>
 
+      <div className="text-xs text-neutral-500 bg-blue-50 border border-blue-200 rounded px-3 py-2">
+        Click <strong>Status</strong> to cycle Active → Inactive → Under Maintenance.
+        Toggle <strong>Skip</strong> to exclude a farm from this cycle without deactivating it.
+        Edit <strong>Cycle</strong> and <strong>Clean</strong> days inline.
+        Click column headers to sort.
+      </div>
+
       <div className="overflow-x-auto rounded-lg border border-[var(--border-subtle)]">
         <table className="data-grid w-full text-xs">
           <thead>
             <tr>
-              <th>Seq</th>
-              <th>Code</th>
-              <th>Type</th>
+              <SortHeader label="Seq" col="sequencePosition" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
+              <SortHeader label="Code" col="code" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
+              <SortHeader label="Type" col="type" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
               <th>Houses</th>
               <th className="text-right">Full Cap</th>
               <th className="text-right">Plan Cap</th>
-              <th>Cycle</th>
-              <th>Clean</th>
-              <th>Status</th>
-              <th>Skip?</th>
+              <SortHeader label="Cycle" col="cycleLengthDays" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
+              <SortHeader label="Clean" col="cleaningDays" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
+              <SortHeader label="Status" col="status" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
+              <SortHeader label="Skip?" col="skip" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
             </tr>
           </thead>
           <tbody>
@@ -131,17 +200,49 @@ function FarmMasterTab({ farms }: { farms: Farm[] }) {
                 <td className="text-center">{f.houses}</td>
                 <td className="text-right">{f.fullCapacity.toLocaleString()}</td>
                 <td className="text-right font-semibold">{f.placementPlanCapacity.toLocaleString()}</td>
-                <td className="text-center">{f.cycleLengthDays}d</td>
-                <td className="text-center">{f.cleaningDays}d</td>
-                <td>
-                  <StatusBadge status={f.status} />
+                <td className="text-center">
+                  <input
+                    type="number"
+                    min={1}
+                    max={90}
+                    className="cell-input text-xs w-14 text-center"
+                    value={f.cycleLengthDays}
+                    onChange={(e) => updateFarm(f.code, { cycleLengthDays: Number(e.target.value) })}
+                  />
                 </td>
                 <td className="text-center">
-                  {f.skipThisCycle ? (
-                    <span className="text-amber-600 font-semibold">Yes</span>
-                  ) : (
-                    <span className="text-neutral-300">—</span>
-                  )}
+                  <input
+                    type="number"
+                    min={1}
+                    max={60}
+                    className="cell-input text-xs w-14 text-center"
+                    value={f.cleaningDays}
+                    onChange={(e) => updateFarm(f.code, { cleaningDays: Number(e.target.value) })}
+                  />
+                </td>
+                <td>
+                  <button
+                    onClick={() => updateFarm(f.code, { status: nextStatus(f.status) })}
+                    title="Click to change status"
+                    className="focus:outline-none"
+                  >
+                    <StatusBadge status={f.status} />
+                  </button>
+                </td>
+                <td className="text-center">
+                  <button
+                    onClick={() => updateFarm(f.code, { skipThisCycle: !f.skipThisCycle })}
+                    title="Toggle skip this cycle"
+                    className={`w-8 h-5 rounded-full transition-colors flex items-center ${
+                      f.skipThisCycle ? "bg-amber-400" : "bg-neutral-200"
+                    }`}
+                  >
+                    <span
+                      className={`block w-4 h-4 rounded-full bg-white shadow transition-transform mx-0.5 ${
+                        f.skipThisCycle ? "translate-x-3" : "translate-x-0"
+                      }`}
+                    />
+                  </button>
                 </td>
               </tr>
             ))}
@@ -149,10 +250,51 @@ function FarmMasterTab({ farms }: { farms: Farm[] }) {
         </table>
       </div>
       <p className="text-xs text-neutral-400">
-        Showing {filtered.length} of {farms.length} farms · Source: Farm_Master (Excel). Read-only reference.
+        Showing {filtered.length} of {farms.length} farms · Changes persist immediately.
       </p>
     </div>
   );
+}
+
+// ─── Suggest entries from pipeline ───────────────────────────────────────────
+
+function generateSuggestions(
+  calendarDays: { date: string; plannedQty: number; allocatedQty: number }[],
+  farms: Farm[],
+  entries: PlacementEntry[],
+  monthPrefix: string
+): Omit<PlacementEntry, "id">[] {
+  const alreadyPlaced = new Set(
+    entries.filter((e) => e.date.startsWith(monthPrefix)).map((e) => e.farmCode)
+  );
+
+  const queue = farms
+    .filter((f) => f.status === "Active" && !f.skipThisCycle && !alreadyPlaced.has(f.code))
+    .sort((a, b) => a.sequencePosition - b.sequencePosition);
+
+  const suggestions: Omit<PlacementEntry, "id">[] = [];
+  let queueIdx = 0;
+
+  for (const day of calendarDays) {
+    let remaining = day.plannedQty - day.allocatedQty;
+    if (remaining <= 0) continue;
+
+    while (remaining > 0 && queueIdx < queue.length) {
+      const farm = queue[queueIdx++];
+      const qty = Math.min(farm.placementPlanCapacity, remaining);
+      suggestions.push({
+        farmCode: farm.code,
+        date: day.date,
+        birdType: "Cobb",
+        qtyPlaced: qty,
+      });
+      remaining -= qty;
+    }
+
+    if (queueIdx >= queue.length) break;
+  }
+
+  return suggestions;
 }
 
 // ─── Tab: Placement Log ───────────────────────────────────────────────────────
@@ -196,11 +338,26 @@ function PlacementLogTab({ farms }: { farms: Farm[] }) {
     qtyPlaced: 0,
   });
 
+  const [suggesting, setSuggesting] = useState(false);
+
   function handleAdd() {
     if (!draft.farmCode || !draft.date || draft.qtyPlaced <= 0) return;
     addEntry({ ...draft, id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}` });
     setDraft((d) => ({ ...d, farmCode: "", qtyPlaced: 0 }));
   }
+
+  function handleSuggest() {
+    setSuggesting(true);
+    const suggestions = generateSuggestions(calendarDays, farms, entries, monthPrefix);
+    for (const s of suggestions) {
+      addEntry({ ...s, id: `sug-${Date.now()}-${Math.random().toString(36).slice(2, 7)}` });
+    }
+    setSuggesting(false);
+  }
+
+  const totalPlanned = calendarDays.reduce((s, d) => s + d.plannedQty, 0);
+  const totalPlaced = calendarDays.reduce((s, d) => s + d.allocatedQty, 0);
+  const totalGap = totalPlanned - totalPlaced;
 
   return (
     <div className="space-y-4">
@@ -281,7 +438,19 @@ function PlacementLogTab({ farms }: { farms: Farm[] }) {
             <span className="text-sm font-semibold text-neutral-700">
               Placement Entries — {config.planningMonth.slice(0, 7)}
             </span>
-            <span className="text-xs text-neutral-400">{monthEntries.length} rows</span>
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-neutral-400">{monthEntries.length} rows</span>
+              {calendarDays.length > 0 && totalGap > 0 && (
+                <button
+                  onClick={handleSuggest}
+                  disabled={suggesting}
+                  className="px-3 py-1.5 text-xs font-semibold rounded bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 transition-colors"
+                  title="Auto-distribute remaining planned qty across next available farms in sequence order. Bird type defaults to Cobb — change per entry."
+                >
+                  {suggesting ? "Suggesting…" : `⚡ Suggest farms (${fmt(totalGap)} gap)`}
+                </button>
+              )}
+            </div>
           </div>
 
           {/* Add row */}
@@ -364,7 +533,8 @@ function PlacementLogTab({ farms }: { farms: Farm[] }) {
                 {monthEntries.length === 0 ? (
                   <tr>
                     <td colSpan={10} className="text-center py-6 text-neutral-400">
-                      No entries for {config.planningMonth.slice(0, 7)}. Use the form above to add placement events.
+                      No entries for {config.planningMonth.slice(0, 7)}. Use the form above to add placement
+                      events, or click <strong>Suggest farms</strong> to auto-distribute from the pipeline.
                     </td>
                   </tr>
                 ) : (
@@ -523,9 +693,15 @@ function PlacementLogTab({ farms }: { farms: Farm[] }) {
           </div>
           {calendarDays.length > 0 && (
             <div className="mt-2 text-[10px] text-neutral-400">
-              Total planned: {fmt(calendarDays.reduce((s, d) => s + d.plannedQty, 0))}
+              Total planned: {fmt(totalPlanned)}
               <br />
-              Total placed: {fmt(calendarDays.reduce((s, d) => s + d.allocatedQty, 0))}
+              Total placed: {fmt(totalPlaced)}
+              {totalGap > 0 && (
+                <span className="text-amber-500 font-semibold"><br />Gap: +{fmt(totalGap)}</span>
+              )}
+              {totalGap === 0 && totalPlaced > 0 && (
+                <span className="text-green-600 font-semibold"><br />Fully distributed ✓</span>
+              )}
             </div>
           )}
         </div>
@@ -715,10 +891,10 @@ function MEQ1Tab({ farms }: { farms: Farm[] }) {
             </span>
             {meq1Rows.length > 0 && (
               <button
-                onClick={() => exportMEQ1ToExcel(meq1Rows, config)}
+                onClick={() => exportMEQ1ToTxt(meq1Rows, config)}
                 className="px-3 py-1.5 text-xs font-semibold rounded bg-brand-green text-white hover:bg-brand-green-dark transition-colors"
               >
-                Export to Excel
+                Export to TXT (LSMW)
               </button>
             )}
             {config.submissionStatus === "Not Submitted" && meq1Rows.length > 0 && (
@@ -780,8 +956,8 @@ function MEQ1Tab({ farms }: { farms: Farm[] }) {
         </div>
       )}
       <p className="text-xs text-neutral-400">
-        Only entries with Check = OK are included. Rows grouped by bird type (Cobb → Ross → GP) then
-        in entry order. Upload via SAP LSMW.
+        Only entries with Check = OK are included. Grouped by bird type (Cobb → Ross → GP).
+        Downloads as tab-delimited .txt — upload via SAP LSMW.
       </p>
     </div>
   );

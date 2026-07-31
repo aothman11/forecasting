@@ -161,6 +161,32 @@ export function exportPipelineToExcel(
 }
 
 /**
+ * SAP MEQ1 Quota Arrangement upload as a tab-delimited .txt file (LSMW-compatible).
+ * No external libraries — uses browser Blob download.
+ */
+export function exportMEQ1ToTxt(
+  rows: MEQ1Row[],
+  config: MonthlyPlanConfig,
+  fileName = "awp-meq1-quota-arrangement.txt"
+) {
+  const header = ["MATNR", "WERKS", "DATAB", "DATBI", "QUPOS", "VERID", "QUMAX", "QUPRI", "QUAZT", "QUMIN"].join("\t");
+  const dataLines = rows.map((r) =>
+    [r.matnr, r.werks, r.datab, r.datbi, r.qupos, r.verid, r.qumax, r.qupri, r.quazt, r.qumin].join("\t")
+  );
+  const content = [header, ...dataLines].join("\r\n");
+
+  const blob = new Blob([content], { type: "text/plain;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = fileName;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+/**
  * SAP MEQ1 Quota Arrangement upload workbook (LSMW-compatible).
  * Columns match the exact SAP MEQ1 batch-upload format.
  */
