@@ -214,7 +214,13 @@ export const usePlanStore = create<PlanState>()(
 
       applyDemandDrivenPlacement: (rows) =>
         set((s) => {
-          // Group requiredChicksPlaced by placement week
+          // All placement weeks that correspond to a harvest week within the plan horizon
+          const allPlacementWeeks = new Set<number>();
+          for (const row of rows) {
+            if (row.placementWeek > 0) allPlacementWeeks.add(row.placementWeek);
+          }
+
+          // Group requiredChicksPlaced by placement week (only weeks that have demand)
           const chicksMap = new Map<number, number>();
           for (const row of rows) {
             if (row.placementWeek > 0 && row.requiredChicksPlaced > 0) {
@@ -240,9 +246,10 @@ export const usePlanStore = create<PlanState>()(
 
           const placementDays = s.placementDays.map((day) => {
             const week = Math.floor(day.dayIndex / 7) + 1;
-            const targetHouses = housesMap.get(week);
-            if (targetHouses === undefined) return day;
+            if (!allPlacementWeeks.has(week)) return day; // outside plan scope — keep as-is
             const isFri = s.params.fridayOff && isFridayDate(day.date);
+            // Weeks in scope with no demand are zeroed out; weeks with demand get the required houses
+            const targetHouses = housesMap.get(week) ?? 0;
             return { ...day, farmsPlacing: isFri ? 0 : targetHouses };
           });
 
