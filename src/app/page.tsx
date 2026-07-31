@@ -57,7 +57,7 @@ export default function Home() {
   const homeOpen = usePlanStore((s) => s.homeOpen);
   const assumptionsOpen = usePlanStore((s) => s.assumptionsOpen);
   const toggleAssumptions = usePlanStore((s) => s.toggleAssumptions);
-  const { result, issues } = usePipeline();
+  const { result, params, issues } = usePipeline();
 
   const currentLabel = STEPS.find((s) => s.id === selectedStep)?.label ?? "";
   const m = computeSummaryMetrics(result);
@@ -138,7 +138,7 @@ export default function Home() {
       {/* Off-screen render target used for PDF export */}
       <div style={{ position: "fixed", top: 0, left: -10000 }}>
         <div id="pdf-summary-export">
-          <SummaryOverview result={result} />
+          <SummaryOverview result={result} planStartDate={params.planStartDate} />
         </div>
       </div>
     </>

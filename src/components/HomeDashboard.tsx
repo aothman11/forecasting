@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { usePipeline } from "@/lib/usePipeline";
 import { usePlanStore } from "@/lib/store";
 import { activeCutKeys, computeSummaryMetrics } from "@/lib/calculations";
@@ -8,6 +9,7 @@ import { categoryTotal, groupWeeksByMonth } from "@/lib/demandPlan";
 import { computeSupplyRequirements } from "@/lib/supplyRequirements";
 import { SummaryCard } from "./shared/SummaryCard";
 import { CapacityChart } from "./charts/CapacityChart";
+import { UserGuideModal } from "./UserGuideModal";
 import { GradeChart } from "./charts/GradeChart";
 import { FamilyDonut } from "./charts/FamilyDonut";
 import type { PlantKey } from "@/lib/types";
@@ -78,6 +80,8 @@ export function HomeDashboard() {
   const setDdpOpen = usePlanStore((s) => s.setDdpOpen);
   const setReportOpen = usePlanStore((s) => s.setReportOpen);
   const setHomeOpen = usePlanStore((s) => s.setHomeOpen);
+
+  const [guideOpen, setGuideOpen] = useState(false);
 
   const openStep = (step: number) => { setHomeOpen(false); setDemandOpen(false); setSelectedStep(step); };
   const openDemand = () => { setHomeOpen(false); setSupplyOpen(false); setDemandOpen(true); };
@@ -177,6 +181,7 @@ export function HomeDashboard() {
   });
 
   return (
+    <>
     <div className="space-y-5">
       {/* Hero */}
       <div
@@ -212,14 +217,12 @@ export function HomeDashboard() {
           >
             Smarter Planning · Better Production
           </div>
-          <a
-            href="https://claude.ai/code/artifact/de94e9d6-095e-4192-aebd-b0980dbd3cbe"
-            target="_blank"
-            rel="noopener noreferrer"
+          <button
+            onClick={() => setGuideOpen(true)}
             className="mt-3 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-semibold bg-white/70 border border-brand-green/30 text-brand-green-dark hover:bg-white hover:border-brand-green/60 transition-colors shadow-sm"
           >
             📖 User Guide
-          </a>
+          </button>
         </div>
       </div>
 
@@ -484,7 +487,7 @@ export function HomeDashboard() {
           </DashCard>
 
           <DashCard icon="🐔" title="2 · Live Bird Forecast" description="Harvest vs. plant capacity" onOpen={() => openStep(2)}>
-            <CapacityChart data={result.liveBird} />
+            <CapacityChart data={result.liveBird} planStartDate={params.planStartDate} />
           </DashCard>
 
           <DashCard icon="⚖️" title="3 · Carcass Yield & Grade Split" description="Grade A / B / C distribution" onOpen={() => openStep(3)}>
@@ -519,5 +522,8 @@ export function HomeDashboard() {
         </div>
       </div>
     </div>
+
+      {guideOpen && <UserGuideModal onClose={() => setGuideOpen(false)} />}
+    </>
   );
 }

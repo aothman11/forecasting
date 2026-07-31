@@ -5,7 +5,7 @@ import { CapacityChart } from "../charts/CapacityChart";
 import { GradeChart } from "../charts/GradeChart";
 import { FamilyDonut } from "../charts/FamilyDonut";
 
-export function SummaryOverview({ result }: { result: PipelineResult }) {
+export function SummaryOverview({ result, planStartDate }: { result: PipelineResult; planStartDate: string }) {
   const m = computeSummaryMetrics(result);
 
   return (
@@ -33,7 +33,7 @@ export function SummaryOverview({ result }: { result: PipelineResult }) {
       <div className="grid grid-cols-2 gap-4">
         <div>
           <div className="text-xs font-semibold text-neutral-500 mb-1">Harvestable Birds vs Capacity</div>
-          <CapacityChart data={result.liveBird} />
+          <CapacityChart data={result.liveBird} planStartDate={planStartDate} />
         </div>
         <div>
           <div className="text-xs font-semibold text-neutral-500 mb-1">Grade Distribution</div>

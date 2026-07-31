@@ -158,7 +158,7 @@ export function LiveBirdForecast() {
         />
       </div>
 
-      <CapacityChart data={rows} />
+      <CapacityChart data={rows} planStartDate={params.planStartDate} />
 
       <DataTable
         columns={columns}

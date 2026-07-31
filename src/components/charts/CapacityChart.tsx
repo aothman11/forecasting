@@ -12,11 +12,12 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
+import { weekLabel } from "@/lib/demandPlan";
 import type { LiveBirdWeek } from "@/lib/types";
 
-export function CapacityChart({ data }: { data: LiveBirdWeek[] }) {
+export function CapacityChart({ data, planStartDate }: { data: LiveBirdWeek[]; planStartDate: string }) {
   const chartData = data.map((d) => ({
-    week: `W${d.week}`,
+    week: weekLabel(d.week, planStartDate),
     birds: Math.round(d.harvestableBirds),
     capacity: d.totalPlantCapacity,
     exceeds: d.exceedsCapacity,
