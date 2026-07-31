@@ -2,8 +2,8 @@ import * as XLSX from "xlsx";
 import type { PipelineResult } from "./types";
 import { activeCutKeys } from "./calculations";
 import { CHANNEL_KEYS, CUT_LABELS, DEFAULT_CHICKS_PER_HOUSE, PLANT_LABELS, SIZE_KEYS, SIZE_LABELS } from "./defaults";
-import type { ChannelKey, DemandPlanQty, DemandProduct, Farm, Parameters as PlanParameters, PlacementDayRow } from "./types";
-import type { FarmWeekRollup } from "./farmQuota";
+import type { ChannelKey, DemandPlanQty, DemandProduct, MonthlyPlanConfig, Parameters as PlanParameters, PlacementDayRow } from "./types";
+import type { MEQ1Row } from "./farmQuota";
 
 function round(n: number, dp = 1): number {
   return Math.round(n * 10 ** dp) / 10 ** dp;
@@ -161,58 +161,55 @@ export function exportPipelineToExcel(
 }
 
 /**
- * SAP MEQ1 Quota Arrangement upload workbook.
- * Two sheets:
- *   "Quota Arrangement" — one row per farm per week (the batch-upload ready data)
- *   "Daily Detail"       — one row per farm per placement day (full audit trail)
+ * SAP MEQ1 Quota Arrangement upload workbook (LSMW-compatible).
+ * Columns match the exact SAP MEQ1 batch-upload format.
  */
 export function exportMEQ1ToExcel(
-  rollups: FarmWeekRollup[],
-  farms: Farm[],
-  placementDays: PlacementDayRow[],
-  chicksPerHouse: number,
+  rows: MEQ1Row[],
+  config: MonthlyPlanConfig,
   fileName = "awp-meq1-quota-arrangement.xlsx"
 ) {
   const wb = XLSX.utils.book_new();
 
-  // Sheet 1: Weekly quota arrangement (MEQ1 upload format)
-  const quotaSheet = rollups.map((r, i) => ({
-    "Item No.": i + 1,
-    "Quota Arr. Key": `AWP-QA-${r.week.toString().padStart(2, "0")}`,
-    "Valid From": r.weekStart,
-    "Material": "CHICK-DOC",
-    "Plant": "AWP1",
-    "Vendor Code (SAP)": r.sapVendorCode,
-    "Farm Name": r.farmName,
-    "Quota Share %": r.quotaSharePct,
-    "Week": `W${r.week}`,
-    "Houses to Place": r.totalHouses,
-    "Chicks to Place": r.totalChicks,
+  const sheet = rows.map((r) => ({
+    MATNR: r.matnr,
+    WERKS: r.werks,
+    DATAB: r.datab,
+    DATBI: r.datbi,
+    QUPOS: r.qupos,
+    VERID: r.verid,
+    QUMAX: r.qumax,
+    QUPRI: r.qupri,
+    QUAZT: r.quazt,
+    QUMIN: r.qumin,
   }));
-  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(quotaSheet), "Quota Arrangement");
 
-  // Sheet 2: Daily detail per farm
-  const farmMap = new Map(farms.map((f) => [f.id, f]));
-  const activeFarms = farms.filter((f) => f.active);
-  const totalShare = activeFarms.reduce((s, f) => s + f.quotaSharePct, 0) || 1;
-  const dailyRows: Record<string, string | number>[] = [];
+  const ws = XLSX.utils.json_to_sheet(sheet);
+  ws["!cols"] = [
+    { wch: 18 }, // MATNR
+    { wch: 8 },  // WERKS
+    { wch: 12 }, // DATAB
+    { wch: 12 }, // DATBI
+    { wch: 8 },  // QUPOS
+    { wch: 8 },  // VERID
+    { wch: 10 }, // QUMAX
+    { wch: 8 },  // QUPRI
+    { wch: 8 },  // QUAZT
+    { wch: 8 },  // QUMIN
+  ];
+  XLSX.utils.book_append_sheet(wb, ws, "MEQ1 Upload");
 
-  for (const day of placementDays) {
-    for (const farm of activeFarms) {
-      const share = farm.quotaSharePct / totalShare;
-      const houses = Math.round(day.farmsPlacing * share);
-      dailyRows.push({
-        "Placement Date": day.date,
-        "Vendor Code (SAP)": farm.sapVendorCode,
-        "Farm Name": farm.name,
-        "Quota Share %": farm.quotaSharePct,
-        "Total Houses (Day)": day.farmsPlacing,
-        "Houses Allocated": houses,
-        "Chicks Allocated": houses * chicksPerHouse,
-      });
-    }
-  }
-  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(dailyRows), "Daily Detail");
+  // Summary sheet
+  const summary = [
+    { Field: "Plant (WERKS)", Value: config.plant },
+    { Field: "Planning Month", Value: config.planningMonth.slice(0, 7) },
+    { Field: "Cobb Material No.", Value: config.cobbMatNo },
+    { Field: "Ross Material No.", Value: config.rossMatNo },
+    { Field: "GP Material No.", Value: config.gpMatNo },
+    { Field: "Total Rows", Value: rows.length },
+    { Field: "Generated On", Value: new Date().toISOString().slice(0, 10) },
+  ];
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(summary), "Summary");
 
   XLSX.writeFile(wb, fileName);
 }

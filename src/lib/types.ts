@@ -240,23 +240,43 @@ export interface ScenarioSnapshot {
   placementDays: PlacementDayRow[];
 }
 
-/** A contracted farm that receives chick placements. */
+// ─── Farm Master (Step 7) ────────────────────────────────────────────────────
+
+export type FarmStatus = "Active" | "Inactive" | "Under Maintenance";
+export type BirdType = "Cobb" | "Ross" | "GP";
+
+/** One row in the Farm Master — mirrors the Farm_Master sheet in the Excel. */
 export interface Farm {
-  id: string;
-  name: string;
-  sapVendorCode: string;   // SAP vendor/supplier number used in MEQ1 upload
-  quotaSharePct: number;   // 0–100, must sum to 100 across active farms
-  maxHousesPerDay: number; // capacity ceiling (0 = unlimited)
-  active: boolean;
+  code: string;                  // = VERID in SAP (e.g. "B001")
+  sequencePosition: number;      // gapped rotation order (10, 20, 30 …)
+  type: string;                  // A / B / C / D
+  houses: number;                // number of houses on this farm
+  fullCapacity: number;          // maximum chick capacity (all houses)
+  placementPlanCapacity: number; // planning ceiling used for Over-Ceiling check
+  cycleLengthDays: number;       // grow-out cycle length in days
+  cleaningDays: number;          // cleaning / rest days between cycles
+  status: FarmStatus;
+  skipThisCycle: boolean;
 }
 
-/** One row in the day × farm allocation grid produced by the quota distribution calculation. */
-export interface FarmDayAllocation {
-  date: string;
-  dayIndex: number;
-  farmId: string;
-  housesAllocated: number;
-  chicksAllocated: number;
+/** One placement event — mirrors a data row in Monthly_Plan. */
+export interface PlacementEntry {
+  id: string;
+  farmCode: string;
+  date: string;        // ISO yyyy-mm-dd
+  birdType: BirdType;
+  qtyPlaced: number;
+}
+
+/** Header-level settings for the active planning month. */
+export interface MonthlyPlanConfig {
+  planningMonth: string;     // ISO first day of month (e.g. "2026-07-01")
+  plant: string;             // e.g. "1200"
+  cobbMatNo: string;         // SAP material no. for Cobb
+  rossMatNo: string;         // SAP material no. for Ross
+  gpMatNo: string;           // SAP material no. for GP
+  submissionStatus: "Not Submitted" | "Submitted";
+  submittedOn: string | null;
 }
 
 export interface ValidationIssue {

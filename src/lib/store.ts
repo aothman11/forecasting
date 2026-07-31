@@ -5,13 +5,15 @@ import type {
   DemandPlanQty,
   DemandProduct,
   Farm,
+  MonthlyPlanConfig,
   Parameters,
   PlacementDayRow,
+  PlacementEntry,
   PlantKey,
   ScenarioSnapshot,
   SupplyRequirementsWeek,
 } from "./types";
-import { DEFAULT_DEMAND_PRODUCTS, DEFAULT_FARMS, DEFAULT_PARAMETERS } from "./defaults";
+import { DEFAULT_DEMAND_PRODUCTS, DEFAULT_FARMS, DEFAULT_MONTHLY_PLAN_CONFIG, DEFAULT_PARAMETERS } from "./defaults";
 import { ensurePlacementDaysHorizon, isFridayDate, quickFillPlacementDays } from "./calculations";
 import { bulkAdjustDemand, copyDemandWeekForward, demandCellKey, type BulkAdjustOptions } from "./demandPlan";
 
@@ -39,6 +41,9 @@ interface PlanState {
   salesPlanProductMap: Record<string, string>;
   salesPlanChannelMap: Record<string, ChannelKey>;
   farms: Farm[];
+  placementEntries: PlacementEntry[];
+  monthlyPlanConfig: MonthlyPlanConfig;
+  dailyPlannedQtyOverrides: Record<string, number>;
   selectedStep: number;
   selectedPlant: PlantFilter;
   assumptionsOpen: boolean;
@@ -66,9 +71,15 @@ interface PlanState {
   setSalesPlanProductMap: (map: Record<string, string>) => void;
   setSalesPlanChannelMap: (map: Record<string, ChannelKey>) => void;
   addFarm: (farm: Farm) => void;
-  updateFarm: (id: string, patch: Partial<Farm>) => void;
-  removeFarm: (id: string) => void;
+  updateFarm: (code: string, patch: Partial<Farm>) => void;
+  removeFarm: (code: string) => void;
   setFarms: (farms: Farm[]) => void;
+  addPlacementEntry: (entry: PlacementEntry) => void;
+  updatePlacementEntry: (id: string, patch: Partial<PlacementEntry>) => void;
+  removePlacementEntry: (id: string) => void;
+  setPlacementEntries: (entries: PlacementEntry[]) => void;
+  updateMonthlyPlanConfig: (patch: Partial<MonthlyPlanConfig>) => void;
+  setDailyPlannedQtyOverride: (date: string, qty: number | null) => void;
   setHorizonWeeks: (weeks: number) => void;
   setPlanStartDate: (date: string) => void;
   resetToDefaults: () => void;
@@ -102,6 +113,9 @@ export const usePlanStore = create<PlanState>()(
       salesPlanProductMap: {},
       salesPlanChannelMap: {},
       farms: DEFAULT_FARMS,
+      placementEntries: [],
+      monthlyPlanConfig: DEFAULT_MONTHLY_PLAN_CONFIG,
+      dailyPlannedQtyOverrides: {},
       selectedStep: 1,
       selectedPlant: "all",
       assumptionsOpen: false,
@@ -175,10 +189,28 @@ export const usePlanStore = create<PlanState>()(
       setSalesPlanChannelMap: (map) => set({ salesPlanChannelMap: map }),
 
       addFarm: (farm) => set((s) => ({ farms: [...s.farms, farm] })),
-      updateFarm: (id, patch) =>
-        set((s) => ({ farms: s.farms.map((f) => (f.id === id ? { ...f, ...patch } : f)) })),
-      removeFarm: (id) => set((s) => ({ farms: s.farms.filter((f) => f.id !== id) })),
+      updateFarm: (code, patch) =>
+        set((s) => ({ farms: s.farms.map((f) => (f.code === code ? { ...f, ...patch } : f)) })),
+      removeFarm: (code) => set((s) => ({ farms: s.farms.filter((f) => f.code !== code) })),
       setFarms: (farms) => set({ farms }),
+
+      addPlacementEntry: (entry) => set((s) => ({ placementEntries: [...s.placementEntries, entry] })),
+      updatePlacementEntry: (id, patch) =>
+        set((s) => ({
+          placementEntries: s.placementEntries.map((e) => (e.id === id ? { ...e, ...patch } : e)),
+        })),
+      removePlacementEntry: (id) =>
+        set((s) => ({ placementEntries: s.placementEntries.filter((e) => e.id !== id) })),
+      setPlacementEntries: (entries) => set({ placementEntries: entries }),
+      updateMonthlyPlanConfig: (patch) =>
+        set((s) => ({ monthlyPlanConfig: { ...s.monthlyPlanConfig, ...patch } })),
+      setDailyPlannedQtyOverride: (date, qty) =>
+        set((s) => {
+          const next = { ...s.dailyPlannedQtyOverrides };
+          if (qty === null) delete next[date];
+          else next[date] = qty;
+          return { dailyPlannedQtyOverrides: next };
+        }),
 
       applyDemandDrivenPlacement: (rows) =>
         set((s) => {
@@ -295,23 +327,21 @@ export const usePlanStore = create<PlanState>()(
     }),
     {
       name: "awp-broiler-forecast-store",
-      version: 8,
+      version: 9,
       // v2 switched Step 1 from weekly to daily placement rows (PlacementRow -> PlacementDayRow).
-      // v3 replaced the farm-based model (totalFarms/dressingPct/chicksPerFarm) with the house-based
-      // processing chain (houseCount/avgCarcassWeightKg/chicksPerHouse/...). Both changes touch nearly
-      // every field, so pre-v3 persisted state is discarded wholesale rather than partially migrated.
-      // v4 added housesPerFarm (purely additive/informational), so v3 state is backfilled instead.
-      // v5 replaced the 3-bucket weekly Demand Forecast (demand/salesPlanDivisionMap/salesPlanCategoryMap)
-      // with the Module 1 Demand Plan (demandProducts/demandQty/salesPlanProductMap/salesPlanChannelMap) —
-      // shape changed entirely, so pre-v5 demand-related state is discarded.
-      // v6 expanded WC weight buckets to 50g steps (500–1500g).
-      // v7 corrected to 100g steps (500–1500g); demandProducts and demandQty reset again.
+      // v3 replaced the farm-based model with the house-based processing chain — discarded wholesale.
+      // v4 added housesPerFarm (additive).
+      // v5 replaced 3-bucket Demand Forecast with Module 1 Demand Plan — demand state discarded.
+      // v6 expanded WC weight buckets to 50g steps.
+      // v7 corrected to 100g steps; demandProducts and demandQty reset.
+      // v8 seeded farms from defaults (old placeholder shape).
+      // v9 Farm type changed entirely (code/sequencePosition/... vs id/name/sapVendorCode/...).
+      //    Added placementEntries, monthlyPlanConfig, dailyPlannedQtyOverrides. Farms reset to new default.
       migrate: (persisted, version) => {
-        if (version >= 8) return persisted;
+        if (version >= 9) return persisted;
         const state = persisted as { params?: Parameters; placementDays?: unknown; scenarios?: unknown };
         if (version < 3) return { scenarios: [] };
         const params = state.params ? { ...DEFAULT_PARAMETERS, ...state.params } : undefined;
-        // v7→v8: additive — just seed farms from defaults; all prior state preserved
         return {
           params,
           placementDays: state.placementDays,
@@ -320,7 +350,11 @@ export const usePlanStore = create<PlanState>()(
           demandQty: (persisted as Record<string, unknown>).demandQty,
           salesPlanProductMap: (persisted as Record<string, unknown>).salesPlanProductMap,
           salesPlanChannelMap: (persisted as Record<string, unknown>).salesPlanChannelMap,
+          // v9: reset farms to new shape; clear placement entries and plan config
           farms: DEFAULT_FARMS,
+          placementEntries: [],
+          monthlyPlanConfig: DEFAULT_MONTHLY_PLAN_CONFIG,
+          dailyPlannedQtyOverrides: {},
         };
       },
       partialize: (s) => ({
@@ -331,6 +365,9 @@ export const usePlanStore = create<PlanState>()(
         salesPlanProductMap: s.salesPlanProductMap,
         salesPlanChannelMap: s.salesPlanChannelMap,
         farms: s.farms,
+        placementEntries: s.placementEntries,
+        monthlyPlanConfig: s.monthlyPlanConfig,
+        dailyPlannedQtyOverrides: s.dailyPlannedQtyOverrides,
         scenarios: s.scenarios,
       }),
     }

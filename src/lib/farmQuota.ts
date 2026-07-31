@@ -1,143 +1,199 @@
-import type { Farm, FarmDayAllocation, PlacementDayRow } from "./types";
+import type { BirdType, Farm, MonthlyPlanConfig, PlacementEntry } from "./types";
 
-/** Active farms sorted by quota share descending (largest first, for remainder distribution). */
-function activeFarms(farms: Farm[]): Farm[] {
-  return farms.filter((f) => f.active).sort((a, b) => b.quotaSharePct - a.quotaSharePct);
+// ─── Derived types ────────────────────────────────────────────────────────────
+
+export interface EntryCheck {
+  status: "OK" | "INACTIVE" | "SKIPPED" | "QTY_MISSING" | "OVER_CEILING";
+  label: string;
 }
 
-/**
- * Distribute houses across farms for a single day.
- * Uses proportional quota shares, respects per-farm maxHousesPerDay caps,
- * and distributes any integer remainder to farms that still have headroom
- * (largest-share first).
- */
-function distributeDay(totalHouses: number, farms: Farm[]): Map<string, number> {
-  const result = new Map<string, number>();
-  if (totalHouses === 0 || farms.length === 0) {
-    farms.forEach((f) => result.set(f.id, 0));
-    return result;
-  }
-
-  const totalShare = farms.reduce((s, f) => s + f.quotaSharePct, 0);
-  if (totalShare === 0) {
-    farms.forEach((f) => result.set(f.id, 0));
-    return result;
-  }
-
-  // Initial floor allocation
-  let allocated = 0;
-  farms.forEach((f) => {
-    const raw = (f.quotaSharePct / totalShare) * totalHouses;
-    const floored = Math.floor(raw);
-    const capped = f.maxHousesPerDay > 0 ? Math.min(floored, f.maxHousesPerDay) : floored;
-    result.set(f.id, capped);
-    allocated += capped;
-  });
-
-  // Distribute remainder one house at a time to farms that have headroom
-  let remainder = totalHouses - allocated;
-  for (const f of farms) {
-    if (remainder <= 0) break;
-    const current = result.get(f.id)!;
-    const cap = f.maxHousesPerDay > 0 ? f.maxHousesPerDay : Infinity;
-    if (current < cap) {
-      result.set(f.id, current + 1);
-      remainder--;
-    }
-  }
-
-  return result;
+export interface MEQ1Row {
+  matnr: string;   // SAP material number
+  werks: string;   // plant
+  datab: string;   // valid from (ISO)
+  datbi: string;   // valid to (ISO)
+  qupos: string;   // "0010", "0020", … (sequential per bird-type × 10)
+  verid: string;   // farm code (SAP vendor ID)
+  qumax: number;   // qty to place
+  qupri: number;   // priority (same counter, not multiplied)
+  quazt: number;   // always 0
+  qumin: number;   // always 0
 }
 
-/**
- * Compute the full day × farm allocation grid from the placement calendar.
- * Returns one FarmDayAllocation per active farm per placement day.
- */
-export function computeFarmQuota(
-  placementDays: PlacementDayRow[],
-  farms: Farm[],
-  chicksPerHouse: number
-): FarmDayAllocation[] {
-  const active = activeFarms(farms);
-  const allocs: FarmDayAllocation[] = [];
-
-  for (const day of placementDays) {
-    const distribution = distributeDay(day.farmsPlacing, active);
-    for (const f of active) {
-      const houses = distribution.get(f.id) ?? 0;
-      allocs.push({
-        date: day.date,
-        dayIndex: day.dayIndex,
-        farmId: f.id,
-        housesAllocated: houses,
-        chicksAllocated: houses * chicksPerHouse,
-      });
-    }
-  }
-
-  return allocs;
+export interface SequenceQueueRow {
+  farm: Farm;
+  lastPlacementDate: string | null;
+  dayOfCycle: number | null;       // days elapsed since last placement (null if never placed)
+  nextAvailableDate: string | null;
+  daysUntilAvailable: number;      // ≤ 0 means already available
+  isAvailableNow: boolean;
 }
 
-/** Weekly rollup per farm: total houses and chicks placed in that week. */
-export interface FarmWeekRollup {
-  week: number;        // 1-based week number
-  weekStart: string;   // ISO date of first day of that week in the plan
-  farmId: string;
-  farmName: string;
-  sapVendorCode: string;
-  quotaSharePct: number;
-  totalHouses: number;
-  totalChicks: number;
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+
+/** Sum of qtyPlaced for a given farm within the current planning month. */
+export function farmMonthlyTotal(
+  farmCode: string,
+  planningMonth: string,
+  entries: PlacementEntry[]
+): number {
+  const prefix = planningMonth.slice(0, 7); // "YYYY-MM"
+  return entries
+    .filter((e) => e.farmCode === farmCode && e.date.startsWith(prefix))
+    .reduce((sum, e) => sum + (e.qtyPlaced ?? 0), 0);
 }
 
-export function computeFarmWeekRollups(
-  allocs: FarmDayAllocation[],
-  farms: Farm[],
-  chicksPerHouse: number
-): FarmWeekRollup[] {
-  const farmMap = new Map(farms.map((f) => [f.id, f]));
-
-  // Group by (week, farmId)
-  const key = (dayIndex: number, farmId: string) => `${Math.floor(dayIndex / 7) + 1}::${farmId}`;
-  const buckets = new Map<string, FarmWeekRollup>();
-
-  for (const a of allocs) {
-    const week = Math.floor(a.dayIndex / 7) + 1;
-    const k = key(a.dayIndex, a.farmId);
-    if (!buckets.has(k)) {
-      const farm = farmMap.get(a.farmId);
-      if (!farm) continue;
-      // weekStart: earliest date in this week bucket
-      buckets.set(k, {
-        week,
-        weekStart: a.date,
-        farmId: a.farmId,
-        farmName: farm.name,
-        sapVendorCode: farm.sapVendorCode,
-        quotaSharePct: farm.quotaSharePct,
-        totalHouses: 0,
-        totalChicks: 0,
-      });
-    }
-    const b = buckets.get(k)!;
-    b.totalHouses += a.housesAllocated;
-    b.totalChicks += a.chicksAllocated;
-    // keep weekStart as the earliest date (days come in order)
-    if (a.date < b.weekStart) b.weekStart = a.date;
+/** Mirrors the Excel Check column formula. */
+export function checkEntry(
+  entry: PlacementEntry,
+  farm: Farm,
+  monthlyTotal: number
+): EntryCheck {
+  if (farm.status !== "Active") {
+    return { status: "INACTIVE", label: "INACTIVE – do not place" };
   }
+  if (farm.skipThisCycle) {
+    return { status: "SKIPPED", label: "SKIPPED – do not place this cycle" };
+  }
+  if (!entry.qtyPlaced || entry.qtyPlaced <= 0) {
+    return { status: "QTY_MISSING", label: "Qty missing" };
+  }
+  if (monthlyTotal > farm.placementPlanCapacity) {
+    return { status: "OVER_CEILING", label: "OVER CEILING – correct before upload" };
+  }
+  return { status: "OK", label: "OK" };
+}
 
-  return Array.from(buckets.values()).sort((a, b) =>
-    a.week !== b.week ? a.week - b.week : a.farmId.localeCompare(b.farmId)
+/** True when another entry for the same farm+date+birdType already exists. */
+export function isDuplicate(entry: PlacementEntry, allEntries: PlacementEntry[]): boolean {
+  return allEntries.some(
+    (e) =>
+      e.id !== entry.id &&
+      e.farmCode === entry.farmCode &&
+      e.date === entry.date &&
+      e.birdType === entry.birdType
   );
 }
 
-/** Validate that active farm quota shares sum to 100 (±0.5 tolerance). */
-export function validateFarmQuotas(farms: Farm[]): string | null {
-  const active = farms.filter((f) => f.active);
-  if (active.length === 0) return "No active farms — add at least one farm.";
-  const total = active.reduce((s, f) => s + f.quotaSharePct, 0);
-  if (Math.abs(total - 100) > 0.5) {
-    return `Active farm quotas sum to ${total.toFixed(1)}% — they must total 100%.`;
+// ─── MEQ1 generation ─────────────────────────────────────────────────────────
+
+function matNoForBirdType(birdType: BirdType, config: MonthlyPlanConfig): string {
+  if (birdType === "Cobb") return config.cobbMatNo;
+  if (birdType === "Ross") return config.rossMatNo;
+  return config.gpMatNo;
+}
+
+function lastDayOfMonth(isoFirstDay: string): string {
+  const d = new Date(isoFirstDay);
+  d.setMonth(d.getMonth() + 1);
+  d.setDate(0);
+  return d.toISOString().slice(0, 10);
+}
+
+/**
+ * Build MEQ1 upload rows from the current planning month's valid entries.
+ * QUPOS = sequential counter per bird-type × 10 (0010, 0020, …)
+ * Only entries that pass the check (Active farm, qty > 0, not over ceiling) are included.
+ */
+export function computeMEQ1Rows(
+  entries: PlacementEntry[],
+  farms: Farm[],
+  config: MonthlyPlanConfig
+): MEQ1Row[] {
+  const farmMap = new Map(farms.map((f) => [f.code, f]));
+  const prefix = config.planningMonth.slice(0, 7);
+  const datab = config.planningMonth.slice(0, 10);
+  const datbi = lastDayOfMonth(config.planningMonth);
+
+  const monthEntries = entries.filter((e) => e.date.startsWith(prefix));
+
+  const birdTypes: BirdType[] = ["Cobb", "Ross", "GP"];
+  const rows: MEQ1Row[] = [];
+
+  for (const birdType of birdTypes) {
+    const matnr = matNoForBirdType(birdType, config);
+    const typeEntries = monthEntries.filter((e) => e.birdType === birdType);
+
+    const validEntries = typeEntries.filter((e) => {
+      const farm = farmMap.get(e.farmCode);
+      if (!farm) return false;
+      const total = farmMonthlyTotal(e.farmCode, config.planningMonth, entries);
+      const check = checkEntry(e, farm, total);
+      return check.status === "OK";
+    });
+
+    validEntries.forEach((e, i) => {
+      const qupri = i + 1;
+      rows.push({
+        matnr,
+        werks: config.plant,
+        datab,
+        datbi,
+        qupos: String(qupri * 10).padStart(4, "0"),
+        verid: e.farmCode,
+        qumax: e.qtyPlaced,
+        qupri,
+        quazt: 0,
+        qumin: 0,
+      });
+    });
   }
-  return null;
+
+  return rows;
+}
+
+// ─── Sequence queue ───────────────────────────────────────────────────────────
+
+/**
+ * Returns all farms in sequence order with their next-available-date calculation.
+ * Uses the latest PlacementEntry across all months as "last placed".
+ */
+export function computeSequenceQueue(
+  farms: Farm[],
+  entries: PlacementEntry[],
+  today: string
+): SequenceQueueRow[] {
+  const lastPlacementMap = new Map<string, string>();
+  for (const e of entries) {
+    const current = lastPlacementMap.get(e.farmCode);
+    if (!current || e.date > current) {
+      lastPlacementMap.set(e.farmCode, e.date);
+    }
+  }
+
+  const todayMs = new Date(today).getTime();
+
+  return farms
+    .slice()
+    .sort((a, b) => a.sequencePosition - b.sequencePosition)
+    .map((farm) => {
+      const lastDate = lastPlacementMap.get(farm.code) ?? null;
+      let dayOfCycle: number | null = null;
+      let nextAvailableDate: string | null = null;
+      let daysUntilAvailable = 0;
+
+      if (lastDate) {
+        const lastMs = new Date(lastDate).getTime();
+        const totalCycleDays = farm.cycleLengthDays + farm.cleaningDays;
+        dayOfCycle = Math.floor((todayMs - lastMs) / (1000 * 60 * 60 * 24));
+        const nextMs = lastMs + totalCycleDays * 24 * 60 * 60 * 1000;
+        nextAvailableDate = new Date(nextMs).toISOString().slice(0, 10);
+        daysUntilAvailable = Math.ceil((nextMs - todayMs) / (1000 * 60 * 60 * 24));
+      }
+      // Never placed → daysUntilAvailable stays 0 → isAvailableNow = true (if active)
+
+      const isAvailableNow =
+        farm.status === "Active" &&
+        !farm.skipThisCycle &&
+        daysUntilAvailable <= 0;
+
+      return {
+        farm,
+        lastPlacementDate: lastDate,
+        dayOfCycle,
+        nextAvailableDate,
+        daysUntilAvailable,
+        isAvailableNow,
+      };
+    });
 }

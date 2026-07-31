@@ -1,392 +1,820 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { usePipeline } from "@/lib/usePipeline";
+import { useState, useMemo } from "react";
 import { usePlanStore } from "@/lib/store";
-import { computeFarmQuota, computeFarmWeekRollups, validateFarmQuotas } from "@/lib/farmQuota";
+import { usePipeline } from "@/lib/usePipeline";
+import type { BirdType, Farm, FarmStatus, PlacementEntry } from "@/lib/types";
+import {
+  checkEntry,
+  computeMEQ1Rows,
+  computeSequenceQueue,
+  farmMonthlyTotal,
+  isDuplicate,
+} from "@/lib/farmQuota";
 import { exportMEQ1ToExcel } from "@/lib/export";
-import { SummaryCard } from "../shared/SummaryCard";
-import type { Farm } from "@/lib/types";
 
-function num(n: number) {
-  return Math.round(n).toLocaleString();
-}
+// ─── Tab type ─────────────────────────────────────────────────────────────────
 
-// ── Inline editable cell ─────────────────────────────────────────────────────
-function EditCell({
-  value,
-  onChange,
-  type = "text",
-  min,
-  max,
-  className = "",
-}: {
-  value: string | number;
-  onChange: (v: string) => void;
-  type?: "text" | "number";
-  min?: number;
-  max?: number;
-  className?: string;
-}) {
+type Tab = "farm-master" | "placement-log" | "sequence-queue" | "meq1";
+
+const TABS: { id: Tab; label: string }[] = [
+  { id: "farm-master", label: "Farm Master" },
+  { id: "placement-log", label: "Placement Log" },
+  { id: "sequence-queue", label: "Sequence Queue" },
+  { id: "meq1", label: "MEQ1 Export" },
+];
+
+const BIRD_TYPES: BirdType[] = ["Cobb", "Ross", "GP"];
+
+// ─── Small shared pieces ──────────────────────────────────────────────────────
+
+function StatusBadge({ status }: { status: FarmStatus }) {
+  const styles: Record<FarmStatus, string> = {
+    Active: "bg-green-100 text-green-800",
+    Inactive: "bg-red-100 text-red-700",
+    "Under Maintenance": "bg-amber-100 text-amber-700",
+  };
   return (
-    <input
-      type={type}
-      value={value}
-      min={min}
-      max={max}
-      onChange={(e) => onChange(e.target.value)}
-      className={`w-full px-2 py-1 text-sm border border-transparent rounded hover:border-[var(--border-subtle)] focus:border-brand-green focus:outline-none bg-transparent ${className}`}
-    />
+    <span className={`px-1.5 py-0.5 rounded text-[10px] font-semibold ${styles[status]}`}>
+      {status}
+    </span>
   );
 }
 
-// ── Farm roster row ──────────────────────────────────────────────────────────
-function FarmRow({
-  farm,
-  onUpdate,
-  onRemove,
-}: {
-  farm: Farm;
-  onUpdate: (patch: Partial<Farm>) => void;
-  onRemove: () => void;
-}) {
+function CheckBadge({ label }: { label: string }) {
+  const isOk = label === "OK";
+  const isWarn = label.startsWith("OVER");
+  const cls = isOk
+    ? "bg-green-100 text-green-800"
+    : isWarn
+    ? "bg-amber-100 text-amber-800"
+    : "bg-red-100 text-red-700";
+  return <span className={`px-1.5 py-0.5 rounded text-[10px] font-semibold ${cls}`}>{label}</span>;
+}
+
+const fmt = (n: number) => n.toLocaleString();
+
+// ─── Tab: Farm Master ─────────────────────────────────────────────────────────
+
+function FarmMasterTab({ farms }: { farms: Farm[] }) {
+  const [statusFilter, setStatusFilter] = useState<FarmStatus | "All">("All");
+
+  const filtered = useMemo(
+    () => (statusFilter === "All" ? farms : farms.filter((f) => f.status === statusFilter)),
+    [farms, statusFilter]
+  );
+
+  const counts = useMemo(
+    () => ({
+      total: farms.length,
+      active: farms.filter((f) => f.status === "Active").length,
+      inactive: farms.filter((f) => f.status === "Inactive").length,
+      maintenance: farms.filter((f) => f.status === "Under Maintenance").length,
+      skipped: farms.filter((f) => f.skipThisCycle).length,
+    }),
+    [farms]
+  );
+
   return (
-    <tr className={`border-b border-[var(--border-subtle)] ${!farm.active ? "opacity-50" : ""}`}>
-      <td className="px-2 py-1.5">
-        <input
-          type="checkbox"
-          checked={farm.active}
-          onChange={(e) => onUpdate({ active: e.target.checked })}
-          className="accent-brand-green w-4 h-4"
-        />
-      </td>
-      <td className="px-1 py-1">
-        <EditCell value={farm.name} onChange={(v) => onUpdate({ name: v })} />
-      </td>
-      <td className="px-1 py-1">
-        <EditCell value={farm.sapVendorCode} onChange={(v) => onUpdate({ sapVendorCode: v })} />
-      </td>
-      <td className="px-1 py-1 w-24">
-        <EditCell
-          value={farm.quotaSharePct}
-          type="number"
-          min={0}
-          max={100}
-          onChange={(v) => onUpdate({ quotaSharePct: parseFloat(v) || 0 })}
-          className="text-right"
-        />
-      </td>
-      <td className="px-1 py-1 w-28">
-        <EditCell
-          value={farm.maxHousesPerDay}
-          type="number"
-          min={0}
-          onChange={(v) => onUpdate({ maxHousesPerDay: parseInt(v) || 0 })}
-          className="text-right"
-        />
-      </td>
-      <td className="px-2 py-1 text-center">
-        <button
-          onClick={onRemove}
-          title="Remove farm"
-          className="text-neutral-400 hover:text-brand-alert text-base leading-none px-1"
-        >
-          ×
-        </button>
-      </td>
-    </tr>
+    <div className="space-y-4">
+      <div className="flex flex-wrap gap-2 text-xs">
+        {(["All", "Active", "Inactive", "Under Maintenance"] as const).map((s) => {
+          const count =
+            s === "All"
+              ? counts.total
+              : s === "Active"
+              ? counts.active
+              : s === "Inactive"
+              ? counts.inactive
+              : counts.maintenance;
+          return (
+            <button
+              key={s}
+              onClick={() => setStatusFilter(s)}
+              className={`px-3 py-1 rounded-full border transition-colors ${
+                statusFilter === s
+                  ? "bg-brand-green text-white border-brand-green"
+                  : "border-[var(--border-subtle)] text-neutral-600 hover:border-brand-green"
+              }`}
+            >
+              {s} ({count})
+            </button>
+          );
+        })}
+        <span className="px-3 py-1 rounded-full border border-amber-300 bg-amber-50 text-amber-700">
+          Skip This Cycle: {counts.skipped}
+        </span>
+      </div>
+
+      <div className="overflow-x-auto rounded-lg border border-[var(--border-subtle)]">
+        <table className="data-grid w-full text-xs">
+          <thead>
+            <tr>
+              <th>Seq</th>
+              <th>Code</th>
+              <th>Type</th>
+              <th>Houses</th>
+              <th className="text-right">Full Cap</th>
+              <th className="text-right">Plan Cap</th>
+              <th>Cycle</th>
+              <th>Clean</th>
+              <th>Status</th>
+              <th>Skip?</th>
+            </tr>
+          </thead>
+          <tbody>
+            {filtered.map((f) => (
+              <tr key={f.code} className={f.status !== "Active" ? "opacity-60" : ""}>
+                <td className="font-mono text-neutral-400">{f.sequencePosition}</td>
+                <td className="font-mono font-semibold">{f.code}</td>
+                <td>{f.type}</td>
+                <td className="text-center">{f.houses}</td>
+                <td className="text-right">{f.fullCapacity.toLocaleString()}</td>
+                <td className="text-right font-semibold">{f.placementPlanCapacity.toLocaleString()}</td>
+                <td className="text-center">{f.cycleLengthDays}d</td>
+                <td className="text-center">{f.cleaningDays}d</td>
+                <td>
+                  <StatusBadge status={f.status} />
+                </td>
+                <td className="text-center">
+                  {f.skipThisCycle ? (
+                    <span className="text-amber-600 font-semibold">Yes</span>
+                  ) : (
+                    <span className="text-neutral-300">—</span>
+                  )}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <p className="text-xs text-neutral-400">
+        Showing {filtered.length} of {farms.length} farms · Source: Farm_Master (Excel). Read-only reference.
+      </p>
+    </div>
   );
 }
 
-// ── Main component ────────────────────────────────────────────────────────────
-export function FarmQuotaDistribution() {
-  const { result, params } = usePipeline();
-  const farms = usePlanStore((s) => s.farms);
-  const addFarm = usePlanStore((s) => s.addFarm);
-  const updateFarm = usePlanStore((s) => s.updateFarm);
-  const removeFarm = usePlanStore((s) => s.removeFarm);
+// ─── Tab: Placement Log ───────────────────────────────────────────────────────
 
-  const [activeTab, setActiveTab] = useState<"weekly" | "daily">("weekly");
+function PlacementLogTab({ farms }: { farms: Farm[] }) {
+  const entries = usePlanStore((s) => s.placementEntries);
+  const config = usePlanStore((s) => s.monthlyPlanConfig);
+  const overrides = usePlanStore((s) => s.dailyPlannedQtyOverrides);
+  const addEntry = usePlanStore((s) => s.addPlacementEntry);
+  const updateEntry = usePlanStore((s) => s.updatePlacementEntry);
+  const removeEntry = usePlanStore((s) => s.removePlacementEntry);
+  const updateConfig = usePlanStore((s) => s.updateMonthlyPlanConfig);
+  const setOverride = usePlanStore((s) => s.setDailyPlannedQtyOverride);
 
-  const validationError = useMemo(() => validateFarmQuotas(farms), [farms]);
+  const { result } = usePipeline();
 
-  const allocs = useMemo(
-    () => computeFarmQuota(result.placementDays, farms, params.chicksPerHouse),
-    [result.placementDays, farms, params.chicksPerHouse]
+  const monthPrefix = config.planningMonth.slice(0, 7);
+  const monthEntries = useMemo(
+    () => entries.filter((e) => e.date.startsWith(monthPrefix)),
+    [entries, monthPrefix]
   );
 
-  const rollups = useMemo(
-    () => computeFarmWeekRollups(allocs, farms, params.chicksPerHouse),
-    [allocs, farms, params.chicksPerHouse]
-  );
+  const farmMap = useMemo(() => new Map(farms.map((f) => [f.code, f])), [farms]);
 
-  const activeFarms = farms.filter((f) => f.active);
-  const totalShare = activeFarms.reduce((s, f) => s + f.quotaSharePct, 0);
-  const totalChicks = rollups.reduce((s, r) => s + r.totalChicks, 0) / activeFarms.length || 0;
-  const totalHouses = rollups.reduce((s, r) => s + r.totalHouses, 0) / activeFarms.length || 0;
+  const calendarDays = useMemo(() => {
+    return result.placementDays
+      .filter((d) => d.date.startsWith(monthPrefix) && d.farmsPlacing > 0)
+      .map((d) => {
+        const plannedQty = overrides[d.date] ?? d.farmsPlacing * d.chicksPerHouse;
+        const allocatedQty = monthEntries
+          .filter((e) => e.date === d.date)
+          .reduce((s, e) => s + e.qtyPlaced, 0);
+        return { date: d.date, plannedQty, allocatedQty, gap: plannedQty - allocatedQty };
+      });
+  }, [result.placementDays, monthPrefix, overrides, monthEntries]);
 
-  const weeks = Array.from(new Set(rollups.map((r) => r.week))).sort((a, b) => a - b);
-
-  function handleAddFarm() {
-    addFarm({
-      id: `farm-${Date.now()}`,
-      name: "New Farm",
-      sapVendorCode: "",
-      quotaSharePct: 0,
-      maxHousesPerDay: 0,
-      active: true,
-    });
-  }
-
-  function handleExport() {
-    exportMEQ1ToExcel(rollups, farms, result.placementDays, params.chicksPerHouse);
-  }
-
-  // Weekly table: rows = farms, columns = weeks
-  const weeklyRows = activeFarms.map((farm) => {
-    const byWeek = new Map(rollups.filter((r) => r.farmId === farm.id).map((r) => [r.week, r]));
-    return { farm, byWeek };
+  const [draft, setDraft] = useState<Omit<PlacementEntry, "id">>({
+    farmCode: "",
+    date: config.planningMonth.slice(0, 10),
+    birdType: "Cobb",
+    qtyPlaced: 0,
   });
 
-  // Daily table: rows = days × farms (flat)
-  const dailyRows = result.placementDays
-    .filter((d) => d.farmsPlacing > 0)
-    .flatMap((d) =>
-      activeFarms.map((f) => {
-        const alloc = allocs.find((a) => a.date === d.date && a.farmId === f.id);
-        return { date: d.date, farm: f, houses: alloc?.housesAllocated ?? 0, chicks: alloc?.chicksAllocated ?? 0 };
-      })
-    );
+  function handleAdd() {
+    if (!draft.farmCode || !draft.date || draft.qtyPlaced <= 0) return;
+    addEntry({ ...draft, id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}` });
+    setDraft((d) => ({ ...d, farmCode: "", qtyPlaced: 0 }));
+  }
 
   return (
-    <div className="space-y-5">
-      {/* Header */}
-      <div>
-        <h1 className="text-xl font-bold section-title">Step 7 — Farm Quota Distribution</h1>
-        <p className="text-sm text-neutral-500 mt-0.5">
-          Distribute daily chick placements across contracted farms and export the SAP MEQ1 quota arrangement file.
-        </p>
-      </div>
-
-      {/* Validation banner */}
-      {validationError && (
-        <div className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-amber-50 border border-amber-200 text-amber-800 text-sm">
-          <span className="text-base">⚠</span>
-          {validationError}
+    <div className="space-y-4">
+      {/* Config header */}
+      <div className="bg-white rounded-lg border border-[var(--border-subtle)] p-4">
+        <div className="text-xs font-semibold text-neutral-500 uppercase tracking-wide mb-3">
+          Plan Configuration
         </div>
-      )}
-
-      {/* Summary cards */}
-      <div className="flex flex-wrap gap-3">
-        <SummaryCard label="Active Farms" value={String(activeFarms.length)} accent="green" />
-        <SummaryCard
-          label="Total Quota Share"
-          value={`${totalShare.toFixed(1)}%`}
-          accent={Math.abs(totalShare - 100) < 0.5 ? "green" : "alert"}
-        />
-        <SummaryCard label="Avg Houses / Farm" value={num(totalHouses)} />
-        <SummaryCard label="Avg Chicks / Farm" value={num(totalChicks)} accent="gold" />
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+          <label className="flex flex-col gap-1">
+            <span className="text-xs text-neutral-500">Planning Month</span>
+            <input
+              type="month"
+              className="cell-input text-xs"
+              value={config.planningMonth.slice(0, 7)}
+              onChange={(e) =>
+                updateConfig({
+                  planningMonth: e.target.value + "-01",
+                  submissionStatus: "Not Submitted",
+                  submittedOn: null,
+                })
+              }
+            />
+          </label>
+          <label className="flex flex-col gap-1">
+            <span className="text-xs text-neutral-500">Plant (WERKS)</span>
+            <input
+              className="cell-input text-xs font-mono"
+              value={config.plant}
+              onChange={(e) => updateConfig({ plant: e.target.value })}
+            />
+          </label>
+          <label className="flex flex-col gap-1">
+            <span className="text-xs text-neutral-500">Cobb Mat. No.</span>
+            <input
+              className="cell-input text-xs font-mono"
+              value={config.cobbMatNo}
+              onChange={(e) => updateConfig({ cobbMatNo: e.target.value })}
+            />
+          </label>
+          <label className="flex flex-col gap-1">
+            <span className="text-xs text-neutral-500">Ross Mat. No.</span>
+            <input
+              className="cell-input text-xs font-mono"
+              value={config.rossMatNo}
+              onChange={(e) => updateConfig({ rossMatNo: e.target.value })}
+            />
+          </label>
+          <label className="flex flex-col gap-1">
+            <span className="text-xs text-neutral-500">GP Mat. No.</span>
+            <input
+              className="cell-input text-xs font-mono"
+              value={config.gpMatNo}
+              onChange={(e) => updateConfig({ gpMatNo: e.target.value })}
+            />
+          </label>
+          <div className="flex flex-col gap-1">
+            <span className="text-xs text-neutral-500">Submission</span>
+            <div className="flex items-center h-[30px]">
+              <span
+                className={`px-2 py-0.5 rounded text-[10px] font-semibold ${
+                  config.submissionStatus === "Submitted"
+                    ? "bg-green-100 text-green-800"
+                    : "bg-neutral-100 text-neutral-600"
+                }`}
+              >
+                {config.submissionStatus}
+              </span>
+            </div>
+          </div>
+        </div>
       </div>
 
-      {/* Farm Roster ────────────────────────────────────── */}
-      <div className="rounded-lg border border-[var(--border-subtle)] bg-white overflow-hidden">
-        <div className="flex items-center justify-between px-4 py-3 border-b border-[var(--border-subtle)] bg-[var(--surface-raised)]">
-          <span className="font-semibold text-sm text-neutral-700">Farm Roster</span>
-          <div className="flex gap-2">
+      <div className="flex gap-4">
+        {/* Entry table */}
+        <div className="flex-1 min-w-0 space-y-2">
+          <div className="flex items-center justify-between">
+            <span className="text-sm font-semibold text-neutral-700">
+              Placement Entries — {config.planningMonth.slice(0, 7)}
+            </span>
+            <span className="text-xs text-neutral-400">{monthEntries.length} rows</span>
+          </div>
+
+          {/* Add row */}
+          <div className="bg-brand-green-tint border border-brand-green/20 rounded-lg p-3 flex flex-wrap items-end gap-2">
+            <label className="flex flex-col gap-0.5">
+              <span className="text-[10px] text-neutral-500">Farm Code</span>
+              <select
+                className="cell-input text-xs w-28"
+                value={draft.farmCode}
+                onChange={(e) => setDraft((d) => ({ ...d, farmCode: e.target.value }))}
+              >
+                <option value="">— select —</option>
+                {farms
+                  .filter((f) => f.status === "Active")
+                  .map((f) => (
+                    <option key={f.code} value={f.code}>
+                      {f.code}
+                    </option>
+                  ))}
+              </select>
+            </label>
+            <label className="flex flex-col gap-0.5">
+              <span className="text-[10px] text-neutral-500">Date</span>
+              <input
+                type="date"
+                className="cell-input text-xs"
+                value={draft.date}
+                onChange={(e) => setDraft((d) => ({ ...d, date: e.target.value }))}
+              />
+            </label>
+            <label className="flex flex-col gap-0.5">
+              <span className="text-[10px] text-neutral-500">Bird Type</span>
+              <select
+                className="cell-input text-xs w-20"
+                value={draft.birdType}
+                onChange={(e) => setDraft((d) => ({ ...d, birdType: e.target.value as BirdType }))}
+              >
+                {BIRD_TYPES.map((b) => (
+                  <option key={b} value={b}>{b}</option>
+                ))}
+              </select>
+            </label>
+            <label className="flex flex-col gap-0.5">
+              <span className="text-[10px] text-neutral-500">Qty Placed</span>
+              <input
+                type="number"
+                min={0}
+                className="cell-input text-xs w-24"
+                value={draft.qtyPlaced || ""}
+                onChange={(e) => setDraft((d) => ({ ...d, qtyPlaced: Number(e.target.value) }))}
+              />
+            </label>
             <button
-              onClick={handleAddFarm}
-              className="px-3 py-1.5 text-xs font-medium rounded-md border border-brand-green text-brand-green hover:bg-brand-green-tint transition-colors"
+              onClick={handleAdd}
+              disabled={!draft.farmCode || draft.qtyPlaced <= 0}
+              className="px-3 py-1.5 text-xs font-semibold rounded bg-brand-green text-white hover:bg-brand-green-dark disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
             >
-              + Add Farm
+              + Add
             </button>
-            <button
-              onClick={handleExport}
-              disabled={!!validationError}
-              className="px-3 py-1.5 text-xs font-medium rounded-md bg-brand-green text-white hover:bg-brand-green-dark transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-            >
-              ↓ Export MEQ1
-            </button>
+          </div>
+
+          {/* Entries table */}
+          <div className="overflow-x-auto rounded-lg border border-[var(--border-subtle)] max-h-[420px] overflow-y-auto">
+            <table className="data-grid w-full text-xs">
+              <thead className="sticky top-0 z-10 bg-white">
+                <tr>
+                  <th>Farm</th>
+                  <th>Date</th>
+                  <th>Bird Type</th>
+                  <th className="text-right">Qty Placed</th>
+                  <th className="text-right">Monthly Total</th>
+                  <th className="text-right">Ceiling</th>
+                  <th className="text-right">Remaining</th>
+                  <th>Check</th>
+                  <th>Dup?</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                {monthEntries.length === 0 ? (
+                  <tr>
+                    <td colSpan={10} className="text-center py-6 text-neutral-400">
+                      No entries for {config.planningMonth.slice(0, 7)}. Use the form above to add placement events.
+                    </td>
+                  </tr>
+                ) : (
+                  monthEntries.map((entry) => {
+                    const farm = farmMap.get(entry.farmCode);
+                    const monthly = farmMonthlyTotal(entry.farmCode, config.planningMonth, entries);
+                    const ceiling = farm?.placementPlanCapacity ?? 0;
+                    const remaining = ceiling - monthly;
+                    const check = farm
+                      ? checkEntry(entry, farm, monthly)
+                      : { status: "INACTIVE" as const, label: "Farm not found" };
+                    const dup = isDuplicate(entry, monthEntries);
+                    return (
+                      <tr key={entry.id} className={dup ? "bg-red-50" : ""}>
+                        <td className="font-mono font-semibold">{entry.farmCode}</td>
+                        <td>
+                          <input
+                            type="date"
+                            className="cell-input text-xs w-28"
+                            value={entry.date}
+                            onChange={(e) => updateEntry(entry.id, { date: e.target.value })}
+                          />
+                        </td>
+                        <td>
+                          <select
+                            className="cell-input text-xs"
+                            value={entry.birdType}
+                            onChange={(e) =>
+                              updateEntry(entry.id, { birdType: e.target.value as BirdType })
+                            }
+                          >
+                            {BIRD_TYPES.map((b) => (
+                              <option key={b} value={b}>{b}</option>
+                            ))}
+                          </select>
+                        </td>
+                        <td className="text-right">
+                          <input
+                            type="number"
+                            min={0}
+                            className="cell-input text-xs w-24 text-right"
+                            value={entry.qtyPlaced}
+                            onChange={(e) =>
+                              updateEntry(entry.id, { qtyPlaced: Number(e.target.value) })
+                            }
+                          />
+                        </td>
+                        <td className="text-right font-semibold">{fmt(monthly)}</td>
+                        <td className="text-right text-neutral-500">{fmt(ceiling)}</td>
+                        <td
+                          className={`text-right font-semibold ${
+                            remaining < 0 ? "text-red-600" : "text-neutral-700"
+                          }`}
+                        >
+                          {fmt(remaining)}
+                        </td>
+                        <td>
+                          <CheckBadge label={check.label} />
+                        </td>
+                        <td className="text-center">
+                          {dup ? (
+                            <span className="text-red-600 font-semibold text-[10px]">DUP</span>
+                          ) : (
+                            <span className="text-neutral-300">—</span>
+                          )}
+                        </td>
+                        <td>
+                          <button
+                            onClick={() => removeEntry(entry.id)}
+                            className="text-red-400 hover:text-red-600 text-xs px-1"
+                            title="Remove"
+                          >
+                            ✕
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
           </div>
         </div>
 
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
+        {/* Daily Calendar panel */}
+        <div className="w-64 shrink-0">
+          <div className="text-sm font-semibold text-neutral-700 mb-1">Daily Calendar</div>
+          <div className="text-xs text-neutral-400 mb-2">
+            From Step 1 pipeline · amber = override
+          </div>
+          <div className="rounded-lg border border-[var(--border-subtle)] overflow-hidden">
+            <div className="overflow-y-auto max-h-[500px]">
+              <table className="data-grid w-full text-xs">
+                <thead className="sticky top-0 z-10 bg-white">
+                  <tr>
+                    <th>Date</th>
+                    <th className="text-right">Planned</th>
+                    <th className="text-right">Placed</th>
+                    <th className="text-right">Gap</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {calendarDays.length === 0 ? (
+                    <tr>
+                      <td colSpan={4} className="text-center py-4 text-neutral-400 text-[10px]">
+                        No placements in Step 1<br />for this month.
+                      </td>
+                    </tr>
+                  ) : (
+                    calendarDays.map((d) => {
+                      const hasOverride = overrides[d.date] !== undefined;
+                      return (
+                        <tr key={d.date}>
+                          <td className="font-mono text-[10px]">{d.date.slice(5)}</td>
+                          <td className="text-right">
+                            <div className="flex items-center justify-end gap-0.5">
+                              <input
+                                type="number"
+                                min={0}
+                                className={`cell-input text-xs text-right w-20 ${
+                                  hasOverride ? "bg-amber-50" : ""
+                                }`}
+                                value={d.plannedQty}
+                                onChange={(e) => setOverride(d.date, Number(e.target.value))}
+                              />
+                              {hasOverride && (
+                                <button
+                                  onClick={() => setOverride(d.date, null)}
+                                  className="text-amber-500 hover:text-amber-700 text-[10px]"
+                                  title="Reset to pipeline"
+                                >
+                                  ×
+                                </button>
+                              )}
+                            </div>
+                          </td>
+                          <td className="text-right font-semibold">{fmt(d.allocatedQty)}</td>
+                          <td
+                            className={`text-right font-semibold ${
+                              d.gap < 0
+                                ? "text-red-500"
+                                : d.gap > 0
+                                ? "text-amber-500"
+                                : "text-green-600"
+                            }`}
+                          >
+                            {d.gap === 0 ? "✓" : d.gap > 0 ? `+${fmt(d.gap)}` : fmt(d.gap)}
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+          {calendarDays.length > 0 && (
+            <div className="mt-2 text-[10px] text-neutral-400">
+              Total planned: {fmt(calendarDays.reduce((s, d) => s + d.plannedQty, 0))}
+              <br />
+              Total placed: {fmt(calendarDays.reduce((s, d) => s + d.allocatedQty, 0))}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Tab: Sequence Queue ──────────────────────────────────────────────────────
+
+function SequenceQueueTab({ farms }: { farms: Farm[] }) {
+  const entries = usePlanStore((s) => s.placementEntries);
+  const today = new Date().toISOString().slice(0, 10);
+
+  const queueRows = useMemo(
+    () => computeSequenceQueue(farms, entries, today),
+    [farms, entries, today]
+  );
+
+  const availableCount = queueRows.filter((r) => r.isAvailableNow).length;
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center gap-3">
+        <span className="text-sm font-semibold text-neutral-700">
+          Rotation Queue — sorted by sequence position
+        </span>
+        <span className="px-2 py-0.5 text-xs rounded-full bg-green-100 text-green-700 font-semibold">
+          {availableCount} available now
+        </span>
+      </div>
+
+      <div className="overflow-x-auto rounded-lg border border-[var(--border-subtle)]">
+        <table className="data-grid w-full text-xs">
+          <thead>
+            <tr>
+              <th>Seq</th>
+              <th>Code</th>
+              <th>Type</th>
+              <th>Status</th>
+              <th>Skip?</th>
+              <th>Last Placed</th>
+              <th className="text-center">Day of Cycle</th>
+              <th>Next Available</th>
+              <th className="text-center">Days Left</th>
+              <th className="text-center">Queue</th>
+            </tr>
+          </thead>
+          <tbody>
+            {queueRows.map(
+              ({
+                farm,
+                lastPlacementDate,
+                dayOfCycle,
+                nextAvailableDate,
+                daysUntilAvailable,
+                isAvailableNow,
+              }) => (
+                <tr
+                  key={farm.code}
+                  className={
+                    farm.status !== "Active"
+                      ? "opacity-50"
+                      : isAvailableNow
+                      ? "bg-green-50"
+                      : ""
+                  }
+                >
+                  <td className="font-mono text-neutral-400">{farm.sequencePosition}</td>
+                  <td className="font-mono font-semibold">{farm.code}</td>
+                  <td>{farm.type}</td>
+                  <td>
+                    <StatusBadge status={farm.status} />
+                  </td>
+                  <td className="text-center">
+                    {farm.skipThisCycle ? (
+                      <span className="text-amber-600 font-semibold text-[10px]">Yes</span>
+                    ) : (
+                      <span className="text-neutral-300">—</span>
+                    )}
+                  </td>
+                  <td className="font-mono text-neutral-500">
+                    {lastPlacementDate ?? (
+                      <span className="text-neutral-300">Never</span>
+                    )}
+                  </td>
+                  <td className="text-center">
+                    {dayOfCycle !== null ? (
+                      <span
+                        className={
+                          dayOfCycle > farm.cycleLengthDays + farm.cleaningDays
+                            ? "text-green-600 font-semibold"
+                            : ""
+                        }
+                      >
+                        {dayOfCycle}d
+                      </span>
+                    ) : (
+                      <span className="text-neutral-300">—</span>
+                    )}
+                  </td>
+                  <td className="font-mono">
+                    {nextAvailableDate ?? (
+                      <span className="text-green-600 font-semibold">Now</span>
+                    )}
+                  </td>
+                  <td className="text-center">
+                    {daysUntilAvailable <= 0 ? (
+                      <span className="text-green-600 font-semibold">✓ Ready</span>
+                    ) : (
+                      <span className="text-neutral-500">{daysUntilAvailable}d</span>
+                    )}
+                  </td>
+                  <td className="text-center">
+                    {isAvailableNow && (
+                      <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-green-600 text-white">
+                        UP
+                      </span>
+                    )}
+                  </td>
+                </tr>
+              )
+            )}
+          </tbody>
+        </table>
+      </div>
+      <p className="text-xs text-neutral-400">
+        Today: {today} · Cycle = {farms[0]?.cycleLengthDays ?? 43}d grow-out +{" "}
+        {farms[0]?.cleaningDays ?? 17}d cleaning ={" "}
+        {(farms[0]?.cycleLengthDays ?? 43) + (farms[0]?.cleaningDays ?? 17)}d total
+      </p>
+    </div>
+  );
+}
+
+// ─── Tab: MEQ1 Export ─────────────────────────────────────────────────────────
+
+function MEQ1Tab({ farms }: { farms: Farm[] }) {
+  const entries = usePlanStore((s) => s.placementEntries);
+  const config = usePlanStore((s) => s.monthlyPlanConfig);
+  const updateConfig = usePlanStore((s) => s.updateMonthlyPlanConfig);
+
+  const meq1Rows = useMemo(
+    () => computeMEQ1Rows(entries, farms, config),
+    [entries, farms, config]
+  );
+
+  const birdGroups = useMemo(() => {
+    const groups: Record<string, typeof meq1Rows> = { Cobb: [], Ross: [], GP: [] };
+    for (const r of meq1Rows) {
+      if (r.matnr === config.cobbMatNo) groups.Cobb.push(r);
+      else if (r.matnr === config.rossMatNo) groups.Ross.push(r);
+      else groups.GP.push(r);
+    }
+    return groups;
+  }, [meq1Rows, config]);
+
+  return (
+    <div className="space-y-4">
+      <div className="bg-white rounded-lg border border-[var(--border-subtle)] p-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="space-y-0.5">
+            <div className="text-sm font-semibold text-neutral-700">
+              MEQ1 Upload — {config.planningMonth.slice(0, 7)}
+            </div>
+            <div className="text-xs text-neutral-500">
+              Plant {config.plant} · {meq1Rows.length} rows ·{" "}
+              {Object.entries(birdGroups)
+                .map(([bt, rows]) => `${bt}: ${rows.length}`)
+                .join(" · ")}
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <span
+              className={`px-2 py-1 rounded text-xs font-semibold ${
+                config.submissionStatus === "Submitted"
+                  ? "bg-green-100 text-green-800"
+                  : "bg-neutral-100 text-neutral-600"
+              }`}
+            >
+              {config.submissionStatus}
+              {config.submittedOn && (
+                <span className="ml-1 font-normal text-[10px]">
+                  {config.submittedOn.slice(0, 10)}
+                </span>
+              )}
+            </span>
+            {meq1Rows.length > 0 && (
+              <button
+                onClick={() => exportMEQ1ToExcel(meq1Rows, config)}
+                className="px-3 py-1.5 text-xs font-semibold rounded bg-brand-green text-white hover:bg-brand-green-dark transition-colors"
+              >
+                Export to Excel
+              </button>
+            )}
+            {config.submissionStatus === "Not Submitted" && meq1Rows.length > 0 && (
+              <button
+                onClick={() =>
+                  updateConfig({
+                    submissionStatus: "Submitted",
+                    submittedOn: new Date().toISOString(),
+                  })
+                }
+                className="px-3 py-1.5 text-xs font-semibold rounded border border-brand-green text-brand-green hover:bg-brand-green-tint transition-colors"
+              >
+                Mark as Submitted
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {meq1Rows.length === 0 ? (
+        <div className="text-center py-12 text-neutral-400 text-sm">
+          No valid MEQ1 rows yet. Add placement entries in the Placement Log tab, ensuring all
+          entries pass the Check (status = OK).
+        </div>
+      ) : (
+        <div className="overflow-x-auto rounded-lg border border-[var(--border-subtle)]">
+          <table className="data-grid w-full text-xs font-mono">
             <thead>
-              <tr className="bg-[var(--surface-raised)] border-b border-[var(--border-subtle)] text-xs text-neutral-500 uppercase tracking-wide">
-                <th className="px-2 py-2 text-left w-8">Active</th>
-                <th className="px-2 py-2 text-left">Farm Name</th>
-                <th className="px-2 py-2 text-left">SAP Vendor Code</th>
-                <th className="px-2 py-2 text-right w-24">Quota %</th>
-                <th className="px-2 py-2 text-right w-36">Max Houses/Day<br /><span className="text-[10px] normal-case font-normal">(0 = unlimited)</span></th>
-                <th className="px-2 py-2 w-8" />
+              <tr>
+                <th>MATNR</th>
+                <th>WERKS</th>
+                <th>DATAB</th>
+                <th>DATBI</th>
+                <th>QUPOS</th>
+                <th>VERID</th>
+                <th className="text-right">QUMAX</th>
+                <th className="text-right">QUPRI</th>
+                <th className="text-right">QUAZT</th>
+                <th className="text-right">QUMIN</th>
               </tr>
             </thead>
             <tbody>
-              {farms.map((farm) => (
-                <FarmRow
-                  key={farm.id}
-                  farm={farm}
-                  onUpdate={(patch) => updateFarm(farm.id, patch)}
-                  onRemove={() => removeFarm(farm.id)}
-                />
+              {meq1Rows.map((r, i) => (
+                <tr key={i}>
+                  <td>{r.matnr}</td>
+                  <td>{r.werks}</td>
+                  <td>{r.datab}</td>
+                  <td>{r.datbi}</td>
+                  <td className="font-bold">{r.qupos}</td>
+                  <td className="font-bold">{r.verid}</td>
+                  <td className="text-right">{r.qumax.toLocaleString()}</td>
+                  <td className="text-right">{r.qupri}</td>
+                  <td className="text-right">{r.quazt}</td>
+                  <td className="text-right">{r.qumin}</td>
+                </tr>
               ))}
-              {farms.length === 0 && (
-                <tr>
-                  <td colSpan={6} className="px-4 py-6 text-center text-neutral-400 text-sm">
-                    No farms configured. Click <b>+ Add Farm</b> to start.
-                  </td>
-                </tr>
-              )}
             </tbody>
-            {activeFarms.length > 0 && (
-              <tfoot>
-                <tr className="border-t border-[var(--border-subtle)] bg-[var(--surface-raised)] font-semibold text-xs">
-                  <td className="px-2 py-1.5" />
-                  <td className="px-2 py-1.5">Total ({activeFarms.length} active)</td>
-                  <td />
-                  <td className={`px-2 py-1.5 text-right ${Math.abs(totalShare - 100) > 0.5 ? "text-brand-alert" : "text-brand-green-dark"}`}>
-                    {totalShare.toFixed(1)}%
-                  </td>
-                  <td />
-                  <td />
-                </tr>
-              </tfoot>
-            )}
           </table>
         </div>
-      </div>
-
-      {/* Distribution preview ───────────────────────────── */}
-      {activeFarms.length > 0 && !validationError && (
-        <div className="rounded-lg border border-[var(--border-subtle)] bg-white overflow-hidden">
-          {/* Tab bar */}
-          <div className="flex items-center justify-between px-4 border-b border-[var(--border-subtle)]">
-            <div className="flex">
-              {(["weekly", "daily"] as const).map((t) => (
-                <button
-                  key={t}
-                  onClick={() => setActiveTab(t)}
-                  className={`px-4 py-3 text-sm font-medium border-b-2 -mb-px transition-colors capitalize ${
-                    activeTab === t
-                      ? "border-brand-green text-brand-green-dark"
-                      : "border-transparent text-neutral-500 hover:text-neutral-800"
-                  }`}
-                >
-                  {t === "weekly" ? "Weekly Rollup" : "Daily Detail"}
-                </button>
-              ))}
-            </div>
-            <span className="text-xs text-neutral-400 pr-1">
-              {activeTab === "weekly" ? `${weeks.length} weeks × ${activeFarms.length} farms` : `${dailyRows.length} rows`}
-            </span>
-          </div>
-
-          <div className="overflow-x-auto">
-            {/* ── Weekly view: pivot table farm × week ── */}
-            {activeTab === "weekly" && (
-              <table className="w-full text-xs">
-                <thead>
-                  <tr className="bg-[var(--surface-raised)] border-b border-[var(--border-subtle)]">
-                    <th className="px-3 py-2 text-left sticky left-0 bg-[var(--surface-raised)] z-10 min-w-[160px]">Farm</th>
-                    <th className="px-2 py-2 text-right text-neutral-500">Share</th>
-                    {weeks.map((w) => (
-                      <th key={w} className="px-2 py-2 text-right min-w-[72px]">W{w}</th>
-                    ))}
-                    <th className="px-3 py-2 text-right font-semibold min-w-[80px]">Total Houses</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {weeklyRows.map(({ farm, byWeek }, i) => {
-                    const farmTotal = Array.from(byWeek.values()).reduce((s, r) => s + r.totalHouses, 0);
-                    return (
-                      <tr key={farm.id} className={i % 2 === 0 ? "bg-white" : "bg-[var(--surface-raised)]"}>
-                        <td className={`px-3 py-1.5 font-medium sticky left-0 z-10 ${i % 2 === 0 ? "bg-white" : "bg-[var(--surface-raised)]"}`}>
-                          {farm.name}
-                          <span className="ml-1.5 text-[10px] text-neutral-400">{farm.sapVendorCode}</span>
-                        </td>
-                        <td className="px-2 py-1.5 text-right text-neutral-500">{farm.quotaSharePct}%</td>
-                        {weeks.map((w) => {
-                          const r = byWeek.get(w);
-                          return (
-                            <td key={w} className="px-2 py-1.5 text-right tabular-nums">
-                              {r ? (
-                                <span title={`${num(r.totalChicks)} chicks`}>
-                                  {r.totalHouses > 0 ? r.totalHouses : <span className="text-neutral-300">—</span>}
-                                </span>
-                              ) : (
-                                <span className="text-neutral-300">—</span>
-                              )}
-                            </td>
-                          );
-                        })}
-                        <td className="px-3 py-1.5 text-right font-semibold tabular-nums">{num(farmTotal)}</td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-                <tfoot>
-                  <tr className="border-t border-[var(--border-subtle)] bg-[var(--surface-raised)] font-semibold text-xs">
-                    <td className="px-3 py-1.5 sticky left-0 bg-[var(--surface-raised)] z-10">Total</td>
-                    <td className="px-2 py-1.5 text-right text-brand-green-dark">{totalShare.toFixed(0)}%</td>
-                    {weeks.map((w) => {
-                      const weekTotal = rollups.filter((r) => r.week === w).reduce((s, r) => s + r.totalHouses, 0);
-                      // divide by activeFarms.length to avoid double-counting (each farm has its own row)
-                      const unique = rollups.find((r) => r.week === w);
-                      const dayTotal = result.placementDays
-                        .filter((d) => Math.floor(d.dayIndex / 7) + 1 === w)
-                        .reduce((s, d) => s + d.farmsPlacing, 0);
-                      return (
-                        <td key={w} className="px-2 py-1.5 text-right tabular-nums">{num(dayTotal)}</td>
-                      );
-                    })}
-                    <td className="px-3 py-1.5 text-right tabular-nums">
-                      {num(result.placementDays.reduce((s, d) => s + d.farmsPlacing, 0))}
-                    </td>
-                  </tr>
-                </tfoot>
-              </table>
-            )}
-
-            {/* ── Daily view ── */}
-            {activeTab === "daily" && (
-              <table className="w-full text-xs">
-                <thead>
-                  <tr className="bg-[var(--surface-raised)] border-b border-[var(--border-subtle)]">
-                    <th className="px-3 py-2 text-left">Date</th>
-                    <th className="px-3 py-2 text-left">Farm</th>
-                    <th className="px-2 py-2 text-left text-neutral-500">SAP Code</th>
-                    <th className="px-2 py-2 text-right">Houses</th>
-                    <th className="px-3 py-2 text-right">Chicks</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {dailyRows.map((r, i) => (
-                    <tr key={i} className={i % 2 === 0 ? "bg-white" : "bg-[var(--surface-raised)]"}>
-                      <td className="px-3 py-1 font-mono">{r.date}</td>
-                      <td className="px-3 py-1">{r.farm.name}</td>
-                      <td className="px-2 py-1 text-neutral-500">{r.farm.sapVendorCode}</td>
-                      <td className="px-2 py-1 text-right tabular-nums">{r.houses > 0 ? r.houses : <span className="text-neutral-300">—</span>}</td>
-                      <td className="px-3 py-1 text-right tabular-nums">{r.chicks > 0 ? num(r.chicks) : <span className="text-neutral-300">—</span>}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-          </div>
-        </div>
       )}
+      <p className="text-xs text-neutral-400">
+        Only entries with Check = OK are included. Rows grouped by bird type (Cobb → Ross → GP) then
+        in entry order. Upload via SAP LSMW.
+      </p>
+    </div>
+  );
+}
 
-      {/* MEQ1 info callout */}
-      <div className="rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-raised)] px-4 py-3 text-sm text-neutral-600">
-        <p className="font-medium text-neutral-700 mb-1">How to use the MEQ1 export in SAP</p>
-        <ol className="list-decimal list-inside space-y-0.5 text-xs">
-          <li>Click <b>Export MEQ1</b> to download the workbook.</li>
-          <li>Open the <b>Quota Arrangement</b> sheet — one row per farm per week.</li>
-          <li>In SAP, run transaction <b>MEQ1</b> (Maintain Quota Arrangements) or use <b>LSMW</b> for mass upload.</li>
-          <li>Map the <b>Vendor Code (SAP)</b> column to the Quota Arrangement source field.</li>
-          <li>The <b>Daily Detail</b> sheet provides the full day-by-day audit trail for farm coordination.</li>
-        </ol>
+// ─── Root component ───────────────────────────────────────────────────────────
+
+export function FarmQuotaDistribution() {
+  const [tab, setTab] = useState<Tab>("placement-log");
+  const farms = usePlanStore((s) => s.farms);
+
+  return (
+    <div className="space-y-4">
+      <div className="flex gap-1 border-b border-[var(--border-subtle)]">
+        {TABS.map((t) => (
+          <button
+            key={t.id}
+            onClick={() => setTab(t.id)}
+            className={`px-4 py-2 text-sm font-medium transition-colors border-b-2 -mb-px ${
+              tab === t.id
+                ? "border-brand-green text-brand-green"
+                : "border-transparent text-neutral-500 hover:text-neutral-700"
+            }`}
+          >
+            {t.label}
+          </button>
+        ))}
       </div>
+
+      {tab === "farm-master" && <FarmMasterTab farms={farms} />}
+      {tab === "placement-log" && <PlacementLogTab farms={farms} />}
+      {tab === "sequence-queue" && <SequenceQueueTab farms={farms} />}
+      {tab === "meq1" && <MEQ1Tab farms={farms} />}
     </div>
   );
 }
