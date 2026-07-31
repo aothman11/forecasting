@@ -95,6 +95,38 @@ export function copyDemandWeekForward(
   return next;
 }
 
+// ─── Week → Calendar Month helpers ───────────────────────────────────────────
+
+/** Returns "YYYY-MM" for the calendar month that contains week W's start date. */
+export function weekToMonthKey(week: number, planStartDate: string): string {
+  const d = new Date(planStartDate);
+  d.setDate(d.getDate() + (week - 1) * 7);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+}
+
+/** Returns a human-readable label e.g. "Aug 2026". */
+export function weekToMonthLabel(week: number, planStartDate: string): string {
+  const d = new Date(planStartDate);
+  d.setDate(d.getDate() + (week - 1) * 7);
+  return d.toLocaleDateString("en-US", { month: "short", year: "numeric" });
+}
+
+/** Groups an array of week numbers into calendar months, in order. */
+export function groupWeeksByMonth(
+  weeks: number[],
+  planStartDate: string
+): { monthKey: string; monthLabel: string; weeks: number[] }[] {
+  const map = new Map<string, { monthKey: string; monthLabel: string; weeks: number[] }>();
+  for (const w of weeks) {
+    const key = weekToMonthKey(w, planStartDate);
+    if (!map.has(key)) {
+      map.set(key, { monthKey: key, monthLabel: weekToMonthLabel(w, planStartDate), weeks: [] });
+    }
+    map.get(key)!.weeks.push(w);
+  }
+  return Array.from(map.values());
+}
+
 export function slugifyProductName(name: string): string {
   return (
     name

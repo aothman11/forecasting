@@ -4,7 +4,7 @@ import { usePipeline } from "@/lib/usePipeline";
 import { usePlanStore } from "@/lib/store";
 import { activeCutKeys, computeSummaryMetrics } from "@/lib/calculations";
 import { CHANNEL_KEYS, CHANNEL_LABELS, CUT_LABELS, EGG_TRAYS_PER_CARTON, PLANT_LABELS, PRODUCT_CATEGORY_LABELS } from "@/lib/defaults";
-import { categoryTotal } from "@/lib/demandPlan";
+import { categoryTotal, groupWeeksByMonth } from "@/lib/demandPlan";
 import { computeSupplyRequirements } from "@/lib/supplyRequirements";
 import { SummaryCard } from "./shared/SummaryCard";
 import { CapacityChart } from "./charts/CapacityChart";
@@ -133,6 +133,33 @@ export function HomeDashboard() {
   const supplyDeficitWeeks = supplyRows.filter((r) => r.carcassGapKg < -r.requiredCarcassKg * 0.02 && r.requiredCarcassKg > 0).length;
   const totalRequiredCarcass = supplyRows.reduce((s, r) => s + r.requiredCarcassKg, 0);
 
+  // ── Monthly breakdown ──────────────────────────────────────────────────────
+  const monthGroups = groupWeeksByMonth(horizonWeeks, params.planStartDate);
+
+  const monthlyRows = monthGroups.map(({ monthLabel, weeks: mw }) => {
+    const chicksPlaced = mw.reduce((s, w) => {
+      const r = result.placement.find((p) => p.week === w);
+      return s + (r?.totalChicksPlaced ?? 0);
+    }, 0);
+    const harvestableBirds = mw.reduce((s, w) => {
+      const r = result.liveBird.find((p) => p.week === w);
+      return s + (r?.harvestableBirds ?? 0);
+    }, 0);
+    const carcassKg = mw.reduce((s, w) => {
+      const r = result.carcass.find((p) => p.week === w);
+      return s + (r?.carcassWeightKg ?? 0);
+    }, 0);
+    const productionKg = mw.reduce((s, w) => {
+      const r = result.family.find((p) => p.week === w);
+      return s + (r ? r.wcFreshKg + r.wcFrozenKg + r.fppKg : 0);
+    }, 0);
+    const demandCar = (["wholeChicken", "cuts", "fpp", "eggs"] as const).reduce(
+      (s, cat) => s + toCar(cat, categoryTotal(demandProducts, demandQty, cat, "ALL", mw)),
+      0
+    );
+    return { monthLabel, chicksPlaced, harvestableBirds, carcassKg, productionKg, demandCar };
+  });
+
   const runningChicks = result.placement.reduce((s, r) => s + r.totalChicksPlaced, 0);
   const totalHouses = result.placement.reduce((s, r) => s + r.farmsPlacing, 0);
 
@@ -205,6 +232,86 @@ export function HomeDashboard() {
           accent={m.weeksWithCapacityBreach > 0 ? "alert" : "neutral"}
           icon="⚠️"
         />
+      </div>
+
+      {/* ── Monthly Breakdown ── */}
+      <div>
+        <div className="flex items-center gap-3 mb-3">
+          <h2 className="text-sm font-bold uppercase tracking-widest text-brand-green-dark">Monthly Overview</h2>
+          <div className="flex-1 h-px bg-brand-green/20" />
+        </div>
+        <div className="overflow-x-auto rounded-xl border border-[var(--border-subtle)] bg-white shadow-sm">
+          <table className="w-full text-xs">
+            <thead>
+              <tr className="bg-brand-green-tint border-b border-[var(--border-subtle)]">
+                <th className="text-left px-3 py-2 font-semibold text-brand-green-dark whitespace-nowrap">Metric</th>
+                {monthlyRows.map(({ monthLabel }) => (
+                  <th key={monthLabel} className="text-right px-3 py-2 font-semibold text-brand-green-dark whitespace-nowrap">
+                    {monthLabel}
+                  </th>
+                ))}
+                <th className="text-right px-3 py-2 font-semibold text-neutral-400 whitespace-nowrap">Total</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr className="border-b border-[var(--border-subtle)] hover:bg-neutral-50">
+                <td className="px-3 py-2 text-neutral-600 whitespace-nowrap">🐣 Chicks Placed</td>
+                {monthlyRows.map(({ monthLabel, chicksPlaced }) => (
+                  <td key={monthLabel} className="px-3 py-2 text-right tabular-nums font-medium">
+                    {chicksPlaced > 0 ? Math.round(chicksPlaced).toLocaleString() : <span className="text-neutral-300">—</span>}
+                  </td>
+                ))}
+                <td className="px-3 py-2 text-right tabular-nums font-semibold text-brand-green-dark">
+                  {Math.round(monthlyRows.reduce((s, r) => s + r.chicksPlaced, 0)).toLocaleString()}
+                </td>
+              </tr>
+              <tr className="border-b border-[var(--border-subtle)] hover:bg-neutral-50">
+                <td className="px-3 py-2 text-neutral-600 whitespace-nowrap">🐔 Harvestable Birds</td>
+                {monthlyRows.map(({ monthLabel, harvestableBirds }) => (
+                  <td key={monthLabel} className="px-3 py-2 text-right tabular-nums font-medium">
+                    {harvestableBirds > 0 ? Math.round(harvestableBirds).toLocaleString() : <span className="text-neutral-300">—</span>}
+                  </td>
+                ))}
+                <td className="px-3 py-2 text-right tabular-nums font-semibold text-brand-green-dark">
+                  {Math.round(monthlyRows.reduce((s, r) => s + r.harvestableBirds, 0)).toLocaleString()}
+                </td>
+              </tr>
+              <tr className="border-b border-[var(--border-subtle)] hover:bg-neutral-50">
+                <td className="px-3 py-2 text-neutral-600 whitespace-nowrap">⚖️ Carcass (t)</td>
+                {monthlyRows.map(({ monthLabel, carcassKg }) => (
+                  <td key={monthLabel} className="px-3 py-2 text-right tabular-nums font-medium">
+                    {carcassKg > 0 ? (carcassKg / 1000).toFixed(0) : <span className="text-neutral-300">—</span>}
+                  </td>
+                ))}
+                <td className="px-3 py-2 text-right tabular-nums font-semibold text-brand-green-dark">
+                  {(monthlyRows.reduce((s, r) => s + r.carcassKg, 0) / 1000).toFixed(0)}
+                </td>
+              </tr>
+              <tr className="border-b border-[var(--border-subtle)] hover:bg-neutral-50">
+                <td className="px-3 py-2 text-neutral-600 whitespace-nowrap">📦 Production (t)</td>
+                {monthlyRows.map(({ monthLabel, productionKg }) => (
+                  <td key={monthLabel} className="px-3 py-2 text-right tabular-nums font-medium">
+                    {productionKg > 0 ? (productionKg / 1000).toFixed(0) : <span className="text-neutral-300">—</span>}
+                  </td>
+                ))}
+                <td className="px-3 py-2 text-right tabular-nums font-semibold text-brand-green-dark">
+                  {(monthlyRows.reduce((s, r) => s + r.productionKg, 0) / 1000).toFixed(0)}
+                </td>
+              </tr>
+              <tr className="hover:bg-neutral-50">
+                <td className="px-3 py-2 text-neutral-600 whitespace-nowrap">📊 Demand (CAR)</td>
+                {monthlyRows.map(({ monthLabel, demandCar }) => (
+                  <td key={monthLabel} className="px-3 py-2 text-right tabular-nums font-medium">
+                    {demandCar > 0 ? demandCar.toLocaleString() : <span className="text-neutral-300">—</span>}
+                  </td>
+                ))}
+                <td className="px-3 py-2 text-right tabular-nums font-semibold text-brand-green-dark">
+                  {monthlyRows.reduce((s, r) => s + r.demandCar, 0).toLocaleString()}
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
       </div>
 
       {/* ── S&OP Modules ── */}

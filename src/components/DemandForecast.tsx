@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { usePlanStore } from "@/lib/store";
-import { categoryTotal, slugifyProductName } from "@/lib/demandPlan";
+import { categoryTotal, getDemandCell, groupWeeksByMonth, slugifyProductName } from "@/lib/demandPlan";
 import { CHANNEL_KEYS, CHANNEL_LABELS, EGG_TRAYS_PER_CARTON, PRODUCT_CATEGORY_LABELS } from "@/lib/defaults";
 import { exportDemandPlanToExcel } from "@/lib/export";
 import { SummaryCard } from "./shared/SummaryCard";
@@ -28,6 +28,7 @@ export function DemandForecast() {
   const bulkAdjustDemandPlan = usePlanStore((s) => s.bulkAdjustDemandPlan);
   const copyDemandWeekForwardAction = usePlanStore((s) => s.copyDemandWeekForwardAction);
 
+  const [viewMode, setViewMode] = useState<"weekly" | "monthly">("weekly");
   const [channel, setChannel] = useState<ChannelKey | "ALL">("ALL");
   const [importOpen, setImportOpen] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
@@ -50,6 +51,7 @@ export function DemandForecast() {
   const [copyTo, setCopyTo] = useState(2);
 
   const weeks = Array.from({ length: params.planningHorizonWeeks }, (_, i) => i + 1);
+  const monthGroups = groupWeeksByMonth(weeks, params.planStartDate);
 
   const CARTON_KG: Partial<Record<ProductCategory, number>> = { wholeChicken: 15, cuts: 15, fpp: 10 };
 
@@ -112,6 +114,21 @@ export function DemandForecast() {
       </div>
 
       <div className="flex flex-wrap items-end gap-3">
+        <div className="inline-flex rounded-lg border border-[var(--border-subtle)] overflow-hidden text-xs font-medium">
+          <button
+            onClick={() => setViewMode("weekly")}
+            className={`px-3 py-1.5 transition-colors ${viewMode === "weekly" ? "bg-brand-green text-white" : "bg-white text-neutral-600 hover:bg-neutral-50"}`}
+          >
+            Weekly
+          </button>
+          <button
+            onClick={() => setViewMode("monthly")}
+            className={`px-3 py-1.5 transition-colors border-l border-[var(--border-subtle)] ${viewMode === "monthly" ? "bg-brand-green text-white" : "bg-white text-neutral-600 hover:bg-neutral-50"}`}
+          >
+            Monthly
+          </button>
+        </div>
+
         <SummaryCard label="Total Demand" value={`${totalCar.toLocaleString()} CAR`} accent="green" />
         {categoryTotals.map(({ cat, display }) => (
           <SummaryCard key={cat} label={PRODUCT_CATEGORY_LABELS[cat]} value={display} />
@@ -318,28 +335,116 @@ export function DemandForecast() {
 
       {importOpen && <SalesPlanImportPanel onClose={() => setImportOpen(false)} />}
 
-      <div className="flex gap-1 border-b border-[var(--border-subtle)] overflow-x-auto">
-        {(["ALL", ...CHANNEL_KEYS] as const).map((c) => (
-          <button
-            key={c}
-            onClick={() => setChannel(c)}
-            className={`px-3 py-2 text-xs font-medium border-b-2 -mb-px whitespace-nowrap transition-colors ${
-              channel === c ? "border-brand-green text-brand-green-dark" : "border-transparent text-neutral-500 hover:text-neutral-800"
-            }`}
-          >
-            {c === "ALL" ? "All Channels" : CHANNEL_LABELS[c]}
-          </button>
-        ))}
-      </div>
+      {viewMode === "weekly" && (
+        <>
+          <div className="flex gap-1 border-b border-[var(--border-subtle)] overflow-x-auto">
+            {(["ALL", ...CHANNEL_KEYS] as const).map((c) => (
+              <button
+                key={c}
+                onClick={() => setChannel(c)}
+                className={`px-3 py-2 text-xs font-medium border-b-2 -mb-px whitespace-nowrap transition-colors ${
+                  channel === c ? "border-brand-green text-brand-green-dark" : "border-transparent text-neutral-500 hover:text-neutral-800"
+                }`}
+              >
+                {c === "ALL" ? "All Channels" : CHANNEL_LABELS[c]}
+              </button>
+            ))}
+          </div>
+          <DemandPlanMatrix
+            products={demandProducts}
+            qty={demandQty}
+            channel={channel}
+            weeks={weeks}
+            onCellChange={channel !== "ALL" ? (productId, week, value) => setDemandCell(productId, channel, week, value) : undefined}
+            onRemoveProduct={removeDemandProduct}
+          />
+        </>
+      )}
 
-      <DemandPlanMatrix
-        products={demandProducts}
-        qty={demandQty}
-        channel={channel}
-        weeks={weeks}
-        onCellChange={channel !== "ALL" ? (productId, week, value) => setDemandCell(productId, channel, week, value) : undefined}
-        onRemoveProduct={removeDemandProduct}
-      />
+      {viewMode === "monthly" && (
+        <div className="overflow-x-auto rounded-xl border border-[var(--border-subtle)] bg-white shadow-sm">
+          <table className="w-full text-xs">
+            <thead>
+              <tr className="bg-brand-green-tint border-b border-[var(--border-subtle)]">
+                <th className="sticky left-0 bg-brand-green-tint text-left px-3 py-2 font-semibold text-brand-green-dark whitespace-nowrap z-10 min-w-[160px]">
+                  Product
+                </th>
+                {monthGroups.map(({ monthLabel }) => (
+                  <th key={monthLabel} className="text-right px-3 py-2 font-semibold text-brand-green-dark whitespace-nowrap min-w-[90px]">
+                    {monthLabel}
+                  </th>
+                ))}
+                <th className="text-right px-3 py-2 font-semibold text-brand-green-dark whitespace-nowrap">Total</th>
+              </tr>
+            </thead>
+            <tbody>
+              {(["wholeChicken", "cuts", "fpp", "eggs"] as const).map((cat) => {
+                const catProducts = demandProducts.filter((p) => p.category === cat);
+                if (catProducts.length === 0) return null;
+                const catMonthTotals = monthGroups.map(({ weeks: mw }) =>
+                  catProducts.reduce((s, p) => s + mw.reduce((ws, w) => ws + getDemandCell(demandQty, p.id, channel, w), 0), 0)
+                );
+                const catTotal = catMonthTotals.reduce((s, v) => s + v, 0);
+                return [
+                  <tr key={`cat-${cat}`} className="border-b border-[var(--border-subtle)] bg-neutral-50">
+                    <td colSpan={monthGroups.length + 2} className="px-3 py-1.5 font-semibold text-brand-green-dark uppercase tracking-wider text-[10px]">
+                      {PRODUCT_CATEGORY_LABELS[cat]}
+                    </td>
+                  </tr>,
+                  ...catProducts.map((p) => {
+                    const monthVals = monthGroups.map(({ weeks: mw }) =>
+                      mw.reduce((s, w) => s + getDemandCell(demandQty, p.id, channel, w), 0)
+                    );
+                    const rowTotal = monthVals.reduce((s, v) => s + v, 0);
+                    return (
+                      <tr key={p.id} className="border-b border-[var(--border-subtle)] hover:bg-neutral-50">
+                        <td className="sticky left-0 bg-white px-3 py-2 text-neutral-700 z-10">{p.name}</td>
+                        {monthVals.map((v, i) => (
+                          <td key={i} className="px-3 py-2 text-right tabular-nums">
+                            {v > 0 ? v.toLocaleString(undefined, { maximumFractionDigits: 2 }) : <span className="text-neutral-300">—</span>}
+                          </td>
+                        ))}
+                        <td className="px-3 py-2 text-right tabular-nums font-semibold text-brand-green-dark">
+                          {rowTotal > 0 ? rowTotal.toLocaleString(undefined, { maximumFractionDigits: 2 }) : <span className="text-neutral-300">—</span>}
+                        </td>
+                      </tr>
+                    );
+                  }),
+                  <tr key={`subtotal-${cat}`} className="border-b-2 border-brand-green/20 bg-brand-green-tint/40">
+                    <td className="sticky left-0 bg-brand-green-tint/40 px-3 py-1.5 font-semibold text-brand-green-dark z-10">Subtotal</td>
+                    {catMonthTotals.map((v, i) => (
+                      <td key={i} className="px-3 py-1.5 text-right tabular-nums font-semibold text-brand-green-dark">
+                        {v > 0 ? v.toLocaleString(undefined, { maximumFractionDigits: 2 }) : <span className="text-neutral-300">—</span>}
+                      </td>
+                    ))}
+                    <td className="px-3 py-1.5 text-right tabular-nums font-bold text-brand-green-dark">
+                      {catTotal > 0 ? catTotal.toLocaleString(undefined, { maximumFractionDigits: 2 }) : <span className="text-neutral-300">—</span>}
+                    </td>
+                  </tr>,
+                ];
+              })}
+              <tr className="bg-neutral-50 font-semibold">
+                <td className="sticky left-0 bg-neutral-50 px-3 py-2 font-bold text-neutral-700 z-10">Grand Total</td>
+                {monthGroups.map(({ weeks: mw }, i) => {
+                  const v = demandProducts.reduce((s, p) => s + mw.reduce((ws, w) => ws + getDemandCell(demandQty, p.id, channel, w), 0), 0);
+                  return (
+                    <td key={i} className="px-3 py-2 text-right tabular-nums font-bold text-neutral-800">
+                      {v > 0 ? v.toLocaleString(undefined, { maximumFractionDigits: 2 }) : <span className="text-neutral-300">—</span>}
+                    </td>
+                  );
+                })}
+                <td className="px-3 py-2 text-right tabular-nums font-bold text-brand-green-dark">
+                  {demandProducts.reduce((s, p) => s + weeks.reduce((ws, w) => ws + getDemandCell(demandQty, p.id, channel, w), 0), 0)
+                    .toLocaleString(undefined, { maximumFractionDigits: 2 })}
+                </td>
+              </tr>
+            </tbody>
+          </table>
+          <p className="text-[11px] text-neutral-400 px-3 py-2">
+            Monthly view is read-only. Switch to Weekly to edit values. Units: tons (eggs in trays).
+          </p>
+        </div>
+      )}
     </div>
   );
 }
