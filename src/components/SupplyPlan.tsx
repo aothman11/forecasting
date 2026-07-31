@@ -142,13 +142,13 @@ export function SupplyPlan() {
                   >
                     <td className="sticky left-0 bg-inherit px-3 py-2 font-semibold text-brand-green-dark">W{r.week}</td>
                     <td className="px-3 py-2 text-right tabular-nums text-neutral-700">
-                      {r.wcDemandTons > 0 ? `${r.wcDemandTons.toFixed(1)} t` : <span className="text-neutral-300">—</span>}
+                      {r.wcDemandKg > 0 ? `${Math.round(r.wcDemandKg).toLocaleString()} kg` : <span className="text-neutral-300">—</span>}
                     </td>
                     <td className="px-3 py-2 text-right tabular-nums text-neutral-700">
-                      {r.fppDemandTons > 0 ? `${r.fppDemandTons.toFixed(1)} t` : <span className="text-neutral-300">—</span>}
+                      {r.fppDemandKg > 0 ? `${Math.round(r.fppDemandKg).toLocaleString()} kg` : <span className="text-neutral-300">—</span>}
                     </td>
                     <td className="px-3 py-2 text-right tabular-nums text-neutral-700">
-                      {r.cutsDemandTons > 0 ? `${r.cutsDemandTons.toFixed(1)} t` : <span className="text-neutral-300">—</span>}
+                      {r.cutsDemandKg > 0 ? `${Math.round(r.cutsDemandKg).toLocaleString()} kg` : <span className="text-neutral-300">—</span>}
                     </td>
                     <td className="px-3 py-2 text-center">
                       {r.bindingCategory ? (

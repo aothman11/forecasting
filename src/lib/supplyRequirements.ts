@@ -68,22 +68,18 @@ export function computeSupplyRequirements(
   const famByWeek = new Map(pipeline.family.map((r) => [r.week, r]));
 
   return weeks.map((week): SupplyRequirementsWeek => {
-    let wcDemandTons = 0;
-    let fppDemandTons = 0;
-    let cutsDemandTons = 0;
+    let wcDemandKg = 0;
+    let fppDemandKg = 0;
+    let cutsDemandKg = 0;
     let eggsDemandTrays = 0;
 
     for (const p of demandProducts) {
       const qty = getDemandQtyAllChannels(demandQty, p.id, week);
-      if (p.category === "wholeChicken") wcDemandTons += qty;
-      else if (p.category === "fpp") fppDemandTons += qty;
-      else if (p.category === "cuts") cutsDemandTons += qty;
+      if (p.category === "wholeChicken") wcDemandKg += qty;
+      else if (p.category === "fpp") fppDemandKg += qty;
+      else if (p.category === "cuts") cutsDemandKg += qty;
       else if (p.category === "eggs") eggsDemandTrays += qty;
     }
-
-    const wcDemandKg = wcDemandTons * 1000;
-    const fppDemandKg = fppDemandTons * 1000;
-    const cutsDemandKg = cutsDemandTons * 1000;
 
     const reqForWc = wcYield > 0 ? wcDemandKg / wcYield : 0;
     const reqForFpp = fppYield > 0 ? fppDemandKg / fppYield : 0;
@@ -107,9 +103,9 @@ export function computeSupplyRequirements(
 
     return {
       week,
-      wcDemandTons,
-      fppDemandTons,
-      cutsDemandTons,
+      wcDemandKg,
+      fppDemandKg,
+      cutsDemandKg,
       eggsDemandTrays,
       requiredCarcassKg,
       requiredHarvestableBirds,

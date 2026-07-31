@@ -91,7 +91,7 @@ export function HomeDashboard() {
 
   const CARTON_KG: Record<string, number> = { wholeChicken: 15, cuts: 15, fpp: 10 };
   const toCar = (cat: string, qty: number) =>
-    cat === "eggs" ? Math.round(qty / EGG_TRAYS_PER_CARTON) : Math.round((qty * 1000) / CARTON_KG[cat]);
+    cat === "eggs" ? Math.round(qty / EGG_TRAYS_PER_CARTON) : Math.round(qty / CARTON_KG[cat]);
 
   const demandTotalTon = (["wholeChicken", "cuts", "fpp"] as const).reduce(
     (s, cat) => s + categoryTotal(demandProducts, demandQty, cat, "ALL", horizonWeeks),
@@ -112,20 +112,20 @@ export function HomeDashboard() {
   })).sort((a, b) => b.car - a.car);
   const channelMax = channelDemand[0]?.car || 1;
 
-  const totalWcDemandTons = categoryTotal(demandProducts, demandQty, "wholeChicken", "ALL", horizonWeeks);
-  const totalFppDemandTons = categoryTotal(demandProducts, demandQty, "fpp", "ALL", horizonWeeks);
-  const totalCutsDemandTons = categoryTotal(demandProducts, demandQty, "cuts", "ALL", horizonWeeks);
-  const totalDemandTons = totalWcDemandTons + totalFppDemandTons + totalCutsDemandTons;
-  const totalSupplyTons = (m.totalWcFreshKg + m.totalWcFrozenKg + m.totalFppKg) / 1000;
+  const totalWcDemandKg = categoryTotal(demandProducts, demandQty, "wholeChicken", "ALL", horizonWeeks);
+  const totalFppDemandKg = categoryTotal(demandProducts, demandQty, "fpp", "ALL", horizonWeeks);
+  const totalCutsDemandKg = categoryTotal(demandProducts, demandQty, "cuts", "ALL", horizonWeeks);
+  const totalDemandKg = totalWcDemandKg + totalFppDemandKg + totalCutsDemandKg;
+  const totalSupplyKg = m.totalWcFreshKg + m.totalWcFrozenKg + m.totalFppKg;
   const reconcileDeficitWeeks = horizonWeeks.filter((w) => {
     const fam = result.family.find((r) => r.week === w);
     const cuts = result.cuts.find((r) => r.week === w);
     const wc = categoryTotal(demandProducts, demandQty, "wholeChicken", "ALL", [w]);
     const fpp = categoryTotal(demandProducts, demandQty, "fpp", "ALL", [w]);
     const cutsD = categoryTotal(demandProducts, demandQty, "cuts", "ALL", [w]);
-    const wcS = fam ? (fam.wcFreshKg + fam.wcFrozenKg) / 1000 : 0;
-    const fppS = fam ? fam.fppKg / 1000 : 0;
-    const cutsS = cuts ? cuts.totalKg / 1000 : 0;
+    const wcS = fam ? fam.wcFreshKg + fam.wcFrozenKg : 0;
+    const fppS = fam ? fam.fppKg : 0;
+    const cutsS = cuts ? cuts.totalKg : 0;
     return (wc > 0 && wcS - wc < -wc * 0.02) || (fpp > 0 && fppS - fpp < -fpp * 0.02) || (cutsD > 0 && cutsS - cutsD < -cutsD * 0.02);
   }).length;
 
@@ -363,11 +363,11 @@ export function HomeDashboard() {
             <div className="mt-2 space-y-2">
               <div className="flex items-center justify-between text-xs">
                 <span className="text-neutral-600">Total demand</span>
-                <span className="font-semibold tabular-nums">{totalDemandTons > 0 ? `${totalDemandTons.toFixed(0)} t` : <span className="text-neutral-300">—</span>}</span>
+                <span className="font-semibold tabular-nums">{totalDemandKg > 0 ? `${Math.round(totalDemandKg / 1000).toLocaleString()} t` : <span className="text-neutral-300">—</span>}</span>
               </div>
               <div className="flex items-center justify-between text-xs">
                 <span className="text-neutral-600">Total supply</span>
-                <span className="font-semibold tabular-nums">{`${totalSupplyTons.toFixed(0)} t`}</span>
+                <span className="font-semibold tabular-nums">{`${Math.round(totalSupplyKg / 1000).toLocaleString()} t`}</span>
               </div>
               <div className="flex items-center justify-between text-xs">
                 <span className="text-neutral-600">Deficit weeks</span>
@@ -375,7 +375,7 @@ export function HomeDashboard() {
                   {reconcileDeficitWeeks > 0 ? `${reconcileDeficitWeeks} wk` : "None"}
                 </span>
               </div>
-              {totalDemandTons === 0 && <div className="text-[11px] text-neutral-400">Enter demand first.</div>}
+              {totalDemandKg === 0 && <div className="text-[11px] text-neutral-400">Enter demand first.</div>}
             </div>
           </DashCard>
 
@@ -396,25 +396,6 @@ export function HomeDashboard() {
                 </span>
               </div>
               {totalRequiredCarcass === 0 && <div className="text-[11px] text-neutral-400">Enter demand first.</div>}
-            </div>
-          </DashCard>
-
-          <DashCard icon="📋" title="M5 · S&OP Report" description="Traffic-light weekly review for S&OP meetings" onOpen={openReport}>
-            <div className="mt-2 space-y-2">
-              <div className="flex items-center justify-between text-xs">
-                <span className="text-neutral-600">Deficit weeks</span>
-                <span className={`font-semibold tabular-nums ${reconcileDeficitWeeks > 0 ? "text-red-600" : "text-green-700"}`}>
-                  {reconcileDeficitWeeks > 0 ? `${reconcileDeficitWeeks} wk` : "None"}
-                </span>
-              </div>
-              <div className="flex items-center justify-between text-xs">
-                <span className="text-neutral-600">Planning horizon</span>
-                <span className="font-semibold tabular-nums">{params.planningHorizonWeeks} weeks</span>
-              </div>
-              <div className="flex items-center justify-between text-xs">
-                <span className="text-neutral-600">Export</span>
-                <span className="font-semibold text-brand-green-dark">PDF · Print</span>
-              </div>
             </div>
           </DashCard>
 

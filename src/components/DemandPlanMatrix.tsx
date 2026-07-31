@@ -79,14 +79,14 @@ export function DemandPlanMatrix({ products, qty, channel, weeks, planStartDate,
                               <input
                                 type="number"
                                 min={0}
-                                step={0.1}
+                                step={1}
                                 value={value || ""}
                                 placeholder="0"
                                 onChange={(e) => onCellChange?.(p.id, w, Number(e.target.value))}
                                 className="cell-input text-right w-16"
                               />
                             ) : (
-                              <span className="px-1 text-neutral-600">{value ? value.toFixed(1) : "—"}</span>
+                              <span className="px-1 text-neutral-600">{value ? Math.round(value).toLocaleString() : "—"}</span>
                             )}
                           </td>
                         );

@@ -158,7 +158,7 @@ export type ProductCategory = "wholeChicken" | "cuts" | "fpp" | "eggs";
 
 export type ChannelKey = "DIST" | "EXPO" | "FOOD" | "MODT" | "SIST" | "TRAD" | "WHOL" | "ECOM";
 
-export type DemandUnit = "ton" | "tray" | "carton";
+export type DemandUnit = "kg" | "tray" | "carton";
 
 /** A single sellable line item in the demand catalog. Fully user-extensible — not a fixed enum. */
 export interface DemandProduct {
@@ -178,10 +178,10 @@ export type DemandPlanQty = Record<string, number>;
 /** Module 2: one row per harvest week — demand requirements vs planned supply. */
 export interface SupplyRequirementsWeek {
   week: number;
-  // aggregated demand (tons; eggs in trays)
-  wcDemandTons: number;
-  fppDemandTons: number;
-  cutsDemandTons: number;
+  // aggregated demand (kg; eggs in trays)
+  wcDemandKg: number;
+  fppDemandKg: number;
+  cutsDemandKg: number;
   eggsDemandTrays: number;
   // required supply (reverse BOM)
   requiredCarcassKg: number;
