@@ -1,6 +1,7 @@
 "use client";
 
 import { usePipeline } from "@/lib/usePipeline";
+import { weekLabel } from "@/lib/demandPlan";
 import { usePlanStore, type PlantFilter } from "@/lib/store";
 import { PLANT_LABELS } from "@/lib/defaults";
 import { DataTable, type DataTableColumn } from "../shared/DataTable";
@@ -71,7 +72,7 @@ export function ProcessingPlan() {
       : 0;
 
   const columns: DataTableColumn<Row>[] = [
-    { key: "week", header: "Week", render: (r) => `W${r.week}` },
+    { key: "week", header: "Week", render: (r) => weekLabel(r.week, params.planStartDate) },
     { key: "birds", header: "Birds", align: "right", render: (r) => Math.round(r.birds).toLocaleString() },
     {
       key: "liveWt",

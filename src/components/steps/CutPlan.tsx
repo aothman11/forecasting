@@ -1,6 +1,7 @@
 "use client";
 
 import { usePipeline } from "@/lib/usePipeline";
+import { weekLabel } from "@/lib/demandPlan";
 import { usePlanStore } from "@/lib/store";
 import { activeCutKeys, cutYieldSum } from "@/lib/calculations";
 import { CUT_LABELS } from "@/lib/defaults";
@@ -37,7 +38,7 @@ export function CutPlan() {
   const outOfTolerance = Math.abs(yieldSum - 1) > 0.02;
 
   const columns: DataTableColumn<CutPlanWeek>[] = [
-    { key: "week", header: "Week", render: (r) => `W${r.week}` },
+    { key: "week", header: "Week", render: (r) => weekLabel(r.week, params.planStartDate) },
     ...keys.map((k): DataTableColumn<CutPlanWeek> => ({
       key: k,
       header: CUT_LABELS[k],

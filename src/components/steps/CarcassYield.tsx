@@ -1,6 +1,7 @@
 "use client";
 
 import { usePipeline } from "@/lib/usePipeline";
+import { weekLabel } from "@/lib/demandPlan";
 import { usePlanStore } from "@/lib/store";
 import { carcassSizeDistributionSum } from "@/lib/calculations";
 import { SIZE_KEYS, SIZE_LABELS } from "@/lib/defaults";
@@ -45,7 +46,7 @@ export function CarcassYield() {
   const sum = params.gradeSplit.A + params.gradeSplit.B + params.gradeSplit.C;
 
   const columns: DataTableColumn<CarcassYieldWeek>[] = [
-    { key: "week", header: "Week", render: (r) => `W${r.week}` },
+    { key: "week", header: "Week", render: (r) => weekLabel(r.week, params.planStartDate) },
     {
       key: "count",
       header: "Carcass (PC)",

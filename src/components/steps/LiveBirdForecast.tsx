@@ -2,6 +2,7 @@
 
 import { addDays, format } from "date-fns";
 import { usePipeline } from "@/lib/usePipeline";
+import { weekLabel } from "@/lib/demandPlan";
 import { carcassYieldPct } from "@/lib/calculations";
 import { DataTable, type DataTableColumn } from "../shared/DataTable";
 import { SummaryCard } from "../shared/SummaryCard";
@@ -81,7 +82,7 @@ export function LiveBirdForecast() {
   ];
 
   const columns: DataTableColumn<LiveBirdWeek>[] = [
-    { key: "week", header: "Week", render: (r) => `W${r.week}` },
+    { key: "week", header: "Week", render: (r) => weekLabel(r.week, params.planStartDate) },
     {
       key: "range",
       header: "Harvest Date Range",
@@ -124,7 +125,7 @@ export function LiveBirdForecast() {
   ];
 
   const funnelColumns: DataTableColumn<LiveBirdWeek>[] = [
-    { key: "week", header: "Week", render: (r) => `W${r.week}` },
+    { key: "week", header: "Week", render: (r) => weekLabel(r.week, params.planStartDate) },
     { key: "harvestable", header: "Harvestable", align: "right", render: (r) => birds(r.harvestableBirds) },
     { key: "dispatched", header: "Dispatched", align: "right", render: (r) => birds(r.dispatchedBirds) },
     { key: "electronic", header: "Electronic Count", align: "right", render: (r) => birds(r.electronicBirdCount) },

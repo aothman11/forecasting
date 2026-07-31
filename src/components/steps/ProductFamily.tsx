@@ -1,6 +1,7 @@
 "use client";
 
 import { usePipeline } from "@/lib/usePipeline";
+import { weekLabel } from "@/lib/demandPlan";
 import { usePlanStore } from "@/lib/store";
 import { DataTable, type DataTableColumn } from "../shared/DataTable";
 import { SummaryCard } from "../shared/SummaryCard";
@@ -32,7 +33,7 @@ export function ProductFamily() {
   );
 
   const columns: DataTableColumn<ProductFamilyWeek>[] = [
-    { key: "week", header: "Week", render: (r) => `W${r.week}` },
+    { key: "week", header: "Week", render: (r) => weekLabel(r.week, params.planStartDate) },
     {
       key: "fresh",
       header: "WC Fresh (kg)",
