@@ -4,6 +4,7 @@ import { usePlanStore } from "@/lib/store";
 import { usePipeline } from "@/lib/usePipeline";
 import { computeSupplyRequirements, wcYieldFromCarcass, fppYieldFromCarcass, cutsYieldFromCarcass } from "@/lib/supplyRequirements";
 import { PRODUCT_CATEGORY_LABELS } from "@/lib/defaults";
+import { weekLabel } from "@/lib/demandPlan";
 import { SummaryCard } from "./shared/SummaryCard";
 
 function fmtK(n: number) {
@@ -140,7 +141,7 @@ export function SupplyPlan() {
                     key={r.week}
                     className={`border-t border-[var(--border-subtle)] ${i % 2 === 0 ? "bg-white" : "bg-neutral-50/50"} ${rowBg} hover:bg-brand-green-tint/30 transition-colors`}
                   >
-                    <td className="sticky left-0 bg-inherit px-3 py-2 font-semibold text-brand-green-dark">W{r.week}</td>
+                    <td className="sticky left-0 bg-inherit px-3 py-2 font-semibold text-brand-green-dark">{weekLabel(r.week, params.planStartDate)}</td>
                     <td className="px-3 py-2 text-right tabular-nums text-neutral-700">
                       {r.wcDemandTons > 0 ? `${r.wcDemandTons.toFixed(1)} t` : <span className="text-neutral-300">—</span>}
                     </td>

@@ -13,7 +13,7 @@ import {
 } from "recharts";
 import { usePlanStore } from "@/lib/store";
 import { usePipeline } from "@/lib/usePipeline";
-import { categoryTotal } from "@/lib/demandPlan";
+import { categoryTotal, weekLabel } from "@/lib/demandPlan";
 import { SummaryCard } from "./shared/SummaryCard";
 
 interface ReconciliationWeek {
@@ -178,7 +178,7 @@ export function ReconciliationDashboard() {
 
   // Chart data
   const chartData = rows.map((r) => ({
-    week: `W${r.week}`,
+    week: weekLabel(r.week, params.planStartDate),
     wcSupply: +r.wcSupplyTons.toFixed(1),
     fppSupply: +r.fppSupplyTons.toFixed(1),
     cutsSupply: +r.cutsSupplyTons.toFixed(1),
@@ -286,7 +286,7 @@ export function ReconciliationDashboard() {
                       : "bg-neutral-50/50"
                   }`}
                 >
-                  <td className="sticky left-0 bg-inherit px-3 py-2 font-semibold text-brand-green-dark">W{r.week}</td>
+                  <td className="sticky left-0 bg-inherit px-3 py-2 font-semibold text-brand-green-dark">{weekLabel(r.week, params.planStartDate)}</td>
 
                   <td className="px-3 py-2 text-right tabular-nums text-neutral-600">
                     {r.wcDemandTons > 0 ? `${r.wcDemandTons.toFixed(1)}` : <span className="text-neutral-300">—</span>}

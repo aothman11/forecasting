@@ -5,6 +5,7 @@ import { usePlanStore } from "@/lib/store";
 import { usePipeline } from "@/lib/usePipeline";
 import { computeSupplyRequirements } from "@/lib/supplyRequirements";
 import { isFridayDate } from "@/lib/calculations";
+import { weekLabel } from "@/lib/demandPlan";
 
 function fmtK(n: number) {
   if (Math.abs(n) >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
@@ -160,7 +161,7 @@ export function DemandDrivenPlacement() {
                         key={p.week}
                         className={`border-t border-[var(--border-subtle)] ${isOver ? "bg-red-50" : i % 2 === 0 ? "bg-white" : "bg-neutral-50/50"} hover:bg-brand-green-tint/20 transition-colors`}
                       >
-                        <td className="px-3 py-2 font-semibold text-brand-green-dark">Wk {p.week}</td>
+                        <td className="px-3 py-2 font-semibold text-brand-green-dark">{weekLabel(p.week, params.planStartDate)}</td>
                         <td className="px-3 py-2 text-right tabular-nums text-neutral-700">{fmtK(p.chicks)}</td>
                         <td className="px-3 py-2 text-right tabular-nums text-neutral-700">{p.workDays}</td>
                         <td className="px-3 py-2 text-right tabular-nums text-neutral-600">{p.currentHouses}</td>

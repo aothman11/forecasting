@@ -2,7 +2,7 @@
 
 import { usePlanStore } from "@/lib/store";
 import { usePipeline } from "@/lib/usePipeline";
-import { categoryTotal } from "@/lib/demandPlan";
+import { categoryTotal, weekLabel } from "@/lib/demandPlan";
 import { computeSupplyRequirements } from "@/lib/supplyRequirements";
 import { exportSummaryToPDF } from "@/lib/export";
 import { useState } from "react";
@@ -211,7 +211,7 @@ export function SOPReport() {
             {deficitWeeks.length}
           </div>
           {deficitWeeks.length > 0 && (
-            <div className="text-[10px] text-red-500 mt-0.5">{deficitWeeks.map((r) => `W${r.week}`).join(", ")}</div>
+            <div className="text-[10px] text-red-500 mt-0.5">{deficitWeeks.map((r) => weekLabel(r.week, params.planStartDate)).join(", ")}</div>
           )}
         </div>
         <div className="rounded-lg border border-[var(--border-subtle)] bg-white px-3 py-2.5 text-center shadow-sm">
@@ -220,7 +220,7 @@ export function SOPReport() {
             {tightWeeks.length}
           </div>
           {tightWeeks.length > 0 && (
-            <div className="text-[10px] text-amber-500 mt-0.5">{tightWeeks.map((r) => `W${r.week}`).join(", ")}</div>
+            <div className="text-[10px] text-amber-500 mt-0.5">{tightWeeks.map((r) => weekLabel(r.week, params.planStartDate)).join(", ")}</div>
           )}
         </div>
         <div className="rounded-lg border border-[var(--border-subtle)] bg-white px-3 py-2.5 text-center shadow-sm">
@@ -281,7 +281,7 @@ export function SOPReport() {
                 const rowBg = r.overallStatus === "red" ? "bg-red-50" : r.overallStatus === "amber" ? "bg-amber-50/40" : i % 2 === 0 ? "bg-white" : "bg-neutral-50/50";
                 return (
                   <tr key={r.week} className={`border-t border-[var(--border-subtle)] ${rowBg} hover:bg-brand-green-tint/20 transition-colors`}>
-                    <td className="sticky left-0 bg-inherit px-3 py-2 font-bold text-brand-green-dark">W{r.week}</td>
+                    <td className="sticky left-0 bg-inherit px-3 py-2 font-bold text-brand-green-dark">{weekLabel(r.week, params.planStartDate)}</td>
                     {/* WC */}
                     <td className="px-2 py-2 text-right tabular-nums border-l border-[var(--border-subtle)]">
                       {r.wcDemandTons > 0 ? r.wcDemandTons.toFixed(1) : <span className="text-neutral-300">—</span>}
@@ -309,7 +309,7 @@ export function SOPReport() {
                     {/* Meta */}
                     <td className="px-2 py-2 text-right tabular-nums border-l border-[var(--border-subtle)]">
                       {r.placementWeek > 0 ? (
-                        <span className="text-brand-green-dark font-medium">Wk {r.placementWeek}</span>
+                        <span className="text-brand-green-dark font-medium">{r.placementWeek > 0 ? weekLabel(r.placementWeek, params.planStartDate) : `Wk ${r.placementWeek}`}</span>
                       ) : (
                         <span className="text-neutral-400 text-[11px]">pre-plan</span>
                       )}
@@ -349,7 +349,7 @@ export function SOPReport() {
               <RagDot status="red" />
               <div>
                 <span className="font-semibold text-red-700">Supply deficit</span>
-                <span className="text-neutral-600 ml-1">in weeks {deficitWeeks.map((r) => `W${r.week}`).join(", ")}. Review placement plan or adjust demand.</span>
+                <span className="text-neutral-600 ml-1">in weeks {deficitWeeks.map((r) => weekLabel(r.week, params.planStartDate)).join(", ")}. Review placement plan or adjust demand.</span>
               </div>
             </div>
           )}
@@ -358,7 +358,7 @@ export function SOPReport() {
               <RagDot status="amber" />
               <div>
                 <span className="font-semibold text-amber-700">Tight supply</span>
-                <span className="text-neutral-600 ml-1">in weeks {tightWeeks.map((r) => `W${r.week}`).join(", ")}. Supply within 5% of demand — monitor closely.</span>
+                <span className="text-neutral-600 ml-1">in weeks {tightWeeks.map((r) => weekLabel(r.week, params.planStartDate)).join(", ")}. Supply within 5% of demand — monitor closely.</span>
               </div>
             </div>
           )}
@@ -367,7 +367,7 @@ export function SOPReport() {
               <RagDot status="amber" />
               <div>
                 <span className="font-semibold text-amber-700">Pre-plan placements required</span>
-                <span className="text-neutral-600 ml-1">for weeks {prePlanWeeks.map((r) => `W${r.week}`).join(", ")} — placement falls before the planning horizon. Enter manually in the Placement Plan.</span>
+                <span className="text-neutral-600 ml-1">for weeks {prePlanWeeks.map((r) => weekLabel(r.week, params.planStartDate)).join(", ")} — placement falls before the planning horizon. Enter manually in the Placement Plan.</span>
               </div>
             </div>
           )}
