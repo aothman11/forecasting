@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef } from "react";
+import * as XLSX from "xlsx";
 import { usePlanStore } from "@/lib/store";
 import { usePipeline } from "@/lib/usePipeline";
 import type { BirdType, Farm, FarmStatus, PlacementEntry } from "@/lib/types";
@@ -96,17 +97,79 @@ function SortHeader({
   );
 }
 
+// ─── Excel Farm Master parser ─────────────────────────────────────────────────
+
+function parseFarmsFromSheet(ws: XLSX.WorkSheet): Farm[] {
+  const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(ws);
+  const find = (row: Record<string, unknown>, ...keys: string[]): unknown => {
+    const lc = keys.map((k) => k.toLowerCase());
+    for (const k of Object.keys(row)) {
+      if (lc.some((key) => k.toLowerCase().replace(/[^a-z0-9]/g, "").includes(key.replace(/[^a-z0-9]/g, "")))) {
+        return row[k];
+      }
+    }
+    return undefined;
+  };
+
+  return rows
+    .map((row, i): Farm => ({
+      code: String(find(row, "code", "farm", "verid", "farm code") ?? `F${i + 1}`).trim(),
+      sequencePosition: Number(find(row, "seq", "sequence", "position", "rotation") ?? (i + 1) * 10),
+      type: String(find(row, "type", "farm type") ?? "B").trim(),
+      houses: Number(find(row, "house", "houses", "house count") ?? 12),
+      fullCapacity: Number(find(row, "full cap", "full capacity", "fullcap") ?? 408000),
+      placementPlanCapacity: Number(find(row, "plan cap", "plan capacity", "placement plan", "placementplan", "ceiling") ?? 312000),
+      cycleLengthDays: Number(find(row, "cycle", "grow", "growout", "cycle length", "cycledays") ?? 43),
+      cleaningDays: Number(find(row, "clean", "cleaning", "downtime", "rest", "cleaning days") ?? 17),
+      status: (() => {
+        const s = String(find(row, "status") ?? "Active").trim();
+        if (s.toLowerCase().includes("inactive")) return "Inactive";
+        if (s.toLowerCase().includes("maintenance")) return "Under Maintenance";
+        return "Active";
+      })() as FarmStatus,
+      skipThisCycle: (() => {
+        const v = find(row, "skip", "skip this cycle");
+        if (v === undefined) return false;
+        return v === true || v === 1 || String(v).toLowerCase() === "yes" || String(v).toLowerCase() === "true";
+      })(),
+    }))
+    .filter((f) => f.code && f.code !== "F0");
+}
+
 // ─── Tab: Farm Master ─────────────────────────────────────────────────────────
 
 function FarmMasterTab({ farms }: { farms: Farm[] }) {
   const updateFarm = usePlanStore((s) => s.updateFarm);
+  const setFarms = usePlanStore((s) => s.setFarms);
   const [statusFilter, setStatusFilter] = useState<FarmStatus | "All">("All");
   const [sortKey, setSortKey] = useState("sequencePosition");
   const [sortDir, setSortDir] = useState<SortDir>("asc");
+  const [uploadMsg, setUploadMsg] = useState<string | null>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
 
   function handleSort(col: string) {
     if (sortKey === col) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
     else { setSortKey(col); setSortDir("asc"); }
+  }
+
+  function handleUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      try {
+        const wb = XLSX.read(ev.target?.result, { type: "array" });
+        const ws = wb.Sheets[wb.SheetNames[0]];
+        const parsed = parseFarmsFromSheet(ws);
+        if (parsed.length === 0) { setUploadMsg("No rows found — check column headers."); return; }
+        setFarms(parsed);
+        setUploadMsg(`Loaded ${parsed.length} farms from ${file.name}`);
+      } catch {
+        setUploadMsg("Failed to parse file — make sure it's a valid .xlsx.");
+      }
+    };
+    reader.readAsArrayBuffer(file);
+    e.target.value = "";
   }
 
   const filtered = useMemo(() => {
@@ -142,37 +205,61 @@ function FarmMasterTab({ farms }: { farms: Farm[] }) {
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap gap-2 text-xs">
-        {(["All", "Active", "Inactive", "Under Maintenance"] as const).map((s) => {
-          const count =
-            s === "All" ? counts.total :
-            s === "Active" ? counts.active :
-            s === "Inactive" ? counts.inactive :
-            counts.maintenance;
-          return (
-            <button
-              key={s}
-              onClick={() => setStatusFilter(s)}
-              className={`px-3 py-1 rounded-full border transition-colors ${
-                statusFilter === s
-                  ? "bg-brand-green text-white border-brand-green"
-                  : "border-[var(--border-subtle)] text-neutral-600 hover:border-brand-green"
-              }`}
-            >
-              {s} ({count})
-            </button>
-          );
-        })}
-        <span className="px-3 py-1 rounded-full border border-amber-300 bg-amber-50 text-amber-700">
-          Skip This Cycle: {counts.skipped}
-        </span>
+      {/* Toolbar */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap gap-2 text-xs">
+          {(["All", "Active", "Inactive", "Under Maintenance"] as const).map((s) => {
+            const count =
+              s === "All" ? counts.total :
+              s === "Active" ? counts.active :
+              s === "Inactive" ? counts.inactive :
+              counts.maintenance;
+            return (
+              <button
+                key={s}
+                onClick={() => setStatusFilter(s)}
+                className={`px-3 py-1 rounded-full border transition-colors ${
+                  statusFilter === s
+                    ? "bg-brand-green text-white border-brand-green"
+                    : "border-[var(--border-subtle)] text-neutral-600 hover:border-brand-green"
+                }`}
+              >
+                {s} ({count})
+              </button>
+            );
+          })}
+          <span className="px-3 py-1 rounded-full border border-amber-300 bg-amber-50 text-amber-700">
+            Skip This Cycle: {counts.skipped}
+          </span>
+        </div>
+        <div className="flex items-center gap-2">
+          <input
+            ref={fileRef}
+            type="file"
+            accept=".xlsx,.xls"
+            className="hidden"
+            onChange={handleUpload}
+          />
+          <button
+            onClick={() => fileRef.current?.click()}
+            className="px-3 py-1.5 text-xs font-semibold rounded border border-brand-green text-brand-green hover:bg-brand-green-tint transition-colors"
+          >
+            ↑ Upload Farm Master (.xlsx)
+          </button>
+        </div>
       </div>
 
+      {uploadMsg && (
+        <div className={`text-xs rounded px-3 py-2 ${uploadMsg.startsWith("Loaded") ? "bg-green-50 border border-green-200 text-green-700" : "bg-red-50 border border-red-200 text-red-700"}`}>
+          {uploadMsg}
+          <button onClick={() => setUploadMsg(null)} className="ml-2 text-neutral-400 hover:text-neutral-600">×</button>
+        </div>
+      )}
+
       <div className="text-xs text-neutral-500 bg-blue-50 border border-blue-200 rounded px-3 py-2">
-        Click <strong>Status</strong> to cycle Active → Inactive → Under Maintenance.
-        Toggle <strong>Skip</strong> to exclude a farm from this cycle without deactivating it.
-        Edit <strong>Cycle</strong> and <strong>Clean</strong> days inline.
-        Click column headers to sort.
+        All fields are editable inline. Click <strong>Status</strong> to cycle Active → Inactive → Under Maintenance.
+        Toggle <strong>Skip</strong> to exclude a farm from this cycle.
+        Click column headers to sort. Upload an .xlsx to replace the entire farm list.
       </div>
 
       <div className="overflow-x-auto rounded-lg border border-[var(--border-subtle)]">
@@ -194,13 +281,61 @@ function FarmMasterTab({ farms }: { farms: Farm[] }) {
           <tbody>
             {filtered.map((f) => (
               <tr key={f.code} className={f.status !== "Active" ? "opacity-60" : ""}>
-                <td className="font-mono text-neutral-400">{f.sequencePosition}</td>
-                <td className="font-mono font-semibold">{f.code}</td>
-                <td>{f.type}</td>
-                <td className="text-center">{f.houses}</td>
-                <td className="text-right">{f.fullCapacity.toLocaleString()}</td>
-                <td className="text-right font-semibold">{f.placementPlanCapacity.toLocaleString()}</td>
-                <td className="text-center">
+                <td>
+                  <input
+                    type="number"
+                    min={1}
+                    className="cell-input text-xs w-14 text-center font-mono text-neutral-500"
+                    value={f.sequencePosition}
+                    onChange={(e) => updateFarm(f.code, { sequencePosition: Number(e.target.value) })}
+                  />
+                </td>
+                <td>
+                  <input
+                    className="cell-input text-xs w-16 font-mono font-semibold"
+                    defaultValue={f.code}
+                    key={f.code}
+                    onBlur={(e) => {
+                      const newCode = e.target.value.trim();
+                      if (newCode && newCode !== f.code) updateFarm(f.code, { code: newCode });
+                    }}
+                  />
+                </td>
+                <td>
+                  <input
+                    className="cell-input text-xs w-10 text-center"
+                    value={f.type}
+                    onChange={(e) => updateFarm(f.code, { type: e.target.value })}
+                  />
+                </td>
+                <td>
+                  <input
+                    type="number"
+                    min={1}
+                    className="cell-input text-xs w-12 text-center"
+                    value={f.houses}
+                    onChange={(e) => updateFarm(f.code, { houses: Number(e.target.value) })}
+                  />
+                </td>
+                <td>
+                  <input
+                    type="number"
+                    min={0}
+                    className="cell-input text-xs w-24 text-right"
+                    value={f.fullCapacity}
+                    onChange={(e) => updateFarm(f.code, { fullCapacity: Number(e.target.value) })}
+                  />
+                </td>
+                <td>
+                  <input
+                    type="number"
+                    min={0}
+                    className="cell-input text-xs w-24 text-right font-semibold"
+                    value={f.placementPlanCapacity}
+                    onChange={(e) => updateFarm(f.code, { placementPlanCapacity: Number(e.target.value) })}
+                  />
+                </td>
+                <td>
                   <input
                     type="number"
                     min={1}
@@ -210,7 +345,7 @@ function FarmMasterTab({ farms }: { farms: Farm[] }) {
                     onChange={(e) => updateFarm(f.code, { cycleLengthDays: Number(e.target.value) })}
                   />
                 </td>
-                <td className="text-center">
+                <td>
                   <input
                     type="number"
                     min={1}
@@ -842,11 +977,12 @@ function SequenceQueueTab({ farms }: { farms: Farm[] }) {
 function MEQ1Tab({ farms }: { farms: Farm[] }) {
   const entries = usePlanStore((s) => s.placementEntries);
   const config = usePlanStore((s) => s.monthlyPlanConfig);
+  const mortalityRate = usePlanStore((s) => s.params.mortalityRate);
   const updateConfig = usePlanStore((s) => s.updateMonthlyPlanConfig);
 
   const meq1Rows = useMemo(
-    () => computeMEQ1Rows(entries, farms, config),
-    [entries, farms, config]
+    () => computeMEQ1Rows(entries, farms, config, mortalityRate),
+    [entries, farms, config, mortalityRate]
   );
 
   const birdGroups = useMemo(() => {
@@ -957,7 +1093,8 @@ function MEQ1Tab({ farms }: { farms: Farm[] }) {
       )}
       <p className="text-xs text-neutral-400">
         Only entries with Check = OK are included. Grouped by bird type (Cobb → Ross → GP).
-        Downloads as tab-delimited .txt — upload via SAP LSMW.
+        QUMAX = placed qty × (1 − {(mortalityRate * 100).toFixed(0)}% mortality) — output birds after grow-out.
+        DATAB = DATBI = actual placement date. Downloads as tab-delimited .txt — upload via SAP LSMW.
       </p>
     </div>
   );

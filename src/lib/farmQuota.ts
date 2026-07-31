@@ -83,27 +83,21 @@ function matNoForBirdType(birdType: BirdType, config: MonthlyPlanConfig): string
   return config.gpMatNo;
 }
 
-function lastDayOfMonth(isoFirstDay: string): string {
-  const d = new Date(isoFirstDay);
-  d.setMonth(d.getMonth() + 1);
-  d.setDate(0);
-  return d.toISOString().slice(0, 10);
-}
-
 /**
  * Build MEQ1 upload rows from the current planning month's valid entries.
  * QUPOS = sequential counter per bird-type × 10 (0010, 0020, …)
+ * QUMAX = qtyPlaced × (1 - mortalityRate) — output birds after grow-out mortality.
+ * DATAB = DATBI = the actual placement date of each entry.
  * Only entries that pass the check (Active farm, qty > 0, not over ceiling) are included.
  */
 export function computeMEQ1Rows(
   entries: PlacementEntry[],
   farms: Farm[],
-  config: MonthlyPlanConfig
+  config: MonthlyPlanConfig,
+  mortalityRate = 0.05
 ): MEQ1Row[] {
   const farmMap = new Map(farms.map((f) => [f.code, f]));
   const prefix = config.planningMonth.slice(0, 7);
-  const datab = config.planningMonth.slice(0, 10);
-  const datbi = lastDayOfMonth(config.planningMonth);
 
   const monthEntries = entries.filter((e) => e.date.startsWith(prefix));
 
@@ -127,11 +121,11 @@ export function computeMEQ1Rows(
       rows.push({
         matnr,
         werks: config.plant,
-        datab,
-        datbi,
+        datab: e.date,
+        datbi: e.date,
         qupos: String(qupri * 10).padStart(4, "0"),
         verid: e.farmCode,
-        qumax: e.qtyPlaced,
+        qumax: Math.round(e.qtyPlaced * (1 - mortalityRate)),
         qupri,
         quazt: 0,
         qumin: 0,
