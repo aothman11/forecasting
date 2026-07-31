@@ -355,6 +355,7 @@ export function DemandForecast() {
             qty={demandQty}
             channel={channel}
             weeks={weeks}
+            planStartDate={params.planStartDate}
             onCellChange={channel !== "ALL" ? (productId, week, value) => setDemandCell(productId, channel, week, value) : undefined}
             onRemoveProduct={removeDemandProduct}
           />

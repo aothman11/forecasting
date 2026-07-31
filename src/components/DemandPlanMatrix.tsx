@@ -2,7 +2,7 @@
 
 import { Fragment } from "react";
 import { PRODUCT_CATEGORY_LABELS } from "@/lib/defaults";
-import { getDemandCell } from "@/lib/demandPlan";
+import { getDemandCell, weekLabel } from "@/lib/demandPlan";
 import type { ChannelKey, DemandPlanQty, DemandProduct, ProductCategory } from "@/lib/types";
 
 const CATEGORY_ORDER: ProductCategory[] = ["wholeChicken", "cuts", "fpp", "eggs"];
@@ -12,11 +12,12 @@ interface DemandPlanMatrixProps {
   qty: DemandPlanQty;
   channel: ChannelKey | "ALL";
   weeks: number[];
+  planStartDate?: string;
   onCellChange?: (productId: string, week: number, value: number) => void;
   onRemoveProduct?: (productId: string) => void;
 }
 
-export function DemandPlanMatrix({ products, qty, channel, weeks, onCellChange, onRemoveProduct }: DemandPlanMatrixProps) {
+export function DemandPlanMatrix({ products, qty, channel, weeks, planStartDate, onCellChange, onRemoveProduct }: DemandPlanMatrixProps) {
   const editable = channel !== "ALL";
 
   return (
@@ -32,7 +33,7 @@ export function DemandPlanMatrix({ products, qty, channel, weeks, onCellChange, 
                 key={w}
                 className="sticky top-0 z-10 bg-[var(--brand-green-tint)] text-right px-2 py-2 text-brand-green-dark text-[10px] font-semibold whitespace-nowrap"
               >
-                W{w}
+                {planStartDate ? weekLabel(w, planStartDate) : `W${w}`}
               </th>
             ))}
             <th className="sticky top-0 right-0 z-20 bg-[var(--brand-green-tint)] text-right px-3 py-2 text-brand-green-dark text-[10px] font-semibold whitespace-nowrap">

@@ -111,6 +111,24 @@ export function weekToMonthLabel(week: number, planStartDate: string): string {
   return d.toLocaleDateString("en-US", { month: "short", year: "numeric" });
 }
 
+/**
+ * Returns a week label in the format "YYYY.MMM.Wk" where Wk is the ordinal
+ * week within its calendar month (1-indexed).
+ * e.g. week starting Aug 7 → "2026.Aug.W1", Aug 14 → "2026.Aug.W2"
+ */
+export function weekLabel(week: number, planStartDate: string): string {
+  const monthKey = weekToMonthKey(week, planStartDate);
+  // Count how many weeks (1..week) share this same month
+  let wom = 0;
+  for (let w = 1; w <= week; w++) {
+    if (weekToMonthKey(w, planStartDate) === monthKey) wom++;
+  }
+  const d = new Date(planStartDate);
+  d.setDate(d.getDate() + (week - 1) * 7);
+  const mmm = d.toLocaleDateString("en-US", { month: "short" });
+  return `${d.getFullYear()}.${mmm}.W${wom}`;
+}
+
 /** Groups an array of week numbers into calendar months, in order. */
 export function groupWeeksByMonth(
   weeks: number[],

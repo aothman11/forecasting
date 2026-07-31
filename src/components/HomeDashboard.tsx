@@ -418,19 +418,43 @@ export function HomeDashboard() {
             </div>
           </DashCard>
 
-          <DashCard icon="🏪" title="Demand by Channel" description="Total CAR per sales channel" onOpen={openDemand}>
-            <div className="mt-2 space-y-1.5">
-              {channelDemand.map(({ ch, car }) => (
-                <div key={ch} className="flex items-center gap-2 text-xs">
-                  <span className="w-28 shrink-0 text-neutral-600 whitespace-nowrap">{CHANNEL_LABELS[ch]}</span>
-                  <div className="flex-1 h-2 rounded-full bg-neutral-100 overflow-hidden">
-                    <div className="h-full rounded-full bg-brand-green" style={{ width: `${(car / channelMax) * 100}%` }} />
-                  </div>
-                  <span className="w-20 text-right font-semibold tabular-nums shrink-0">
-                    {car > 0 ? `${car.toLocaleString()} CAR` : <span className="text-neutral-300">—</span>}
-                  </span>
-                </div>
-              ))}
+          <DashCard icon="🏪" title="Demand by Channel" description="CAR per channel by month" onOpen={openDemand}>
+            <div className="mt-2 overflow-x-auto">
+              <table className="w-full text-[11px]">
+                <thead>
+                  <tr className="border-b border-[var(--border-subtle)]">
+                    <th className="text-left py-1 pr-2 font-semibold text-neutral-500 whitespace-nowrap">Channel</th>
+                    {monthGroups.map(({ monthLabel }) => (
+                      <th key={monthLabel} className="text-right py-1 px-1.5 font-semibold text-neutral-500 whitespace-nowrap">{monthLabel}</th>
+                    ))}
+                    <th className="text-right py-1 pl-2 font-semibold text-neutral-500 whitespace-nowrap">Total</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {CHANNEL_KEYS.map((ch) => {
+                    const monthVals = monthGroups.map(({ weeks: mw }) =>
+                      (["wholeChicken", "cuts", "fpp", "eggs"] as const).reduce(
+                        (s, cat) => s + toCar(cat, categoryTotal(demandProducts, demandQty, cat, ch, mw)),
+                        0
+                      )
+                    );
+                    const rowTotal = monthVals.reduce((s, v) => s + v, 0);
+                    return (
+                      <tr key={ch} className="border-b border-[var(--border-subtle)] last:border-0 hover:bg-neutral-50">
+                        <td className="py-1 pr-2 text-neutral-600 whitespace-nowrap">{CHANNEL_LABELS[ch]}</td>
+                        {monthVals.map((v, i) => (
+                          <td key={i} className="py-1 px-1.5 text-right tabular-nums">
+                            {v > 0 ? v.toLocaleString() : <span className="text-neutral-200">—</span>}
+                          </td>
+                        ))}
+                        <td className="py-1 pl-2 text-right tabular-nums font-semibold text-brand-green-dark">
+                          {rowTotal > 0 ? rowTotal.toLocaleString() : <span className="text-neutral-300">—</span>}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
               {demandTotalCar === 0 && <div className="text-[11px] text-neutral-400 mt-1">No demand entered yet.</div>}
             </div>
           </DashCard>
