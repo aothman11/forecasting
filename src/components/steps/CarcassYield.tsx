@@ -174,7 +174,7 @@ export function CarcassYield() {
         </div>
       </div>
 
-      <GradeChart data={rows} />
+      <GradeChart data={rows} planStartDate={params.planStartDate} />
 
       <DataTable columns={columns} rows={rows} rowKey={(r) => r.week} />
 

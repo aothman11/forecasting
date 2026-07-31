@@ -491,7 +491,7 @@ export function HomeDashboard() {
           </DashCard>
 
           <DashCard icon="⚖️" title="3 · Carcass Yield & Grade Split" description="Grade A / B / C distribution" onOpen={() => openStep(3)}>
-            <GradeChart data={result.carcass} />
+            <GradeChart data={result.carcass} planStartDate={params.planStartDate} />
           </DashCard>
 
           <DashCard icon="📦" title="4 · Product Family Allocation" description="Fresh / Frozen / FPP split" onOpen={() => openStep(4)}>

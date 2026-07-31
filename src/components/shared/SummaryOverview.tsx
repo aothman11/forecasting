@@ -37,7 +37,7 @@ export function SummaryOverview({ result, planStartDate }: { result: PipelineRes
         </div>
         <div>
           <div className="text-xs font-semibold text-neutral-500 mb-1">Grade Distribution</div>
-          <GradeChart data={result.carcass} />
+          <GradeChart data={result.carcass} planStartDate={planStartDate} />
         </div>
       </div>
       <div className="mt-4" style={{ width: 420 }}>

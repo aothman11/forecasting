@@ -10,11 +10,12 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
+import { weekLabel } from "@/lib/demandPlan";
 import type { CarcassYieldWeek } from "@/lib/types";
 
-export function GradeChart({ data }: { data: CarcassYieldWeek[] }) {
+export function GradeChart({ data, planStartDate }: { data: CarcassYieldWeek[]; planStartDate: string }) {
   const chartData = data.map((d) => ({
-    week: `W${d.week}`,
+    week: weekLabel(d.week, planStartDate),
     "Grade A": Math.round(d.gradeAKg),
     "Grade B": Math.round(d.gradeBKg),
     "Grade C": Math.round(d.gradeCKg),
