@@ -212,6 +212,14 @@ export function HomeDashboard() {
           >
             Smarter Planning · Better Production
           </div>
+          <a
+            href="https://claude.ai/code/artifact/de94e9d6-095e-4192-aebd-b0980dbd3cbe"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="mt-3 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-semibold bg-white/70 border border-brand-green/30 text-brand-green-dark hover:bg-white hover:border-brand-green/60 transition-colors shadow-sm"
+          >
+            📖 User Guide
+          </a>
         </div>
       </div>
 
