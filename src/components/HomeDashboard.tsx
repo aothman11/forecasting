@@ -358,25 +358,25 @@ export function HomeDashboard() {
                 </td>
               </tr>
               <tr className="border-b border-[var(--border-subtle)] hover:bg-neutral-50">
-                <td className="px-3 py-2 text-neutral-600 whitespace-nowrap">⚖️ Carcass (t)</td>
+                <td className="px-3 py-2 text-neutral-600 whitespace-nowrap">⚖️ Carcass (kg)</td>
                 {monthlyRows.map(({ monthLabel, carcassKg }) => (
                   <td key={monthLabel} className="px-3 py-2 text-right tabular-nums font-medium">
-                    {carcassKg > 0 ? (carcassKg / 1000).toFixed(0) : <span className="text-neutral-300">—</span>}
+                    {carcassKg > 0 ? kg(carcassKg) : <span className="text-neutral-300">—</span>}
                   </td>
                 ))}
                 <td className="px-3 py-2 text-right tabular-nums font-semibold text-brand-green-dark">
-                  {(monthlyRows.reduce((s, r) => s + r.carcassKg, 0) / 1000).toFixed(0)}
+                  {kg(monthlyRows.reduce((s, r) => s + r.carcassKg, 0))}
                 </td>
               </tr>
               <tr className="border-b border-[var(--border-subtle)] hover:bg-neutral-50">
-                <td className="px-3 py-2 text-neutral-600 whitespace-nowrap">📦 Production (t)</td>
+                <td className="px-3 py-2 text-neutral-600 whitespace-nowrap">📦 Production (kg)</td>
                 {monthlyRows.map(({ monthLabel, productionKg }) => (
                   <td key={monthLabel} className="px-3 py-2 text-right tabular-nums font-medium">
-                    {productionKg > 0 ? (productionKg / 1000).toFixed(0) : <span className="text-neutral-300">—</span>}
+                    {productionKg > 0 ? kg(productionKg) : <span className="text-neutral-300">—</span>}
                   </td>
                 ))}
                 <td className="px-3 py-2 text-right tabular-nums font-semibold text-brand-green-dark">
-                  {(monthlyRows.reduce((s, r) => s + r.productionKg, 0) / 1000).toFixed(0)}
+                  {kg(monthlyRows.reduce((s, r) => s + r.productionKg, 0))}
                 </td>
               </tr>
               <tr className="hover:bg-neutral-50">
