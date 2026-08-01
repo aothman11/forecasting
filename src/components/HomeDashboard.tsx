@@ -300,7 +300,7 @@ export function HomeDashboard() {
           value={`${kg(m.totalWcFreshKg + m.totalWcFrozenKg + m.totalFppKg)} kg`}
           icon="📦"
         />
-        <SummaryCard label="Total Demand" value={`${demandTotalCar.toLocaleString()} CAR`} icon="📊" />
+        <SummaryCard label="Total Demand" value={`${Math.round(demandTotalTon * 1000).toLocaleString()} kg`} icon="📊" />
         <SummaryCard
           label="Weeks Over Capacity"
           value={String(m.weeksWithCapacityBreach)}
