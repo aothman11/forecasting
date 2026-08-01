@@ -5,7 +5,6 @@ import { usePlanStore } from "@/lib/store";
 import { categoryTotal, getDemandCell, groupWeeksByMonth, slugifyProductName } from "@/lib/demandPlan";
 import { CHANNEL_KEYS, CHANNEL_LABELS, EGG_TRAYS_PER_CARTON, PRODUCT_CATEGORY_LABELS } from "@/lib/defaults";
 import { exportDemandPlanToExcel } from "@/lib/export";
-import { SummaryCard } from "./shared/SummaryCard";
 import { DemandPlanMatrix } from "./DemandPlanMatrix";
 import { SalesPlanImportPanel } from "./SalesPlanImportPanel";
 import type { ChannelKey, ProductCategory } from "@/lib/types";
@@ -17,6 +16,13 @@ const CATEGORY_OPTIONS: { value: ProductCategory | "all"; label: string }[] = [
   { value: "fpp", label: "FPP" },
   { value: "eggs", label: "Eggs" },
 ];
+
+const CATEGORY_META: Record<ProductCategory, { icon: string; borderCls: string; valueCls: string; badgeCls: string }> = {
+  wholeChicken: { icon: "🐔", borderCls: "border-l-blue-400",   valueCls: "text-blue-700",   badgeCls: "bg-blue-50 text-blue-600 border-blue-200" },
+  cuts:         { icon: "🔪", borderCls: "border-l-orange-400", valueCls: "text-orange-700", badgeCls: "bg-orange-50 text-orange-600 border-orange-200" },
+  fpp:          { icon: "⚙️",  borderCls: "border-l-violet-400", valueCls: "text-violet-700", badgeCls: "bg-violet-50 text-violet-600 border-violet-200" },
+  eggs:         { icon: "🥚", borderCls: "border-l-amber-400",  valueCls: "text-amber-700",  badgeCls: "bg-amber-50 text-amber-600 border-amber-200" },
+};
 
 export function DemandForecast() {
   const params = usePlanStore((s) => s.params);
@@ -114,26 +120,66 @@ export function DemandForecast() {
         </p>
       </div>
 
-      <div className="flex flex-wrap items-end gap-3">
-        <div className="inline-flex rounded-lg border border-[var(--border-subtle)] overflow-hidden text-xs font-medium">
+      {/* KPI cards */}
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+        {/* Total demand — green accent */}
+        <div className="rounded-xl border border-[var(--border-subtle)] border-l-4 border-l-brand-green bg-white shadow-sm p-4 flex flex-col gap-1.5">
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] font-semibold uppercase tracking-wider text-neutral-500">Total Demand</span>
+            <span className="text-lg leading-none">📊</span>
+          </div>
+          <div className="text-2xl font-bold text-brand-green-dark tabular-nums leading-tight">
+            {totalCar.toLocaleString()}
+          </div>
+          <div className="text-[11px] text-neutral-400 font-medium">CAR · all categories</div>
+        </div>
+
+        {/* Per-category cards */}
+        {categoryTotals.map(({ cat, qty }) => {
+          const meta = CATEGORY_META[cat];
+          const cars = toCar(cat, qty);
+          const pct = totalCar > 0 ? Math.round((cars / totalCar) * 100) : 0;
+          return (
+            <div key={cat} className={`rounded-xl border border-[var(--border-subtle)] border-l-4 ${meta.borderCls} bg-white shadow-sm p-4 flex flex-col gap-1.5`}>
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-semibold uppercase tracking-wider text-neutral-500">
+                  {PRODUCT_CATEGORY_LABELS[cat]}
+                </span>
+                <span className="text-lg leading-none">{meta.icon}</span>
+              </div>
+              <div className={`text-2xl font-bold tabular-nums leading-tight ${meta.valueCls}`}>
+                {cars.toLocaleString()}
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] text-neutral-400 font-medium">CAR</span>
+                {pct > 0 && (
+                  <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded border ${meta.badgeCls}`}>
+                    {pct}%
+                  </span>
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Toolbar */}
+      <div className="flex flex-wrap items-center gap-2">
+        {/* View toggle */}
+        <div className="inline-flex items-center bg-neutral-100 rounded-lg p-0.5 gap-0.5 text-xs font-medium">
           <button
             onClick={() => setViewMode("weekly")}
-            className={`px-3 py-1.5 transition-colors ${viewMode === "weekly" ? "bg-brand-green text-white" : "bg-white text-neutral-600 hover:bg-neutral-50"}`}
+            className={`px-3.5 py-1.5 rounded-md transition-all ${viewMode === "weekly" ? "bg-white shadow text-brand-green-dark font-semibold" : "text-neutral-500 hover:text-neutral-700"}`}
           >
             Weekly
           </button>
           <button
             onClick={() => setViewMode("monthly")}
-            className={`px-3 py-1.5 transition-colors border-l border-[var(--border-subtle)] ${viewMode === "monthly" ? "bg-brand-green text-white" : "bg-white text-neutral-600 hover:bg-neutral-50"}`}
+            className={`px-3.5 py-1.5 rounded-md transition-all ${viewMode === "monthly" ? "bg-white shadow text-brand-green-dark font-semibold" : "text-neutral-500 hover:text-neutral-700"}`}
           >
             Monthly
           </button>
         </div>
-
-        <SummaryCard label="Total Demand" value={`${totalCar.toLocaleString()} CAR`} accent="green" />
-        {categoryTotals.map(({ cat, display }) => (
-          <SummaryCard key={cat} label={PRODUCT_CATEGORY_LABELS[cat]} value={display} />
-        ))}
 
         <div className="flex-1" />
 
@@ -349,13 +395,15 @@ export function DemandForecast() {
 
       {viewMode === "weekly" && (
         <>
-          <div className="flex gap-1 border-b border-[var(--border-subtle)] overflow-x-auto">
+          <div className="flex items-center gap-1 pb-px border-b border-[var(--border-subtle)] overflow-x-auto">
             {(["ALL", ...CHANNEL_KEYS] as const).map((c) => (
               <button
                 key={c}
                 onClick={() => setChannel(c)}
-                className={`px-3 py-2 text-xs font-medium border-b-2 -mb-px whitespace-nowrap transition-colors ${
-                  channel === c ? "border-brand-green text-brand-green-dark" : "border-transparent text-neutral-500 hover:text-neutral-800"
+                className={`px-3 py-1.5 text-xs font-medium rounded-t-md border-b-2 -mb-px whitespace-nowrap transition-all ${
+                  channel === c
+                    ? "border-brand-green text-brand-green-dark bg-brand-green-tint/60 font-semibold"
+                    : "border-transparent text-neutral-500 hover:text-neutral-700 hover:bg-neutral-50"
                 }`}
               >
                 {c === "ALL" ? "All Channels" : CHANNEL_LABELS[c]}
