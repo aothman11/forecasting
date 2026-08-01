@@ -7,7 +7,6 @@ import { usePlanStore } from "@/lib/store";
 import { carcassSizeDistributionSum } from "@/lib/calculations";
 import { SIZE_KEYS, SIZE_LABELS } from "@/lib/defaults";
 import { DataTable, type DataTableColumn } from "../shared/DataTable";
-import { SummaryCard } from "../shared/SummaryCard";
 import { GradeChart } from "../charts/GradeChart";
 import type { CarcassYieldWeek, SizeKey } from "@/lib/types";
 
@@ -144,16 +143,67 @@ export function CarcassYield() {
         </p>
       </div>
 
-      <div className="flex flex-wrap items-end gap-3">
-        <SummaryCard label="Total Carcass" value={Math.round(totals.count).toLocaleString()} sublabel="pc" accent="green" />
-        <SummaryCard label="Total Carcass Weight" value={`${kg(totals.carcass)} kg`} accent="green" />
-        <SummaryCard label="Grade A" value={`${kg(totals.a)} kg`} />
-        <SummaryCard label="Grade B" value={`${kg(totals.b)} kg`} />
-        <SummaryCard label="Grade C / Reject" value={`${kg(totals.c)} kg`} />
+      {/* KPI cards */}
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+        {/* Total carcass count */}
+        <div className="rounded-xl border border-[var(--border-subtle)] border-l-4 border-l-brand-green bg-white shadow-sm p-4 flex flex-col gap-1.5">
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] font-semibold uppercase tracking-wider text-neutral-500">Total Carcass</span>
+            <span className="text-lg leading-none">🐔</span>
+          </div>
+          <div className="text-2xl font-bold text-brand-green-dark tabular-nums leading-tight">
+            {Math.round(totals.count).toLocaleString()}
+          </div>
+          <div className="text-[11px] text-neutral-400 font-medium">pc slaughtered</div>
+        </div>
 
-        <div className="flex-1" />
+        {/* Total carcass weight */}
+        <div className="rounded-xl border border-[var(--border-subtle)] border-l-4 border-l-teal-400 bg-white shadow-sm p-4 flex flex-col gap-1.5">
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] font-semibold uppercase tracking-wider text-neutral-500">Total Carcass Weight</span>
+            <span className="text-lg leading-none">⚖️</span>
+          </div>
+          <div className="text-2xl font-bold text-teal-700 tabular-nums leading-tight">
+            {kg(totals.carcass)}
+          </div>
+          <div className="text-[11px] text-neutral-400 font-medium">kg</div>
+        </div>
 
-        <div className="flex items-end gap-2 border border-[var(--border-subtle)] rounded-md px-3 py-2">
+        {/* Grade A */}
+        {(
+          [
+            { label: "Grade A", value: totals.a, borderCls: "border-l-blue-400", valueCls: "text-blue-700", badgeCls: "bg-blue-50 text-blue-600 border-blue-200", icon: "🥇" },
+            { label: "Grade B", value: totals.b, borderCls: "border-l-orange-400", valueCls: "text-orange-700", badgeCls: "bg-orange-50 text-orange-600 border-orange-200", icon: "🥈" },
+            { label: "Grade C / Reject", value: totals.c, borderCls: "border-l-red-300", valueCls: "text-red-600", badgeCls: "bg-red-50 text-red-600 border-red-200", icon: "🔻" },
+          ] as const
+        ).map(({ label, value, borderCls, valueCls, badgeCls, icon }) => {
+          const share = totals.carcass > 0 ? Math.round((value / totals.carcass) * 100) : 0;
+          return (
+            <div key={label} className={`rounded-xl border border-[var(--border-subtle)] border-l-4 ${borderCls} bg-white shadow-sm p-4 flex flex-col gap-1.5`}>
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-semibold uppercase tracking-wider text-neutral-500">{label}</span>
+                <span className="text-lg leading-none">{icon}</span>
+              </div>
+              <div className={`text-2xl font-bold tabular-nums leading-tight ${valueCls}`}>
+                {kg(value)}
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] text-neutral-400 font-medium">kg</span>
+                {share > 0 && (
+                  <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded border ${badgeCls}`}>
+                    {share}%
+                  </span>
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Grade split inputs */}
+      <div className="flex items-center gap-2">
+        <span className="text-xs text-neutral-500 font-medium">Grade split (%):</span>
+        <div className="flex items-center gap-2 border border-[var(--border-subtle)] rounded-lg px-3 py-2 bg-white">
           {(["A", "B", "C"] as const).map((g) => (
             <label key={g} className="flex flex-col text-xs text-neutral-600">
               Grade {g}
@@ -190,13 +240,13 @@ export function CarcassYield() {
               : "Weight (kg) per size bucket aggregated by calendar month."}
           </p>
         </div>
-        <div className="flex rounded-lg border border-[var(--border-subtle)] overflow-hidden text-xs font-medium shrink-0">
-          {(["total", "week", "month"] as const).map((mode, i) => (
+        <div className="inline-flex items-center bg-neutral-100 rounded-lg p-0.5 gap-0.5 text-xs font-medium shrink-0">
+          {(["total", "week", "month"] as const).map((mode) => (
             <button
               key={mode}
               onClick={() => setSizeView(mode)}
-              className={`px-3 py-1.5 transition-colors ${i > 0 ? "border-l border-[var(--border-subtle)]" : ""} ${
-                sizeView === mode ? "bg-brand-green text-white" : "bg-white text-neutral-600 hover:bg-neutral-50"
+              className={`px-3.5 py-1.5 rounded-md transition-all ${
+                sizeView === mode ? "bg-white shadow text-brand-green-dark font-semibold" : "text-neutral-500 hover:text-neutral-700"
               }`}
             >
               {mode === "total" ? "Total" : mode === "week" ? "By Week" : "By Month"}
