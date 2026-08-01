@@ -15,7 +15,6 @@ import { isFridayDate } from "@/lib/calculations";
 import { isExcelFile, parsePlacementCSV, parsePlacementExcel, type ParsedPlacementRow } from "@/lib/placementImport";
 import { exportPlacementTemplate } from "@/lib/export";
 import { DataTable, type DataTableColumn } from "../shared/DataTable";
-import { SummaryCard } from "../shared/SummaryCard";
 import type { PlacementDayRow } from "@/lib/types";
 import { MAX_HORIZON_MONTHS, MAX_HORIZON_WEEKS, MIN_HORIZON_MONTHS, MIN_HORIZON_WEEKS } from "@/lib/defaults";
 
@@ -136,15 +135,42 @@ export function PlacementPlan() {
         </p>
       </div>
 
-      <div className="flex flex-wrap items-end gap-3">
-        <SummaryCard label="Running Total Chicks" value={Math.round(runningTotal).toLocaleString()} accent="green" />
-        <SummaryCard
-          label="Total House-Placements"
-          value={totalHousesUsed.toLocaleString()}
-          sublabel={`Quick Fill rate: ${params.houseCount}/day`}
-        />
-        <SummaryCard label="Horizon" value={horizonRange(params.planStartDate, params.planningHorizonWeeks)} sublabel={`${params.planningHorizonWeeks / 4} months · ${placementDays.length} days`} />
+      <div className="grid grid-cols-3 gap-3">
+        <div className="rounded-xl border border-[var(--border-subtle)] border-l-4 border-l-brand-green bg-white shadow-sm p-4 flex flex-col gap-1.5">
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] font-semibold uppercase tracking-wider text-neutral-500">Running Total Chicks</span>
+            <span className="text-base leading-none">🐣</span>
+          </div>
+          <div className="text-2xl font-bold text-brand-green-dark tabular-nums leading-tight">
+            {Math.round(runningTotal).toLocaleString()}
+          </div>
+          <div className="text-[11px] text-neutral-400 font-medium">chicks placed</div>
+        </div>
 
+        <div className="rounded-xl border border-[var(--border-subtle)] border-l-4 border-l-blue-400 bg-white shadow-sm p-4 flex flex-col gap-1.5">
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] font-semibold uppercase tracking-wider text-neutral-500">Total House-Placements</span>
+            <span className="text-base leading-none">🏠</span>
+          </div>
+          <div className="text-2xl font-bold text-blue-700 tabular-nums leading-tight">
+            {totalHousesUsed.toLocaleString()}
+          </div>
+          <div className="text-[11px] text-neutral-400 font-medium">Quick Fill rate: {params.houseCount}/day</div>
+        </div>
+
+        <div className="rounded-xl border border-[var(--border-subtle)] border-l-4 border-l-violet-400 bg-white shadow-sm p-4 flex flex-col gap-1.5">
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] font-semibold uppercase tracking-wider text-neutral-500">Horizon</span>
+            <span className="text-base leading-none">📅</span>
+          </div>
+          <div className="text-lg font-bold text-violet-700 leading-tight">
+            {horizonRange(params.planStartDate, params.planningHorizonWeeks)}
+          </div>
+          <div className="text-[11px] text-neutral-400 font-medium">{params.planningHorizonWeeks / 4} months · {placementDays.length} days</div>
+        </div>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-3">
         <div className="flex-1" />
 
         <label className="flex items-center gap-1.5 text-xs text-neutral-600">
