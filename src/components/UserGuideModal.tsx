@@ -48,7 +48,7 @@ const T = {
         intro: "Open <strong>Assumptions</strong> (top-right toolbar) before doing anything else. All pipeline calculations depend on these values.",
         params: [
           ["Plan Start Date", "The Monday of Week 1. All YYYY.MMM.Wk week labels derive from this."],
-          ["Planning Horizon", "Number of weeks in the plan (default 16)."],
+          ["Planning Horizon", "Number of months in the plan (default 4). Displayed as a calendar range (e.g. Aug 2026 – Nov 2026) wherever the horizon appears."],
           ["House Count", "Houses placing chicks per eligible working day."],
           ["Cycle Length (days)", "Grow-out cycle. Sets the harvest-to-placement week offset used everywhere."],
           ["Mortality / DOA / Culled / Reject rates", "Processing funnel attrition rates shown in Step 2."],
@@ -89,7 +89,7 @@ const T = {
         badge: "M3",
         title: "M3 · Reconciliation",
         subtitle: "Demand vs supply gap by product category",
-        body: "Side-by-side weekly view of total demand (M1) against total planned supply (pipeline). Gaps shown in tons and %. Week labels use YYYY.MMM.Wk format to immediately show which calendar month each week belongs to.",
+        body: "Side-by-side weekly view of total demand (M1) against total planned supply (pipeline). Gaps shown in kg and %. Week labels use YYYY.MMM.Wk format to immediately show which calendar month each week belongs to.",
       },
       m4: {
         label: "S&OP Modules",
@@ -121,6 +121,7 @@ const T = {
           "<strong>Quick Fill</strong> — fills working days at a flat rate from your Assumptions.",
           "<strong>Manual editing</strong> — click any cell to override. Friday rows are auto-zeroed when Friday Off is on.",
           "<strong>Apply from M4</strong> — demand-driven placement writes directly into this calendar.",
+          "<strong>Delete Plan</strong> — clears all placement quantities to zero (requires confirmation). Use to start fresh without changing the horizon or parameters.",
         ],
       },
       step2: {
@@ -240,7 +241,7 @@ const T = {
         intro: "افتح <strong>الافتراضات</strong> (شريط الأدوات العلوي الأيمن) قبل أي شيء آخر. جميع حسابات خط الإنتاج تعتمد على هذه القيم.",
         params: [
           ["تاريخ بدء الخطة", "الاثنين الأول من الأسبوع الأول. تشتق منه جميع تسميات الأسابيع بصيغة YYYY.MMM.Wk."],
-          ["أفق التخطيط", "عدد الأسابيع في الخطة (الافتراضي 16)."],
+          ["أفق التخطيط", "عدد الأشهر في الخطة (الافتراضي 4). يُعرض كنطاق تقويمي (مثل: أغسطس 2026 – نوفمبر 2026) في جميع أجزاء الأداة."],
           ["عدد البيوت", "عدد البيوت التي يتم تربية الكتاكيت فيها يوميًا."],
           ["مدة الدورة (أيام)", "دورة التربية. تحدد الفارق الزمني بين الحصاد والتوطين."],
           ["معدلات النفوق / الوفيات / الاستبعاد / الرفض", "معدلات الاستنزاف في مسار المعالجة (الخطوة 2)."],
@@ -281,7 +282,7 @@ const T = {
         badge: "M3",
         title: "M3 · المطابقة",
         subtitle: "فجوة الطلب مقابل التوريد حسب فئة المنتج",
-        body: "عرض أسبوعي جنبًا إلى جنب لإجمالي الطلب (M1) مقابل التوريد المخطط (خط الإنتاج). الفجوات بالأطنان والنسب المئوية. تسميات الأسابيع بصيغة YYYY.MMM.Wk للتعرف الفوري على الشهر.",
+        body: "عرض أسبوعي جنبًا إلى جنب لإجمالي الطلب (M1) مقابل التوريد المخطط (خط الإنتاج). الفجوات بالكيلوجرام والنسب المئوية. تسميات الأسابيع بصيغة YYYY.MMM.Wk للتعرف الفوري على الشهر.",
       },
       m4: {
         label: "وحدات التخطيط التشغيلي",
@@ -313,6 +314,7 @@ const T = {
           "<strong>الملء السريع</strong> — يملأ أيام العمل بمعدل ثابت من إعدادات الافتراضات.",
           "<strong>التعديل اليدوي</strong> — انقر على أي خلية للتعديل. أيام الجمعة تُصفَّر تلقائيًا عند تفعيل «إيقاف الجمعة».",
           "<strong>التطبيق من M4</strong> — يكتب التوطين القائم على الطلب مباشرة في هذا التقويم.",
+          "<strong>حذف الخطة</strong> — يُصفر جميع كميات التوطين (بعد تأكيد). استخدمه للبدء من جديد دون تغيير الأفق أو المعاملات.",
         ],
       },
       step2: {
