@@ -109,9 +109,7 @@ export function SalesPlanImportPanel({ onClose }: { onClose: () => void }) {
         if (fw !== undefined) {
           initialAssignment[w] = String(fw);
         } else {
-          // Numeric fallback for weeks not present in the file
-          const suggested = salesWeekNumber(weekStartDate(params.planStartDate, w));
-          initialAssignment[w] = fileWeeks.includes(suggested) ? String(suggested) : NONE;
+          initialAssignment[w] = NONE;
         }
       });
       setWeekAssignment(initialAssignment);
@@ -175,12 +173,36 @@ export function SalesPlanImportPanel({ onClose }: { onClose: () => void }) {
       if (assigned && assigned !== NONE) fileWeekToPlanWeek.set(Number(assigned), w);
     });
 
-    let appliedCells = 0;
+    // Auto-merge orphan file weeks (e.g. Sep W5 when plan only has Sep W4) into
+    // the last plan week of the same calendar month so no data is silently dropped.
+    const monthLastPlanWeek = new Map<string, number>(); // "Sep" → last planWeek in Sep
+    horizonWeeks.forEach((w) => {
+      const parts = weekLabel(w, params.planStartDate).split(".");
+      monthLastPlanWeek.set(parts[1], w); // repeated set keeps the highest (last) week
+    });
+    weeksInFile.forEach((fw) => {
+      if (fileWeekToPlanWeek.has(fw)) return;
+      const label = fileWeekLabels.get(fw);
+      if (!label) return;
+      const month = label.split(" ")[0]; // "Sep"
+      const target = monthLastPlanWeek.get(month);
+      if (target !== undefined) fileWeekToPlanWeek.set(fw, target);
+    });
+
+    // Accumulate into plan cells first (multiple file weeks can share one plan week)
+    const planCellTotals = new Map<string, number>();
     totals.forEach((qty, key) => {
       const [productId, channel, weekOfYearStr] = key.split("::");
       const planWeek = fileWeekToPlanWeek.get(Number(weekOfYearStr));
       if (planWeek === undefined) return;
-      setDemandCell(productId, channel as ChannelKey, planWeek, Math.round(qty * 100) / 100);
+      const planKey = `${productId}::${channel}::${planWeek}`;
+      planCellTotals.set(planKey, (planCellTotals.get(planKey) ?? 0) + qty);
+    });
+
+    let appliedCells = 0;
+    planCellTotals.forEach((qty, planKey) => {
+      const [productId, channel, planWeekStr] = planKey.split("::");
+      setDemandCell(productId, channel as ChannelKey, Number(planWeekStr), Math.round(qty * 100) / 100);
       appliedCells++;
     });
 
