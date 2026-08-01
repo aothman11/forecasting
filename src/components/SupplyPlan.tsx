@@ -70,6 +70,25 @@ export function SupplyPlan() {
   const totalDeferredBirds = Object.values(harvestDeferrals).reduce((s, v) => s + v, 0);
   const deferralWeekCount = Object.values(harvestDeferrals).filter((v) => v > 0).length;
 
+  // Greedy auto-suggest: for each surplus week, defer birds to the adjacent deficit week
+  const suggestDeferrals = () => {
+    clearHarvestDeferrals();
+    const adjustedSupply = rows.map((r) => r.plannedCarcassKg);
+    for (let i = 0; i < rows.length - 1; i++) {
+      const surplusKg = adjustedSupply[i] - rows[i].requiredCarcassKg;
+      if (surplusKg <= 0) continue;
+      const nextDeficitKg = rows[i + 1].requiredCarcassKg - adjustedSupply[i + 1];
+      if (nextDeficitKg <= 0) continue;
+      const deferKg = Math.min(surplusKg, nextDeficitKg);
+      const deferBirds = Math.round(deferKg / params.avgCarcassWeightKg);
+      if (deferBirds > 0) {
+        setHarvestDeferral(rows[i].week, deferBirds);
+        adjustedSupply[i] -= deferBirds * params.avgCarcassWeightKg;
+        adjustedSupply[i + 1] += deferBirds * params.avgCarcassWeightKg;
+      }
+    }
+  };
+
   const hasDemand = rows.some((r) => r.requiredCarcassKg > 0);
 
   const totalRequired = rows.reduce((s, r) => s + r.requiredCarcassKg, 0);
@@ -97,7 +116,7 @@ export function SupplyPlan() {
       <YieldInfo params={params} />
 
       {/* Execution adjustment banner */}
-      {hasDeferrals && (
+      {hasDeferrals ? (
         <div className="rounded-lg border border-amber-300 bg-amber-50 px-4 py-2.5 flex items-center justify-between gap-3 text-sm">
           <div className="flex items-center gap-2 text-amber-800">
             <span className="text-base">↪</span>
@@ -107,14 +126,37 @@ export function SupplyPlan() {
               {deferralWeekCount} {deferralWeekCount === 1 ? "week" : "weeks"} · {Math.round(totalDeferredBirds).toLocaleString()} birds shifted · simulation only, base plan unchanged
             </span>
           </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={suggestDeferrals}
+              className="text-xs font-medium px-2.5 py-1 rounded border border-amber-400 text-amber-700 hover:bg-amber-100 transition-colors whitespace-nowrap"
+            >
+              ↻ Re-suggest
+            </button>
+            <button
+              onClick={() => clearHarvestDeferrals()}
+              className="text-xs font-medium px-2.5 py-1 rounded border border-amber-400 text-amber-700 hover:bg-amber-100 transition-colors whitespace-nowrap"
+            >
+              Clear All
+            </button>
+          </div>
+        </div>
+      ) : deficitWeeks > 0 && hasDemand ? (
+        <div className="rounded-lg border border-amber-200 bg-amber-50/60 px-4 py-2.5 flex items-center justify-between gap-3 text-sm">
+          <div className="flex items-center gap-2 text-amber-700">
+            <span className="text-base">↪</span>
+            <span>
+              <strong>{deficitWeeks} deficit {deficitWeeks === 1 ? "week" : "weeks"}</strong> detected — use Harvest Deferral to shift surplus birds from one week to cover the next.
+            </span>
+          </div>
           <button
-            onClick={() => clearHarvestDeferrals()}
-            className="text-xs font-medium px-2.5 py-1 rounded border border-amber-400 text-amber-700 hover:bg-amber-100 transition-colors whitespace-nowrap"
+            onClick={suggestDeferrals}
+            className="text-xs font-semibold px-3 py-1.5 rounded border border-amber-400 bg-amber-100 text-amber-800 hover:bg-amber-200 transition-colors whitespace-nowrap"
           >
-            Clear All
+            ✦ Suggest Deferrals
           </button>
         </div>
-      )}
+      ) : null}
 
       {/* Summary cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
