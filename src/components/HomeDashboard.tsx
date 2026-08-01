@@ -380,14 +380,14 @@ export function HomeDashboard() {
                 </td>
               </tr>
               <tr className="hover:bg-neutral-50">
-                <td className="px-3 py-2 text-neutral-600 whitespace-nowrap">📊 Demand (CAR)</td>
-                {monthlyRows.map(({ monthLabel, demandCar }) => (
+                <td className="px-3 py-2 text-neutral-600 whitespace-nowrap">📊 Demand (kg)</td>
+                {monthlyRows.map(({ monthLabel, demandTons }) => (
                   <td key={monthLabel} className="px-3 py-2 text-right tabular-nums font-medium">
-                    {demandCar > 0 ? demandCar.toLocaleString() : <span className="text-neutral-300">—</span>}
+                    {demandTons > 0 ? Math.round(demandTons * 1000).toLocaleString() : <span className="text-neutral-300">—</span>}
                   </td>
                 ))}
                 <td className="px-3 py-2 text-right tabular-nums font-semibold text-brand-green-dark">
-                  {monthlyRows.reduce((s, r) => s + r.demandCar, 0).toLocaleString()}
+                  {Math.round(monthlyRows.reduce((s, r) => s + r.demandTons, 0) * 1000).toLocaleString()}
                 </td>
               </tr>
             </tbody>
