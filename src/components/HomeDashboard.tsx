@@ -169,9 +169,9 @@ export function HomeDashboard() {
       const r = result.placement.find((p) => p.week === w);
       return s + (r?.totalChicksPlaced ?? 0);
     }, 0);
-    const harvestableBirds = mw.reduce((s, w) => {
+    const slaughteredBirds = mw.reduce((s, w) => {
       const r = result.liveBird.find((p) => p.week === w);
-      return s + (r?.harvestableBirds ?? 0);
+      return s + (r?.slaughteredBirds ?? 0);
     }, 0);
     const carcassKg = mw.reduce((s, w) => {
       const r = result.carcass.find((p) => p.week === w);
@@ -195,7 +195,7 @@ export function HomeDashboard() {
       (s, cat) => s + categoryTotal(demandProducts, demandQty, cat, "ALL", mw),
       0
     );
-    return { monthLabel, chicksPlaced, harvestableBirds, carcassKg, productionKg, demandCar, requiredCarcassKg, requiredChicksPlaced, demandTons };
+    return { monthLabel, chicksPlaced, slaughteredBirds, carcassKg, productionKg, demandCar, requiredCarcassKg, requiredChicksPlaced, demandTons };
   });
 
   const runningChicks = result.placement.reduce((s, r) => s + r.totalChicksPlaced, 0);
@@ -293,7 +293,7 @@ export function HomeDashboard() {
       {/* KPI strip */}
       <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
         <SummaryCard label="Chicks Placed" value={Math.round(runningChicks).toLocaleString()} accent="green" icon="🐣" />
-        <SummaryCard label="Harvestable Birds" value={Math.round(m.totalHarvestableBirds).toLocaleString()} icon="🐔" />
+        <SummaryCard label="Slaughtered Birds" value={Math.round(result.liveBird.reduce((s, r) => s + r.slaughteredBirds, 0)).toLocaleString()} icon="🐔" />
         <SummaryCard label="Total Carcass" value={`${kg(m.totalCarcassKg)} kg`} accent="gold" icon="⚖️" />
         <SummaryCard
           label="Total Production"
@@ -341,14 +341,14 @@ export function HomeDashboard() {
                 </td>
               </tr>
               <tr className="border-b border-[var(--border-subtle)] hover:bg-neutral-50">
-                <td className="px-3 py-2 text-neutral-600 whitespace-nowrap">🐔 Harvestable Birds</td>
-                {monthlyRows.map(({ monthLabel, harvestableBirds }) => (
+                <td className="px-3 py-2 text-neutral-600 whitespace-nowrap">🐔 Slaughtered Birds</td>
+                {monthlyRows.map(({ monthLabel, slaughteredBirds }) => (
                   <td key={monthLabel} className="px-3 py-2 text-right tabular-nums font-medium">
-                    {harvestableBirds > 0 ? Math.round(harvestableBirds).toLocaleString() : <span className="text-neutral-300">—</span>}
+                    {slaughteredBirds > 0 ? Math.round(slaughteredBirds).toLocaleString() : <span className="text-neutral-300">—</span>}
                   </td>
                 ))}
                 <td className="px-3 py-2 text-right tabular-nums font-semibold text-brand-green-dark">
-                  {Math.round(monthlyRows.reduce((s, r) => s + r.harvestableBirds, 0)).toLocaleString()}
+                  {Math.round(monthlyRows.reduce((s, r) => s + r.slaughteredBirds, 0)).toLocaleString()}
                 </td>
               </tr>
               <tr className="border-b border-[var(--border-subtle)] hover:bg-neutral-50">
