@@ -51,7 +51,7 @@ const T = {
           ["Planning Horizon", "Number of months in the plan (default 4). Displayed as a calendar range (e.g. Aug 2026 – Nov 2026) wherever the horizon appears."],
           ["House Count", "Houses placing chicks per eligible working day."],
           ["Cycle Length (days)", "Grow-out cycle. Sets the harvest-to-placement week offset used everywhere."],
-          ["Mortality / DOA / Culled / Reject rates", "Processing funnel attrition rates shown in Step 2."],
+          ["Mortality / DOA / Culled / Reject rates", "Attrition rates applied in the Harvest & Slaughter Losses section of Step 2."],
           ["Avg Carcass Weight (kg)", "Used by size-distribution and supply calculations."],
           ["Grade Split A / B / C", "% of carcass weight per grade — must sum to 100%."],
           ["Carcass Size Distribution", "Eleven weight-class buckets (500g–1500g) — must sum to 100%."],
@@ -73,8 +73,9 @@ const T = {
           "Click any cell and type the quantity (tons for meat, trays for eggs).",
           "Use <strong>Copy Week Forward</strong> to propagate a week across remaining weeks.",
           "Use <strong>% Adjust</strong> to apply a % change across a product or date range.",
+          "<strong>Delete Plan</strong> — clears all demand quantities to zero (requires confirmation). Use to reset demand without changing the product catalog or parameters.",
         ],
-        tip: "<strong>Import from SAP:</strong> click Import to upload a SAP sales plan CSV. Map each distinct row signature to a product and each Channels value to a channel key — the mapping is saved for future imports.",
+        tip: "<strong>Import from SAP:</strong> click Import Sales Plan to upload a SAP export (.xlsx / .csv). The panel shows each row's Material Code, description, Weight of Carton, GSV CAR, and GSV UoM so you can verify before applying. Map each row type to a catalog product and each Channels value to a channel key. The week alignment table shows calendar labels (e.g. Aug W1) for both plan weeks and file weeks. Mappings are saved for future imports.",
       },
       m2: {
         label: "S&OP Modules",
@@ -83,6 +84,8 @@ const T = {
         subtitle: "Reverse BOM: demand → carcass → chicks to place",
         body: "Reverse-engineers required carcass kg, harvestable birds, and chicks per week from your M1 demand. Rows are color-coded: red = deficit (>2% below required), amber = tight (within 5%), green = surplus (>5% above).",
         note: "The 'Place in Wk' column shows the placement week = harvest week minus the grow-out offset. Weeks mapping before the plan start show as pre-plan and must be placed manually.",
+        deferralTitle: "Harvest Deferral (execution adjustment)",
+        deferralBody: "Use the amber <strong>Defer → (birds)</strong> column to shift surplus catching from Week N to Week N+1. Enter the number of birds to defer on a row; the <strong>Adj. Carcass</strong> and <strong>Adj. Gap</strong> columns update immediately to show the impact. This is a simulation overlay — the base plan and pipeline are not modified. An amber banner appears at the top when deferrals are active; click Clear All to reset. Typical use: a catching day has birds at 25.5 weeks age but demand is low that week — defer to the following week rather than harvesting early.",
       },
       m3: {
         label: "S&OP Modules",
@@ -127,9 +130,9 @@ const T = {
       step2: {
         label: "Production Pipeline",
         badge: "Step 2",
-        title: "Step 2 · Live Bird Forecast",
-        subtitle: "Harvest projections through the processing funnel",
-        body: "Auto-computed from the placement calendar. Shows the full funnel week by week: placed → harvestable → dispatched → electronic count → slaughtered → carcass weight. Attrition rates come from Assumptions. Weeks exceeding plant capacity are flagged in red.",
+        title: "Step 2 · Live Bird Forecast & Harvest Yield",
+        subtitle: "Harvest projections and slaughter losses by week",
+        body: "Auto-computed from the placement calendar. Shows week-by-week: placed → harvestable → dispatched → electronic count → slaughtered → carcass weight. The <strong>Harvest & Slaughter Losses</strong> section below the table summarises where birds are lost between catching and carcass (harvest mortality, DOA, culled, plucking rejects) over the full horizon. Attrition rates come from Assumptions. Weeks exceeding plant capacity are flagged in red.",
       },
       step3: {
         label: "Production Pipeline",
@@ -244,7 +247,7 @@ const T = {
           ["أفق التخطيط", "عدد الأشهر في الخطة (الافتراضي 4). يُعرض كنطاق تقويمي (مثل: أغسطس 2026 – نوفمبر 2026) في جميع أجزاء الأداة."],
           ["عدد البيوت", "عدد البيوت التي يتم تربية الكتاكيت فيها يوميًا."],
           ["مدة الدورة (أيام)", "دورة التربية. تحدد الفارق الزمني بين الحصاد والتوطين."],
-          ["معدلات النفوق / الوفيات / الاستبعاد / الرفض", "معدلات الاستنزاف في مسار المعالجة (الخطوة 2)."],
+          ["معدلات النفوق / الوفيات / الاستبعاد / الرفض", "معدلات الاستنزاف المُطبَّقة في قسم «خسائر الحصاد والذبح» بالخطوة 2."],
           ["متوسط وزن الذبيحة (كجم)", "يُستخدم في حسابات توزيع الحجم والتوريد."],
           ["توزيع الدرجات A / B / C", "نسبة وزن الذبيحة لكل درجة — يجب أن يبلغ مجموعها 100%."],
           ["توزيع أحجام الذبائح", "أحد عشر فئة وزنية (500جم–1500جم) — يجب أن يبلغ مجموعها 100%."],
@@ -266,8 +269,9 @@ const T = {
           "انقر على أي خلية وأدخل الكمية (أطنان للحوم، صواني للبيض).",
           "استخدم <strong>نسخ الأسبوع للأمام</strong> لنقل قيم أسبوع إلى الأسابيع اللاحقة.",
           "استخدم <strong>تعديل %</strong> لتطبيق نسبة تغيير على منتج أو نطاق تاريخي.",
+          "<strong>حذف الخطة</strong> — يُصفر جميع كميات الطلب (بعد تأكيد). استخدمه لإعادة ضبط الطلب دون تغيير كتالوج المنتجات أو المعاملات.",
         ],
-        tip: "<strong>استيراد من SAP:</strong> انقر على استيراد لرفع ملف CSV لخطة المبيعات. عيّن كل نمط صف مميز لمنتج وكل قيمة قناة لمفتاح قناة — يُحفظ التعيين للاستيرادات المستقبلية.",
+        tip: "<strong>استيراد من SAP:</strong> انقر على «استيراد خطة المبيعات» لرفع ملف SAP (.xlsx / .csv). تعرض اللوحة كود المادة والوصف ووزن الكرتون وحجم المبيعات الإجمالي (CAR وUoM) لكل نوع صف حتى تتمكن من التحقق قبل التطبيق. عيّن كل نوع صف لمنتج في الكتالوج وكل قيمة قناة لمفتاح قناة. يُظهر جدول محاذاة الأسابيع تسميات تقويمية (مثل: Aug W1) لأسابيع الخطة وملف البيانات. يُحفظ التعيين للاستيرادات المستقبلية.",
       },
       m2: {
         label: "وحدات التخطيط التشغيلي",
@@ -276,6 +280,8 @@ const T = {
         subtitle: "BOM عكسي: الطلب ← الذبائح ← الكتاكيت",
         body: "يحسب الكمية المطلوبة من الذبائح بالكيلوجرام والطيور القابلة للحصاد والكتاكيت أسبوعيًا من طلب M1. الصفوف مرمّزة بألوان: أحمر = عجز (أكثر من 2% أقل)، كهرماني = قريب (ضمن 5%)، أخضر = فائض (أكثر من 5% زيادة).",
         note: "عمود «أسبوع التوطين» يساوي أسبوع الحصاد ناقص فترة التربية. الأسابيع التي تقع قبل بداية الخطة تظهر كـ pre-plan وتُعالج يدويًا.",
+        deferralTitle: "تأجيل الحصاد (تعديل تنفيذي)",
+        deferralBody: "استخدم عمود <strong>Defer → (birds)</strong> الكهرماني لتحويل الطيور الفائضة من الأسبوع N إلى الأسبوع N+1. أدخل عدد الطيور المراد تأجيلها؛ تتحدث أعمدة <strong>Adj. Carcass</strong> و<strong>Adj. Gap</strong> فورًا لإظهار التأثير. هذه طبقة محاكاة فقط — الخطة الأساسية وخط الإنتاج لا يتغيران. يظهر شريط كهرماني في أعلى الجدول عند وجود تأجيلات؛ انقر «مسح الكل» للإعادة. الاستخدام النموذجي: يوم صيد يحتوي طيورًا بعمر 25.5 أسبوع لكن الطلب منخفض تلك الأسبوع — أجّل إلى الأسبوع التالي بدلًا من الحصاد المبكر.",
       },
       m3: {
         label: "وحدات التخطيط التشغيلي",
@@ -320,9 +326,9 @@ const T = {
       step2: {
         label: "خط الإنتاج",
         badge: "الخطوة 2",
-        title: "الخطوة 2 · توقعات الطيور الحية",
-        subtitle: "توقعات الحصاد عبر مسار المعالجة",
-        body: "تُحسب تلقائيًا من تقويم التوطين. تُظهر المسار الكامل أسبوعيًا: موطَّن ← قابل للحصاد ← مشحون ← العدد الإلكتروني ← مذبوح ← وزن الذبيحة. معدلات الاستنزاف من الافتراضات. الأسابيع التي تتجاوز طاقة المصنع تُميَّز بالأحمر.",
+        title: "الخطوة 2 · توقعات الطيور الحية وناتج الحصاد",
+        subtitle: "توقعات الحصاد وخسائر الذبح الأسبوعية",
+        body: "تُحسب تلقائيًا من تقويم التوطين. تُظهر المسار الكامل أسبوعيًا: موطَّن ← قابل للحصاد ← مشحون ← العدد الإلكتروني ← مذبوح ← وزن الذبيحة. يعرض قسم <strong>خسائر الحصاد والذبح</strong> الشلال الكامل: نفوق الحصاد، الوفيات، المستبعَدة، ورفض التنظيف. الأسابيع التي تتجاوز طاقة المصنع تُميَّز بالأحمر.",
       },
       step3: {
         label: "خط الإنتاج",
@@ -576,6 +582,12 @@ export function UserGuideModal({ onClose }: Props) {
           <Card badge={s.m2.badge} module title={s.m2.title} subtitle={s.m2.subtitle}>
             <p>{s.m2.body}</p>
             <Note>{s.m2.note}</Note>
+            {"deferralTitle" in s.m2 && (
+              <div className="mt-3 border-t border-[var(--border-subtle)] pt-3">
+                <div className="text-[12px] font-semibold text-amber-700 mb-1">↪ {(s.m2 as { deferralTitle: string }).deferralTitle}</div>
+                <p className="text-[13px] text-neutral-600" dangerouslySetInnerHTML={{ __html: (s.m2 as { deferralBody: string }).deferralBody }} />
+              </div>
+            )}
           </Card>
 
           {/* M3 */}
