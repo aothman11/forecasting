@@ -51,8 +51,24 @@ export function SupplyPlan() {
   const { result, params } = usePipeline();
   const demandProducts = usePlanStore((s) => s.demandProducts);
   const demandQty = usePlanStore((s) => s.demandQty);
+  const harvestDeferrals = usePlanStore((s) => s.harvestDeferrals);
+  const setHarvestDeferral = usePlanStore((s) => s.setHarvestDeferral);
+  const clearHarvestDeferrals = usePlanStore((s) => s.clearHarvestDeferrals);
   const weeks = Array.from({ length: params.planningHorizonWeeks }, (_, i) => i + 1);
   const rows = computeSupplyRequirements(demandProducts, demandQty, params, result, weeks);
+
+  // Deferral overlay: birds deferred from week W arrive in week W+1
+  const adjustedRows = rows.map((r, i) => {
+    const outgoing = harvestDeferrals[r.week] ?? 0;
+    const incoming = i > 0 ? (harvestDeferrals[rows[i - 1].week] ?? 0) : 0;
+    const adjustedCarcassKg = r.plannedCarcassKg + (incoming - outgoing) * params.avgCarcassWeightKg;
+    const adjustedGapKg = adjustedCarcassKg - r.requiredCarcassKg;
+    return { ...r, outgoing, incoming, adjustedCarcassKg, adjustedGapKg };
+  });
+
+  const hasDeferrals = Object.keys(harvestDeferrals).length > 0;
+  const totalDeferredBirds = Object.values(harvestDeferrals).reduce((s, v) => s + v, 0);
+  const deferralWeekCount = Object.values(harvestDeferrals).filter((v) => v > 0).length;
 
   const hasDemand = rows.some((r) => r.requiredCarcassKg > 0);
 
@@ -79,6 +95,26 @@ export function SupplyPlan() {
       )}
 
       <YieldInfo params={params} />
+
+      {/* Execution adjustment banner */}
+      {hasDeferrals && (
+        <div className="rounded-lg border border-amber-300 bg-amber-50 px-4 py-2.5 flex items-center justify-between gap-3 text-sm">
+          <div className="flex items-center gap-2 text-amber-800">
+            <span className="text-base">↪</span>
+            <span className="font-semibold">Harvest Deferral active</span>
+            <span className="text-amber-600">·</span>
+            <span className="text-amber-700">
+              {deferralWeekCount} {deferralWeekCount === 1 ? "week" : "weeks"} · {Math.round(totalDeferredBirds).toLocaleString()} birds shifted · simulation only, base plan unchanged
+            </span>
+          </div>
+          <button
+            onClick={() => clearHarvestDeferrals()}
+            className="text-xs font-medium px-2.5 py-1 rounded border border-amber-400 text-amber-700 hover:bg-amber-100 transition-colors whitespace-nowrap"
+          >
+            Clear All
+          </button>
+        </div>
+      )}
 
       {/* Summary cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -127,15 +163,20 @@ export function SupplyPlan() {
                 <th className="px-3 py-2 text-right font-semibold">Req. Carcass</th>
                 <th className="px-3 py-2 text-right font-semibold">Plan. Carcass</th>
                 <th className="px-3 py-2 text-center font-semibold">Gap</th>
+                <th className="px-3 py-2 text-center font-semibold border-l border-amber-200 bg-amber-50/60 text-amber-700">Defer → (birds)</th>
+                <th className="px-3 py-2 text-right font-semibold bg-amber-50/60 text-amber-700">Adj. Carcass</th>
+                <th className="px-3 py-2 text-center font-semibold bg-amber-50/60 text-amber-700">Adj. Gap</th>
                 <th className="px-3 py-2 text-right font-semibold">Req. Birds</th>
                 <th className="px-3 py-2 text-right font-semibold">Place in Wk</th>
               </tr>
             </thead>
             <tbody>
-              {rows.map((r, i) => {
+              {adjustedRows.map((r, i) => {
                 const isDeficit = r.carcassGapKg < -r.requiredCarcassKg * 0.02 && r.requiredCarcassKg > 0;
-                const isSurplus = r.carcassGapKg > r.requiredCarcassKg * 0.05 && r.requiredCarcassKg > 0;
-                const rowBg = isDeficit ? "bg-red-50" : isSurplus ? "" : "";
+                const rowBg = isDeficit ? "bg-red-50" : "";
+                const isLastWeek = i === adjustedRows.length - 1;
+                const hasOutgoing = r.outgoing > 0;
+                const hasIncoming = r.incoming > 0;
                 return (
                   <tr
                     key={r.week}
@@ -169,6 +210,54 @@ export function SupplyPlan() {
                     <td className="px-3 py-2 text-center">
                       <GapPill gapKg={r.carcassGapKg} requiredKg={r.requiredCarcassKg} />
                     </td>
+                    {/* Deferral input */}
+                    <td className="px-2 py-1.5 text-center border-l border-amber-100 bg-amber-50/30">
+                      {isLastWeek ? (
+                        <span className="text-neutral-300 text-[11px]">—</span>
+                      ) : (
+                        <div className="flex items-center justify-center gap-1">
+                          {hasIncoming && (
+                            <span className="text-[10px] text-amber-600 font-semibold" title={`+${Math.round(r.incoming).toLocaleString()} birds arriving from previous week`}>
+                              +{fmtK(r.incoming)}↓
+                            </span>
+                          )}
+                          <input
+                            type="number"
+                            min={0}
+                            step={100}
+                            value={r.outgoing === 0 ? "" : r.outgoing}
+                            placeholder="0"
+                            onChange={(e) => {
+                              const v = Math.max(0, Math.round(Number(e.target.value) || 0));
+                              setHarvestDeferral(r.week, v);
+                            }}
+                            className={`w-20 text-right border rounded px-1.5 py-0.5 tabular-nums focus:outline-none text-[11px] transition-colors ${
+                              hasOutgoing
+                                ? "border-amber-400 bg-amber-50 text-amber-800 focus:border-amber-500"
+                                : "border-[var(--border-subtle)] focus:border-amber-400"
+                            }`}
+                          />
+                        </div>
+                      )}
+                    </td>
+                    {/* Adjusted carcass */}
+                    <td className="px-3 py-2 text-right tabular-nums bg-amber-50/30">
+                      {r.requiredCarcassKg > 0 || r.adjustedCarcassKg > 0 ? (
+                        <span className={`font-medium ${(hasOutgoing || hasIncoming) ? "text-amber-700" : "text-neutral-400"}`}>
+                          {fmtK(Math.max(0, r.adjustedCarcassKg))} kg
+                        </span>
+                      ) : (
+                        <span className="text-neutral-300">—</span>
+                      )}
+                    </td>
+                    {/* Adjusted gap */}
+                    <td className="px-3 py-2 text-center bg-amber-50/30">
+                      {(hasOutgoing || hasIncoming) ? (
+                        <GapPill gapKg={r.adjustedGapKg} requiredKg={r.requiredCarcassKg} />
+                      ) : (
+                        <span className="text-neutral-300 text-[11px]">—</span>
+                      )}
+                    </td>
                     <td className="px-3 py-2 text-right tabular-nums text-neutral-700">
                       {r.requiredHarvestableBirds > 0 ? fmtK(r.requiredHarvestableBirds) : <span className="text-neutral-300">—</span>}
                     </td>
@@ -201,9 +290,18 @@ export function SupplyPlan() {
           <span className="w-3 h-3 rounded bg-green-100 border border-green-200 inline-block" />
           Surplus (&gt;5% above required)
         </span>
+        <span className="flex items-center gap-1.5">
+          <span className="w-3 h-3 rounded bg-amber-50 border border-amber-200 inline-block" />
+          Deferral simulation (Adj. columns)
+        </span>
         <span className="ml-auto italic">
           &ldquo;Place in Wk&rdquo; = harvest week minus {Math.ceil(params.cycleLengthDays / 7)}-week grow-out offset
         </span>
+      </div>
+
+      {/* Deferral note */}
+      <div className="rounded-lg border border-[var(--border-subtle)] bg-neutral-50 px-4 py-2.5 text-[11px] text-neutral-500">
+        <span className="font-semibold text-neutral-600">Harvest Deferral:</span> enter birds to shift from Week N to Week N+1 in the &ldquo;Defer →&rdquo; column. Affects <em>Adj. Carcass</em> and <em>Adj. Gap</em> as a simulation overlay — the base plan and pipeline are not modified.
       </div>
     </div>
   );

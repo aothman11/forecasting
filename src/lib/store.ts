@@ -68,6 +68,7 @@ interface PlanState {
   setDemandCell: (productId: string, channel: ChannelKey, week: number, qty: number) => void;
   bulkAdjustDemandPlan: (opts: BulkAdjustOptions) => void;
   copyDemandWeekForwardAction: (channel: ChannelKey | "ALL", fromWeek: number, toWeek: number) => void;
+  clearDemandPlan: () => void;
   setSalesPlanProductMap: (map: Record<string, string>) => void;
   setSalesPlanChannelMap: (map: Record<string, ChannelKey>) => void;
   addFarm: (farm: Farm) => void;
@@ -80,6 +81,9 @@ interface PlanState {
   setPlacementEntries: (entries: PlacementEntry[]) => void;
   updateMonthlyPlanConfig: (patch: Partial<MonthlyPlanConfig>) => void;
   setDailyPlannedQtyOverride: (date: string, qty: number | null) => void;
+  harvestDeferrals: Record<number, number>;
+  setHarvestDeferral: (week: number, birds: number) => void;
+  clearHarvestDeferrals: () => void;
   setHorizonWeeks: (weeks: number) => void;
   setPlanStartDate: (date: string) => void;
   resetToDefaults: () => void;
@@ -127,6 +131,7 @@ export const usePlanStore = create<PlanState>()(
       reportOpen: false,
       homeOpen: true,
       scenarios: [],
+      harvestDeferrals: {},
 
       setParam: (patch) =>
         set((s) => {
@@ -184,6 +189,8 @@ export const usePlanStore = create<PlanState>()(
         set((s) => ({
           demandQty: copyDemandWeekForward(s.demandQty, s.demandProducts, channel, fromWeek, toWeek),
         })),
+
+      clearDemandPlan: () => set({ demandQty: {} }),
 
       setSalesPlanProductMap: (map) => set({ salesPlanProductMap: map }),
       setSalesPlanChannelMap: (map) => set({ salesPlanChannelMap: map }),
@@ -305,6 +312,16 @@ export const usePlanStore = create<PlanState>()(
           demandQty: {},
         })),
 
+      setHarvestDeferral: (week, birds) =>
+        set((s) => ({
+          harvestDeferrals:
+            birds > 0
+              ? { ...s.harvestDeferrals, [week]: birds }
+              : Object.fromEntries(Object.entries(s.harvestDeferrals).filter(([k]) => Number(k) !== week)),
+        })),
+
+      clearHarvestDeferrals: () => set({ harvestDeferrals: {} }),
+
       setSelectedStep: (step) => set({ selectedStep: step }),
       setSelectedPlant: (plant) => set({ selectedPlant: plant }),
       toggleAssumptions: () => set((s) => ({ assumptionsOpen: !s.assumptionsOpen })),
@@ -376,6 +393,7 @@ export const usePlanStore = create<PlanState>()(
         monthlyPlanConfig: s.monthlyPlanConfig,
         dailyPlannedQtyOverrides: s.dailyPlannedQtyOverrides,
         scenarios: s.scenarios,
+        harvestDeferrals: s.harvestDeferrals,
       }),
     }
   )

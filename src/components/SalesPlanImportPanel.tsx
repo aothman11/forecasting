@@ -3,11 +3,13 @@
 import { useMemo, useRef, useState } from "react";
 import { usePlanStore } from "@/lib/store";
 import { weekStartDate } from "@/lib/calculations";
+import { weekLabel } from "@/lib/demandPlan";
 import { exportSalesPlanTemplate } from "@/lib/export";
 import { CHANNEL_KEYS, CHANNEL_LABELS, PRODUCT_CATEGORY_LABELS } from "@/lib/defaults";
 import {
   aggregateSalesPlanByProductChannelWeek,
   autoMapProduct,
+  buildFileWeekLabels,
   createProductFromRow,
   distinctRowSignatures,
   distinctValues,
@@ -127,6 +129,8 @@ export function SalesPlanImportPanel({ onClose }: { onClose: () => void }) {
     });
     return byWeek;
   }, [totals]);
+
+  const fileWeekLabels = useMemo(() => (rows ? buildFileWeekLabels(rows) : new Map<number, string>()), [rows]);
 
   const matchedCount = Object.values(weekAssignment).filter((v) => v !== NONE).length;
 
@@ -266,31 +270,42 @@ export function SalesPlanImportPanel({ onClose }: { onClose: () => void }) {
                       + Create all as products
                     </button>
                   </div>
-                  <div className="space-y-1 max-h-52 overflow-y-auto pr-1">
+                  <div className="space-y-1.5 max-h-52 overflow-y-auto pr-1">
                     {unmappedSignatures.map((g) => (
-                      <div key={g.signature} className="flex items-center justify-between gap-2 text-xs">
-                        <span className="truncate text-neutral-600" title={g.signature}>
-                          {g.materialDescription || `${g.materialCategory} ${g.size} ${g.grading}`.trim()}{" "}
-                          <span className="text-neutral-400">({g.rowCount})</span>
-                        </span>
-                        <select
-                          value={productDraft[g.signature] ?? NONE}
-                          onChange={(e) => setProductDraft({ ...productDraft, [g.signature]: e.target.value })}
-                          className="border border-[var(--border-subtle)] rounded px-1.5 py-0.5 text-xs shrink-0 max-w-[180px]"
-                        >
-                          <option value={NONE}>Ignore</option>
-                          {(["wholeChicken", "cuts", "fpp", "eggs"] as const).map((cat) => (
-                            <optgroup key={cat} label={PRODUCT_CATEGORY_LABELS[cat]}>
-                              {demandProducts
-                                .filter((p) => p.category === cat)
-                                .map((p) => (
-                                  <option key={p.id} value={p.id}>
-                                    {p.name}
-                                  </option>
-                                ))}
-                            </optgroup>
-                          ))}
-                        </select>
+                      <div key={g.signature} className="rounded-md border border-[var(--border-subtle)] p-2 bg-neutral-50/50">
+                        <div className="flex items-start justify-between gap-2 mb-1.5">
+                          <div className="min-w-0">
+                            {g.materialCode && (
+                              <div className="text-[10px] font-mono text-neutral-400 leading-tight">{g.materialCode}</div>
+                            )}
+                            <div className="text-[11px] font-medium text-neutral-700 truncate" title={g.materialDescription}>
+                              {g.materialDescription || `${g.materialCategory} ${g.size} ${g.grading}`.trim()}
+                            </div>
+                            <div className="text-[10px] text-neutral-400 flex gap-2 mt-0.5">
+                              {g.weightOfCarton > 0 && <span>{g.weightOfCarton} kg/ctn</span>}
+                              {g.totalGsvCar > 0 && <span>{Math.round(g.totalGsvCar).toLocaleString()} CAR</span>}
+                              {g.totalGsvUom > 0 && <span>{Math.round(g.totalGsvUom).toLocaleString()} UoM</span>}
+                            </div>
+                          </div>
+                          <select
+                            value={productDraft[g.signature] ?? NONE}
+                            onChange={(e) => setProductDraft({ ...productDraft, [g.signature]: e.target.value })}
+                            className="border border-[var(--border-subtle)] rounded px-1.5 py-0.5 text-xs shrink-0 max-w-[180px]"
+                          >
+                            <option value={NONE}>Ignore</option>
+                            {(["wholeChicken", "cuts", "fpp", "eggs"] as const).map((cat) => (
+                              <optgroup key={cat} label={PRODUCT_CATEGORY_LABELS[cat]}>
+                                {demandProducts
+                                  .filter((p) => p.category === cat)
+                                  .map((p) => (
+                                    <option key={p.id} value={p.id}>
+                                      {p.name}
+                                    </option>
+                                  ))}
+                              </optgroup>
+                            ))}
+                          </select>
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -312,9 +327,12 @@ export function SalesPlanImportPanel({ onClose }: { onClose: () => void }) {
                         const product = productsById.get(productDraft[g.signature]);
                         return (
                           <div key={g.signature} className="flex items-center justify-between gap-2 text-[11px]">
-                            <span className="truncate text-neutral-500" title={g.signature}>
-                              {g.materialDescription || `${g.division} / ${g.materialCategory} / ${g.size} / ${g.grading}`.trim()}
-                            </span>
+                            <div className="min-w-0">
+                              {g.materialCode && <div className="text-[10px] font-mono text-neutral-400">{g.materialCode}</div>}
+                              <span className="truncate text-neutral-500" title={g.signature}>
+                                {g.materialDescription || `${g.division} / ${g.materialCategory} / ${g.size} / ${g.grading}`.trim()}
+                              </span>
+                            </div>
                             <span className="text-brand-green-dark shrink-0">→ {product?.name ?? "—"}</span>
                           </div>
                         );
@@ -374,7 +392,7 @@ export function SalesPlanImportPanel({ onClose }: { onClose: () => void }) {
                   <tr className="bg-[var(--brand-green-tint)] text-[10px] uppercase tracking-wide text-brand-green-dark sticky top-0">
                     <th className="text-left px-2 py-1.5">Plan Week</th>
                     <th className="text-left px-2 py-1.5">File Week</th>
-                    <th className="text-right px-2 py-1.5">Total Mapped (t)</th>
+                    <th className="text-right px-2 py-1.5">Total (t)</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -383,7 +401,7 @@ export function SalesPlanImportPanel({ onClose }: { onClose: () => void }) {
                     const total = assigned !== NONE ? totalsByFileWeek.get(Number(assigned)) : undefined;
                     return (
                       <tr key={w} className="border-t border-[var(--border-subtle)]">
-                        <td className="px-2 py-1">W{w}</td>
+                        <td className="px-2 py-1 text-[11px] whitespace-nowrap">{weekLabel(w, params.planStartDate)}</td>
                         <td className="px-2 py-1">
                           <select
                             value={assigned}
@@ -392,7 +410,9 @@ export function SalesPlanImportPanel({ onClose }: { onClose: () => void }) {
                           >
                             <option value={NONE}>—</option>
                             {weeksInFile.map((fw) => (
-                              <option key={fw} value={fw}>Wk {fw}</option>
+                              <option key={fw} value={fw}>
+                                {fileWeekLabels.get(fw) ?? `Wk ${fw}`}
+                              </option>
                             ))}
                           </select>
                         </td>

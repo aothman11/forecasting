@@ -141,9 +141,9 @@ export function LiveBirdForecast() {
   return (
     <div className="space-y-4">
       <div>
-        <h1 className="text-xl font-bold section-title">Step 2 — Live Bird Forecast &amp; Processing Funnel</h1>
+        <h1 className="text-xl font-bold section-title">Step 2 — Live Bird Forecast &amp; Harvest Yield</h1>
         <p className="text-sm text-neutral-500 mt-0.5">
-          Cascaded from the placement plan, then carried through catching, counting, and slaughter losses.
+          Cascaded from the placement plan, then carried through catching, slaughter losses, and carcass output.
         </p>
       </div>
 
@@ -168,9 +168,9 @@ export function LiveBirdForecast() {
       />
 
       <div>
-        <h2 className="text-base font-semibold section-title text-brand-green-dark">Processing Funnel</h2>
+        <h2 className="text-base font-semibold section-title text-brand-green-dark">Harvest & Slaughter Losses</h2>
         <p className="text-xs text-neutral-500 mt-0.5">
-          Where birds are lost between harvest and slaughter, over the full {rows.length}-week horizon.
+          Bird losses from catching to carcass — harvest mortality, DOA, culled, and plucking rejects — over the full {rows.length}-week horizon.
         </p>
       </div>
 

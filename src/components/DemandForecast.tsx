@@ -27,6 +27,7 @@ export function DemandForecast() {
   const removeDemandProduct = usePlanStore((s) => s.removeDemandProduct);
   const bulkAdjustDemandPlan = usePlanStore((s) => s.bulkAdjustDemandPlan);
   const copyDemandWeekForwardAction = usePlanStore((s) => s.copyDemandWeekForwardAction);
+  const clearDemandPlan = usePlanStore((s) => s.clearDemandPlan);
 
   const [viewMode, setViewMode] = useState<"weekly" | "monthly">("weekly");
   const [channel, setChannel] = useState<ChannelKey | "ALL">("ALL");
@@ -165,6 +166,17 @@ export function DemandForecast() {
           className="text-xs font-medium px-3 py-1.5 rounded-md bg-brand-green text-white hover:bg-brand-green-dark transition-colors"
         >
           Export Demand Plan
+        </button>
+        <div className="border-l border-[var(--border-subtle)] h-5 mx-1 self-center" />
+        <button
+          onClick={() => {
+            if (confirm("Clear all demand quantities? This will zero every product/channel/week cell. This cannot be undone.")) {
+              clearDemandPlan();
+            }
+          }}
+          className="text-xs font-medium px-3 py-1.5 rounded-md border border-red-300 text-red-600 hover:bg-red-50 transition-colors"
+        >
+          🗑 Delete Plan
         </button>
       </div>
 

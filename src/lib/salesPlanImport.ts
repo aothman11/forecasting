@@ -32,7 +32,7 @@ const NUMERIC_FIELDS: (keyof SalesPlanRow)[] = [
 ];
 
 const HEADER_MATCHERS: Partial<Record<keyof SalesPlanRow, string[]>> = {
-  yearMonth: ["year.month", "year month"],
+  yearMonth: ["year.month", "year month", "year/month", "year-month", "yearmonth", "yr.month", "yr month", "period", "year_month", "yyyymm", "month year", "month.year"],
   salesOffice: ["sales office"],
   channel: ["channels", "channel"],
   materialDivision: ["material division"],
@@ -126,7 +126,19 @@ export function parseSalesPlan(buffer: ArrayBuffer): SalesPlanRow[] {
   resolvedKey.weekOfYear = sourceKeys.find((k) => isWeekOfYearColumn(k));
 
   const weekOfMonthKey = sourceKeys.find((k) => isWeekOfMonthColumn(k));
-  const yearMonthKey = resolvedKey.yearMonth;
+  let yearMonthKey = resolvedKey.yearMonth;
+
+  // If header didn't match, scan first data row for a column whose value looks like "YYYY.M" / "YYYY-M" / "YYYY/M"
+  if (!yearMonthKey && weekOfMonthKey && rawRows.length > 0) {
+    const firstRow = rawRows[0];
+    for (const key of sourceKeys) {
+      const val = String(firstRow[key] ?? "").trim();
+      if (/^\d{4}[.\-\/]\d{1,2}$/.test(val)) {
+        yearMonthKey = key;
+        break;
+      }
+    }
+  }
 
   return rawRows
     .map((row): SalesPlanRow => {
@@ -316,9 +328,13 @@ export interface RowSignatureGroup {
   signature: string;
   division: string;
   materialCategory: string;
+  materialCode: string;
   materialDescription: string;
   size: string;
   grading: string;
+  weightOfCarton: number;
+  totalGsvCar: number;
+  totalGsvUom: number;
   rowCount: number;
 }
 
@@ -339,19 +355,49 @@ export function distinctRowSignatures(rows: SalesPlanRow[]): RowSignatureGroup[]
     const existing = map.get(signature);
     if (existing) {
       existing.rowCount++;
+      existing.totalGsvCar += r.grossSalesVolumeCar;
+      existing.totalGsvUom += r.grossSalesVolumeUom;
     } else {
       map.set(signature, {
         signature,
         division: r.division,
         materialCategory: r.materialCategory,
+        materialCode: r.materialCode,
         materialDescription: r.materialDescription,
         size: r.size,
         grading: r.grading,
+        weightOfCarton: r.weightOfCarton,
+        totalGsvCar: r.grossSalesVolumeCar,
+        totalGsvUom: r.grossSalesVolumeUom,
         rowCount: 1,
       });
     }
   });
   return Array.from(map.values()).sort((a, b) => b.rowCount - a.rowCount);
+}
+
+/** Build a human-readable label for each file week-of-year (e.g. "Aug W1") from parsed rows. */
+export function buildFileWeekLabels(rows: SalesPlanRow[]): Map<number, string> {
+  const labels = new Map<number, string>();
+  rows.forEach((r) => {
+    if (r.weekOfYear <= 0 || labels.has(r.weekOfYear)) return;
+    const ym = r.yearMonth.trim();
+    const parts = ym.split(/[.\-\/]/);
+    if (parts.length < 2) return;
+    const year = Number(parts[0]);
+    const month = Number(parts[1]);
+    if (!(year > 2000 && month >= 1 && month <= 12)) return;
+    // Count weekInMonth: how many rows with this yearMonth have a weekOfYear < r.weekOfYear
+    const weekInMonth = rows
+      .filter((x) => {
+        const xparts = x.yearMonth.split(/[.\-\/]/);
+        return xparts[0] === parts[0] && xparts[1] === parts[1] && x.weekOfYear > 0 && x.weekOfYear <= r.weekOfYear;
+      })
+      .reduce((set, x) => { set.add(x.weekOfYear); return set; }, new Set<number>()).size;
+    const mmm = new Date(year, month - 1, 1).toLocaleString("en-US", { month: "short" });
+    labels.set(r.weekOfYear, `${mmm} W${weekInMonth}`);
+  });
+  return labels;
 }
 
 export interface SalesPlanImportSummary {
