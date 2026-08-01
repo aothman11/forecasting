@@ -1,9 +1,18 @@
 "use client";
 
+import { format, addDays } from "date-fns";
 import { usePlanStore } from "@/lib/store";
 import { DEFAULT_PARAMETERS, MAX_HORIZON_WEEKS, MIN_HORIZON_WEEKS, SIZE_KEYS, SIZE_LABELS } from "@/lib/defaults";
 import { carcassSizeDistributionSum, carcassYieldPct, fullCycleDays } from "@/lib/calculations";
 import type { Parameters } from "@/lib/types";
+
+function horizonRange(planStartDate: string, horizonWeeks: number): string {
+  const start = new Date(planStartDate);
+  const end = addDays(start, horizonWeeks * 7 - 1);
+  const s = format(start, "MMM yyyy");
+  const e = format(end, "MMM yyyy");
+  return s === e ? s : `${s} – ${e}`;
+}
 
 function Field({
   label,
@@ -115,6 +124,9 @@ export function ParameterPanel() {
             setHorizonWeeks(Math.min(MAX_HORIZON_WEEKS, Math.max(MIN_HORIZON_WEEKS, Math.round(v) * 4)))
           }
         />
+        <div className="text-[11px] text-brand-green-dark font-medium pl-1 -mt-0.5">
+          {horizonRange(params.planStartDate, params.planningHorizonWeeks)}
+        </div>
         <label className="flex items-center justify-between gap-2 py-1 text-xs">
           <span className="text-neutral-600">Harvest start date</span>
           <input

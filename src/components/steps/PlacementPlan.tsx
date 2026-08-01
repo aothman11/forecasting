@@ -2,6 +2,14 @@
 
 import { useRef, useState } from "react";
 import { format, addDays } from "date-fns";
+
+function horizonRange(planStartDate: string, horizonWeeks: number): string {
+  const start = new Date(planStartDate);
+  const end = addDays(start, horizonWeeks * 7 - 1);
+  const s = format(start, "MMM yyyy");
+  const e = format(end, "MMM yyyy");
+  return s === e ? s : `${s} – ${e}`;
+}
 import { usePlanStore } from "@/lib/store";
 import { isFridayDate } from "@/lib/calculations";
 import { isExcelFile, parsePlacementCSV, parsePlacementExcel, type ParsedPlacementRow } from "@/lib/placementImport";
@@ -135,7 +143,7 @@ export function PlacementPlan() {
           value={totalHousesUsed.toLocaleString()}
           sublabel={`Quick Fill rate: ${params.houseCount}/day`}
         />
-        <SummaryCard label="Horizon" value={`${params.planningHorizonWeeks / 4} months`} sublabel={`${placementDays.length} days`} />
+        <SummaryCard label="Horizon" value={horizonRange(params.planStartDate, params.planningHorizonWeeks)} sublabel={`${params.planningHorizonWeeks / 4} months · ${placementDays.length} days`} />
 
         <div className="flex-1" />
 
@@ -148,7 +156,7 @@ export function PlacementPlan() {
           >
             {Array.from({ length: MAX_HORIZON_MONTHS - MIN_HORIZON_MONTHS + 1 }, (_, i) => MIN_HORIZON_MONTHS + i).map((m) => (
               <option key={m} value={m * 4}>
-                {m} {m === 1 ? "month" : "months"}
+                {horizonRange(params.planStartDate, m * 4)} ({m} {m === 1 ? "month" : "months"})
               </option>
             ))}
           </select>
@@ -205,6 +213,19 @@ export function PlacementPlan() {
         rowKey={(r) => r.dayIndex}
         rowClassName={(r) => (params.fridayOff && isFridayDate(r.date) ? "bg-neutral-50 text-neutral-400" : "")}
       />
+
+      <div className="flex justify-end pt-2 border-t border-[var(--border-subtle)]">
+        <button
+          onClick={() => {
+            if (confirm("Clear all placement quantities? This will set every day to 0 houses. This cannot be undone.")) {
+              setPlacementDays(placementDays.map((r) => ({ ...r, farmsPlacing: 0 })));
+            }
+          }}
+          className="text-xs font-medium px-3 py-1.5 rounded-md border border-red-300 text-red-600 hover:bg-red-50 transition-colors"
+        >
+          🗑 Delete Plan
+        </button>
+      </div>
     </div>
   );
 }

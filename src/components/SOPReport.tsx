@@ -6,6 +6,15 @@ import { categoryTotal, weekLabel } from "@/lib/demandPlan";
 import { computeSupplyRequirements } from "@/lib/supplyRequirements";
 import { exportSummaryToPDF } from "@/lib/export";
 import { useState } from "react";
+import { format, addDays } from "date-fns";
+
+function horizonRange(planStartDate: string, horizonWeeks: number): string {
+  const start = new Date(planStartDate);
+  const end = addDays(start, horizonWeeks * 7 - 1);
+  const s = format(start, "MMM yyyy");
+  const e = format(end, "MMM yyyy");
+  return s === e ? s : `${s} – ${e}`;
+}
 import type { SOPReportRow } from "@/lib/export";
 
 type RAG = "green" | "amber" | "red" | "na";
@@ -140,7 +149,7 @@ export function SOPReport() {
         <div>
           <h1 className="text-xl font-bold section-title">S&amp;OP Executive Report</h1>
           <p className="text-sm text-neutral-500 mt-0.5">
-            Weekly review — {params.planningHorizonWeeks / 4}-month horizon starting {params.planStartDate}
+            Weekly review — {horizonRange(params.planStartDate, params.planningHorizonWeeks)} ({params.planningHorizonWeeks / 4} months)
             <span className="ml-2 text-neutral-400 text-xs">Generated {generatedDate}</span>
           </p>
         </div>
@@ -237,7 +246,7 @@ export function SOPReport() {
           <div className="text-xl font-bold text-green-600">
             {sopRows.filter((r) => r.overallStatus === "green").length}
           </div>
-          <div className="text-[10px] text-neutral-400 mt-0.5">of {params.planningHorizonWeeks / 4} months</div>
+          <div className="text-[10px] text-neutral-400 mt-0.5">{horizonRange(params.planStartDate, params.planningHorizonWeeks)}</div>
         </div>
       </div>
 
