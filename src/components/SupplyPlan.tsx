@@ -143,13 +143,13 @@ export function SupplyPlan() {
                   >
                     <td className="sticky left-0 bg-inherit px-3 py-2 font-semibold text-brand-green-dark">{weekLabel(r.week, params.planStartDate)}</td>
                     <td className="px-3 py-2 text-right tabular-nums text-neutral-700">
-                      {r.wcDemandTons > 0 ? `${r.wcDemandTons.toFixed(1)} t` : <span className="text-neutral-300">—</span>}
+                      {r.wcDemandTons > 0 ? `${fmtK(r.wcDemandTons * 1000)} kg` : <span className="text-neutral-300">—</span>}
                     </td>
                     <td className="px-3 py-2 text-right tabular-nums text-neutral-700">
-                      {r.fppDemandTons > 0 ? `${r.fppDemandTons.toFixed(1)} t` : <span className="text-neutral-300">—</span>}
+                      {r.fppDemandTons > 0 ? `${fmtK(r.fppDemandTons * 1000)} kg` : <span className="text-neutral-300">—</span>}
                     </td>
                     <td className="px-3 py-2 text-right tabular-nums text-neutral-700">
-                      {r.cutsDemandTons > 0 ? `${r.cutsDemandTons.toFixed(1)} t` : <span className="text-neutral-300">—</span>}
+                      {r.cutsDemandTons > 0 ? `${fmtK(r.cutsDemandTons * 1000)} kg` : <span className="text-neutral-300">—</span>}
                     </td>
                     <td className="px-3 py-2 text-center">
                       {r.bindingCategory ? (

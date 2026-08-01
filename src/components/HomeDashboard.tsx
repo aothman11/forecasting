@@ -20,6 +20,12 @@ function kg(n: number) {
   return Math.round(n).toLocaleString();
 }
 
+function fmtKg(n: number) {
+  if (Math.abs(n) >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
+  if (Math.abs(n) >= 1_000) return `${Math.round(n / 1_000)}K`;
+  return Math.round(n).toString();
+}
+
 interface DashCardProps {
   icon: string;
   title: string;
@@ -472,25 +478,25 @@ export function HomeDashboard() {
                 </thead>
                 <tbody>
                   <tr className="border-t border-[var(--border-subtle)]">
-                    <td className="pr-2 py-1 text-neutral-600 whitespace-nowrap">Req. Carcass (t)</td>
+                    <td className="pr-2 py-1 text-neutral-600 whitespace-nowrap">Req. Carcass (kg)</td>
                     {monthlyRows.map((r) => (
                       <td key={r.monthLabel} className="px-1 py-1 text-right tabular-nums">
-                        {r.requiredCarcassKg > 0 ? (r.requiredCarcassKg / 1000).toFixed(0) : <span className="text-neutral-300">—</span>}
+                        {r.requiredCarcassKg > 0 ? fmtKg(r.requiredCarcassKg) : <span className="text-neutral-300">—</span>}
                       </td>
                     ))}
                     <td className="pl-2 py-1 text-right tabular-nums font-semibold text-neutral-700">
-                      {totalRequiredCarcass > 0 ? (totalRequiredCarcass / 1000).toFixed(0) : "—"}
+                      {totalRequiredCarcass > 0 ? fmtKg(totalRequiredCarcass) : "—"}
                     </td>
                   </tr>
                   <tr className="border-t border-[var(--border-subtle)]">
-                    <td className="pr-2 py-1 text-neutral-600 whitespace-nowrap">Planned (t)</td>
+                    <td className="pr-2 py-1 text-neutral-600 whitespace-nowrap">Planned (kg)</td>
                     {monthlyRows.map((r) => (
                       <td key={r.monthLabel} className={`px-1 py-1 text-right tabular-nums font-medium ${r.requiredCarcassKg > 0 && r.carcassKg < r.requiredCarcassKg ? "text-red-600" : "text-green-700"}`}>
-                        {(r.carcassKg / 1000).toFixed(0)}
+                        {fmtKg(r.carcassKg)}
                       </td>
                     ))}
                     <td className="pl-2 py-1 text-right tabular-nums font-semibold text-brand-green-dark">
-                      {(m.totalCarcassKg / 1000).toFixed(0)}
+                      {fmtKg(m.totalCarcassKg)}
                     </td>
                   </tr>
                 </tbody>
@@ -499,7 +505,7 @@ export function HomeDashboard() {
             </div>
           </DashCard>
 
-          <DashCard icon="⇌" title="M3 · Reconciliation" description="Monthly demand vs supply (tonnes)" onOpen={openReconcile}>
+          <DashCard icon="⇌" title="M3 · Reconciliation" description="Monthly demand vs supply (kg)" onOpen={openReconcile}>
             <div className="mt-2 overflow-x-auto">
               <table className="w-full text-[10px]">
                 <thead>
@@ -515,39 +521,39 @@ export function HomeDashboard() {
                 </thead>
                 <tbody>
                   <tr className="border-t border-[var(--border-subtle)]">
-                    <td className="pr-2 py-1 text-neutral-600 whitespace-nowrap">Demand (t)</td>
+                    <td className="pr-2 py-1 text-neutral-600 whitespace-nowrap">Demand (kg)</td>
                     {monthlyRows.map((r) => (
                       <td key={r.monthLabel} className="px-1 py-1 text-right tabular-nums">
-                        {r.demandTons > 0 ? r.demandTons.toFixed(0) : <span className="text-neutral-300">—</span>}
+                        {r.demandTons > 0 ? fmtKg(r.demandTons * 1000) : <span className="text-neutral-300">—</span>}
                       </td>
                     ))}
                     <td className="pl-2 py-1 text-right tabular-nums font-semibold text-neutral-700">
-                      {totalDemandTons > 0 ? totalDemandTons.toFixed(0) : "—"}
+                      {totalDemandTons > 0 ? fmtKg(totalDemandTons * 1000) : "—"}
                     </td>
                   </tr>
                   <tr className="border-t border-[var(--border-subtle)]">
-                    <td className="pr-2 py-1 text-neutral-600 whitespace-nowrap">Supply (t)</td>
+                    <td className="pr-2 py-1 text-neutral-600 whitespace-nowrap">Supply (kg)</td>
                     {monthlyRows.map((r) => (
-                      <td key={r.monthLabel} className={`px-1 py-1 text-right tabular-nums font-medium ${r.demandTons > 0 && r.productionKg / 1000 < r.demandTons * 0.98 ? "text-red-600" : r.demandTons > 0 ? "text-green-700" : "text-neutral-600"}`}>
-                        {(r.productionKg / 1000).toFixed(0)}
+                      <td key={r.monthLabel} className={`px-1 py-1 text-right tabular-nums font-medium ${r.demandTons > 0 && r.productionKg < r.demandTons * 1000 * 0.98 ? "text-red-600" : r.demandTons > 0 ? "text-green-700" : "text-neutral-600"}`}>
+                        {fmtKg(r.productionKg)}
                       </td>
                     ))}
                     <td className="pl-2 py-1 text-right tabular-nums font-semibold text-brand-green-dark">
-                      {totalSupplyTons.toFixed(0)}
+                      {fmtKg(totalSupplyTons * 1000)}
                     </td>
                   </tr>
                   <tr className="border-t border-[var(--border-subtle)]">
-                    <td className="pr-2 py-1 text-neutral-600 whitespace-nowrap">Gap (t)</td>
+                    <td className="pr-2 py-1 text-neutral-600 whitespace-nowrap">Gap (kg)</td>
                     {monthlyRows.map((r) => {
-                      const gap = r.productionKg / 1000 - r.demandTons;
+                      const gap = r.productionKg - r.demandTons * 1000;
                       return (
                         <td key={r.monthLabel} className={`px-1 py-1 text-right tabular-nums font-semibold ${r.demandTons === 0 ? "text-neutral-300" : gap < 0 ? "text-red-600" : "text-green-700"}`}>
-                          {r.demandTons > 0 ? (gap >= 0 ? "+" : "") + gap.toFixed(0) : <span className="text-neutral-200">—</span>}
+                          {r.demandTons > 0 ? (gap >= 0 ? "+" : "") + fmtKg(gap) : <span className="text-neutral-200">—</span>}
                         </td>
                       );
                     })}
-                    <td className={`pl-2 py-1 text-right tabular-nums font-semibold ${totalDemandTons === 0 ? "text-neutral-400" : totalSupplyTons - totalDemandTons < 0 ? "text-red-600" : "text-green-700"}`}>
-                      {totalDemandTons > 0 ? ((totalSupplyTons - totalDemandTons) >= 0 ? "+" : "") + (totalSupplyTons - totalDemandTons).toFixed(0) : "—"}
+                    <td className={`pl-2 py-1 text-right tabular-nums font-semibold ${totalDemandTons === 0 ? "text-neutral-400" : (totalSupplyTons - totalDemandTons) * 1000 < 0 ? "text-red-600" : "text-green-700"}`}>
+                      {totalDemandTons > 0 ? (((totalSupplyTons - totalDemandTons) * 1000) >= 0 ? "+" : "") + fmtKg((totalSupplyTons - totalDemandTons) * 1000) : "—"}
                     </td>
                   </tr>
                 </tbody>
