@@ -185,7 +185,17 @@ export function HomeDashboard() {
       (s, cat) => s + toCar(cat, categoryTotal(demandProducts, demandQty, cat, "ALL", mw)),
       0
     );
-    return { monthLabel, chicksPlaced, harvestableBirds, carcassKg, productionKg, demandCar };
+    const requiredCarcassKg = supplyRows
+      .filter((r) => mw.includes(r.week))
+      .reduce((s, r) => s + r.requiredCarcassKg, 0);
+    const requiredChicksPlaced = supplyRows
+      .filter((r) => r.placementWeek > 0 && mw.includes(r.placementWeek))
+      .reduce((s, r) => s + r.requiredChicksPlaced, 0);
+    const demandTons = (["wholeChicken", "cuts", "fpp"] as const).reduce(
+      (s, cat) => s + categoryTotal(demandProducts, demandQty, cat, "ALL", mw),
+      0
+    );
+    return { monthLabel, chicksPlaced, harvestableBirds, carcassKg, productionKg, demandCar, requiredCarcassKg, requiredChicksPlaced, demandTons };
   });
 
   const runningChicks = result.placement.reduce((s, r) => s + r.totalChicksPlaced, 0);
@@ -209,6 +219,30 @@ export function HomeDashboard() {
     const avg = weeks.length > 0 ? weeks.reduce((s, w) => s + (w.plantCapacity > 0 ? w.dailyBirds / w.plantCapacity : 0), 0) / weeks.length : 0;
     return { plant: p, pct: avg * 100 };
   });
+
+  const monthlyTopCuts = cutTotals.map(({ key, total }) => ({
+    key,
+    label: CUT_LABELS[key],
+    total,
+    byMonth: monthGroups.map(({ monthLabel, weeks: mw }) => ({
+      monthLabel,
+      kgVal: mw.reduce((s, w) => {
+        const row = result.cuts.find((r) => r.week === w);
+        return s + (row?.cuts[key] ?? 0);
+      }, 0),
+    })),
+  }));
+
+  const monthlyPlantUtil = plantKeys.map((p) => ({
+    plant: p,
+    byMonth: monthGroups.map(({ monthLabel, weeks: mw }) => {
+      const wks = result.plants.filter((w) => w.plant === p && mw.includes(w.week));
+      const pct = wks.length > 0
+        ? (wks.reduce((s, w) => s + (w.plantCapacity > 0 ? w.dailyBirds / w.plantCapacity : 0), 0) / wks.length) * 100
+        : 0;
+      return { monthLabel, pct };
+    }),
+  }));
 
   return (
     <>
@@ -388,16 +422,33 @@ export function HomeDashboard() {
                     );
                   })}
                 </div>
-                <div className="border-t border-[var(--border-subtle)] pt-2 space-y-1">
-                  {channelDemand.filter((c) => c.car > 0).slice(0, 3).map((c, i) => (
-                    <div key={c.ch} className="flex items-center justify-between text-[11px]">
-                      <span className="text-neutral-500">
-                        <span className="font-semibold text-brand-gold mr-1">#{i + 1}</span>
-                        {CHANNEL_LABELS[c.ch]}
-                      </span>
-                      <span className="font-semibold tabular-nums">{c.car.toLocaleString()} CAR</span>
-                    </div>
-                  ))}
+                <div className="border-t border-[var(--border-subtle)] pt-2 overflow-x-auto">
+                  <table className="w-full text-[10px]">
+                    <thead>
+                      <tr>
+                        <th className="text-left pr-2 py-0.5 font-semibold text-neutral-400 whitespace-nowrap"></th>
+                        {monthlyRows.map((r) => (
+                          <th key={r.monthLabel} className="text-right px-1 py-0.5 font-semibold text-neutral-400 whitespace-nowrap">
+                            {r.monthLabel.split(" ")[0]}
+                          </th>
+                        ))}
+                        <th className="text-right pl-2 py-0.5 font-semibold text-neutral-400">Total</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr>
+                        <td className="pr-2 py-0.5 text-neutral-500 whitespace-nowrap">CAR</td>
+                        {monthlyRows.map((r) => (
+                          <td key={r.monthLabel} className="px-1 py-0.5 text-right tabular-nums">
+                            {r.demandCar > 0 ? r.demandCar.toLocaleString() : <span className="text-neutral-200">—</span>}
+                          </td>
+                        ))}
+                        <td className="pl-2 py-0.5 text-right tabular-nums font-semibold text-brand-green-dark">
+                          {demandTotalCar.toLocaleString()}
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
                 </div>
               </>
             ) : (
@@ -405,63 +456,148 @@ export function HomeDashboard() {
             )}
           </DashCard>
 
-          <DashCard icon="🔗" title="M2 · Supply Requirements" description="Reverse BOM: demand → carcass → chicks" onOpen={openSupply}>
-            <div className="mt-2 space-y-2">
-              <div className="flex items-center justify-between text-xs">
-                <span className="text-neutral-600">Required carcass</span>
-                <span className="font-semibold tabular-nums">{totalRequiredCarcass > 0 ? `${Math.round(totalRequiredCarcass / 1000).toLocaleString()} t` : <span className="text-neutral-300">—</span>}</span>
-              </div>
-              <div className="flex items-center justify-between text-xs">
-                <span className="text-neutral-600">Planned supply</span>
-                <span className="font-semibold tabular-nums">{`${Math.round(m.totalCarcassKg / 1000).toLocaleString()} t`}</span>
-              </div>
-              <div className="flex items-center justify-between text-xs">
-                <span className="text-neutral-600">Deficit weeks</span>
-                <span className={`font-semibold tabular-nums ${supplyDeficitWeeks > 0 ? "text-red-600" : "text-green-700"}`}>
-                  {supplyDeficitWeeks > 0 ? `${supplyDeficitWeeks} wk` : "None"}
-                </span>
-              </div>
-              {totalRequiredCarcass === 0 && <div className="text-[11px] text-neutral-400">Enter demand first.</div>}
+          <DashCard icon="🔗" title="M2 · Supply Requirements" description="Required vs planned carcass by month" onOpen={openSupply}>
+            <div className="mt-2 overflow-x-auto">
+              <table className="w-full text-[10px]">
+                <thead>
+                  <tr>
+                    <th className="text-left pr-2 py-0.5 font-semibold text-neutral-400 whitespace-nowrap"></th>
+                    {monthlyRows.map((r) => (
+                      <th key={r.monthLabel} className="text-right px-1 py-0.5 font-semibold text-neutral-400 whitespace-nowrap">
+                        {r.monthLabel.split(" ")[0]}
+                      </th>
+                    ))}
+                    <th className="text-right pl-2 py-0.5 font-semibold text-neutral-400">Total</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr className="border-t border-[var(--border-subtle)]">
+                    <td className="pr-2 py-1 text-neutral-600 whitespace-nowrap">Req. Carcass (t)</td>
+                    {monthlyRows.map((r) => (
+                      <td key={r.monthLabel} className="px-1 py-1 text-right tabular-nums">
+                        {r.requiredCarcassKg > 0 ? (r.requiredCarcassKg / 1000).toFixed(0) : <span className="text-neutral-300">—</span>}
+                      </td>
+                    ))}
+                    <td className="pl-2 py-1 text-right tabular-nums font-semibold text-neutral-700">
+                      {totalRequiredCarcass > 0 ? (totalRequiredCarcass / 1000).toFixed(0) : "—"}
+                    </td>
+                  </tr>
+                  <tr className="border-t border-[var(--border-subtle)]">
+                    <td className="pr-2 py-1 text-neutral-600 whitespace-nowrap">Planned (t)</td>
+                    {monthlyRows.map((r) => (
+                      <td key={r.monthLabel} className={`px-1 py-1 text-right tabular-nums font-medium ${r.requiredCarcassKg > 0 && r.carcassKg < r.requiredCarcassKg ? "text-red-600" : "text-green-700"}`}>
+                        {(r.carcassKg / 1000).toFixed(0)}
+                      </td>
+                    ))}
+                    <td className="pl-2 py-1 text-right tabular-nums font-semibold text-brand-green-dark">
+                      {(m.totalCarcassKg / 1000).toFixed(0)}
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+              {totalRequiredCarcass === 0 && <div className="text-[11px] text-neutral-400 mt-1">Enter demand first.</div>}
             </div>
           </DashCard>
 
-          <DashCard icon="⇌" title="M3 · Reconciliation" description="Demand vs supply gap by category" onOpen={openReconcile}>
-            <div className="mt-2 space-y-2">
-              <div className="flex items-center justify-between text-xs">
-                <span className="text-neutral-600">Total demand</span>
-                <span className="font-semibold tabular-nums">{totalDemandTons > 0 ? `${totalDemandTons.toFixed(0)} t` : <span className="text-neutral-300">—</span>}</span>
-              </div>
-              <div className="flex items-center justify-between text-xs">
-                <span className="text-neutral-600">Total supply</span>
-                <span className="font-semibold tabular-nums">{`${totalSupplyTons.toFixed(0)} t`}</span>
-              </div>
-              <div className="flex items-center justify-between text-xs">
-                <span className="text-neutral-600">Deficit weeks</span>
-                <span className={`font-semibold tabular-nums ${reconcileDeficitWeeks > 0 ? "text-red-600" : "text-green-700"}`}>
-                  {reconcileDeficitWeeks > 0 ? `${reconcileDeficitWeeks} wk` : "None"}
-                </span>
-              </div>
-              {totalDemandTons === 0 && <div className="text-[11px] text-neutral-400">Enter demand first.</div>}
+          <DashCard icon="⇌" title="M3 · Reconciliation" description="Monthly demand vs supply (tonnes)" onOpen={openReconcile}>
+            <div className="mt-2 overflow-x-auto">
+              <table className="w-full text-[10px]">
+                <thead>
+                  <tr>
+                    <th className="text-left pr-2 py-0.5 font-semibold text-neutral-400 whitespace-nowrap"></th>
+                    {monthlyRows.map((r) => (
+                      <th key={r.monthLabel} className="text-right px-1 py-0.5 font-semibold text-neutral-400 whitespace-nowrap">
+                        {r.monthLabel.split(" ")[0]}
+                      </th>
+                    ))}
+                    <th className="text-right pl-2 py-0.5 font-semibold text-neutral-400">Total</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr className="border-t border-[var(--border-subtle)]">
+                    <td className="pr-2 py-1 text-neutral-600 whitespace-nowrap">Demand (t)</td>
+                    {monthlyRows.map((r) => (
+                      <td key={r.monthLabel} className="px-1 py-1 text-right tabular-nums">
+                        {r.demandTons > 0 ? r.demandTons.toFixed(0) : <span className="text-neutral-300">—</span>}
+                      </td>
+                    ))}
+                    <td className="pl-2 py-1 text-right tabular-nums font-semibold text-neutral-700">
+                      {totalDemandTons > 0 ? totalDemandTons.toFixed(0) : "—"}
+                    </td>
+                  </tr>
+                  <tr className="border-t border-[var(--border-subtle)]">
+                    <td className="pr-2 py-1 text-neutral-600 whitespace-nowrap">Supply (t)</td>
+                    {monthlyRows.map((r) => (
+                      <td key={r.monthLabel} className={`px-1 py-1 text-right tabular-nums font-medium ${r.demandTons > 0 && r.productionKg / 1000 < r.demandTons * 0.98 ? "text-red-600" : r.demandTons > 0 ? "text-green-700" : "text-neutral-600"}`}>
+                        {(r.productionKg / 1000).toFixed(0)}
+                      </td>
+                    ))}
+                    <td className="pl-2 py-1 text-right tabular-nums font-semibold text-brand-green-dark">
+                      {totalSupplyTons.toFixed(0)}
+                    </td>
+                  </tr>
+                  <tr className="border-t border-[var(--border-subtle)]">
+                    <td className="pr-2 py-1 text-neutral-600 whitespace-nowrap">Gap (t)</td>
+                    {monthlyRows.map((r) => {
+                      const gap = r.productionKg / 1000 - r.demandTons;
+                      return (
+                        <td key={r.monthLabel} className={`px-1 py-1 text-right tabular-nums font-semibold ${r.demandTons === 0 ? "text-neutral-300" : gap < 0 ? "text-red-600" : "text-green-700"}`}>
+                          {r.demandTons > 0 ? (gap >= 0 ? "+" : "") + gap.toFixed(0) : <span className="text-neutral-200">—</span>}
+                        </td>
+                      );
+                    })}
+                    <td className={`pl-2 py-1 text-right tabular-nums font-semibold ${totalDemandTons === 0 ? "text-neutral-400" : totalSupplyTons - totalDemandTons < 0 ? "text-red-600" : "text-green-700"}`}>
+                      {totalDemandTons > 0 ? ((totalSupplyTons - totalDemandTons) >= 0 ? "+" : "") + (totalSupplyTons - totalDemandTons).toFixed(0) : "—"}
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+              {totalDemandTons === 0 && <div className="text-[11px] text-neutral-400 mt-1">Enter demand first.</div>}
             </div>
           </DashCard>
 
-          <DashCard icon="🎯" title="M4 · Demand-Driven Placement" description="Write demand requirements into placement calendar" onOpen={openDdp}>
-            <div className="mt-2 space-y-2">
-              <div className="flex items-center justify-between text-xs">
-                <span className="text-neutral-600">Required chicks</span>
-                <span className="font-semibold tabular-nums">
-                  {supplyRows.reduce((s, r) => s + r.requiredChicksPlaced, 0) > 0
-                    ? Math.round(supplyRows.reduce((s, r) => s + r.requiredChicksPlaced, 0)).toLocaleString()
-                    : <span className="text-neutral-300">—</span>}
-                </span>
-              </div>
-              <div className="flex items-center justify-between text-xs">
-                <span className="text-neutral-600">Actionable weeks</span>
-                <span className="font-semibold tabular-nums">
-                  {supplyRows.filter((r) => r.placementWeek > 0 && r.requiredChicksPlaced > 0).length}
-                </span>
-              </div>
-              {totalRequiredCarcass === 0 && <div className="text-[11px] text-neutral-400">Enter demand first.</div>}
+          <DashCard icon="🎯" title="M4 · Demand-Driven Placement" description="Required vs planned chicks by month" onOpen={openDdp}>
+            <div className="mt-2 overflow-x-auto">
+              <table className="w-full text-[10px]">
+                <thead>
+                  <tr>
+                    <th className="text-left pr-2 py-0.5 font-semibold text-neutral-400 whitespace-nowrap"></th>
+                    {monthlyRows.map((r) => (
+                      <th key={r.monthLabel} className="text-right px-1 py-0.5 font-semibold text-neutral-400 whitespace-nowrap">
+                        {r.monthLabel.split(" ")[0]}
+                      </th>
+                    ))}
+                    <th className="text-right pl-2 py-0.5 font-semibold text-neutral-400">Total</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr className="border-t border-[var(--border-subtle)]">
+                    <td className="pr-2 py-1 text-neutral-600 whitespace-nowrap">Req. Chicks</td>
+                    {monthlyRows.map((r) => (
+                      <td key={r.monthLabel} className="px-1 py-1 text-right tabular-nums">
+                        {r.requiredChicksPlaced > 0 ? (r.requiredChicksPlaced / 1_000_000).toFixed(2) + "M" : <span className="text-neutral-300">—</span>}
+                      </td>
+                    ))}
+                    <td className="pl-2 py-1 text-right tabular-nums font-semibold text-neutral-700">
+                      {supplyRows.reduce((s, r) => s + r.requiredChicksPlaced, 0) > 0
+                        ? (supplyRows.reduce((s, r) => s + r.requiredChicksPlaced, 0) / 1_000_000).toFixed(2) + "M"
+                        : "—"}
+                    </td>
+                  </tr>
+                  <tr className="border-t border-[var(--border-subtle)]">
+                    <td className="pr-2 py-1 text-neutral-600 whitespace-nowrap">Placed</td>
+                    {monthlyRows.map((r) => (
+                      <td key={r.monthLabel} className={`px-1 py-1 text-right tabular-nums font-medium ${r.requiredChicksPlaced > 0 && r.chicksPlaced < r.requiredChicksPlaced * 0.98 ? "text-red-600" : "text-green-700"}`}>
+                        {r.chicksPlaced > 0 ? (r.chicksPlaced / 1_000_000).toFixed(2) + "M" : <span className="text-neutral-300">—</span>}
+                      </td>
+                    ))}
+                    <td className="pl-2 py-1 text-right tabular-nums font-semibold text-brand-green-dark">
+                      {(runningChicks / 1_000_000).toFixed(2)}M
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+              {totalRequiredCarcass === 0 && <div className="text-[11px] text-neutral-400 mt-1">Enter demand first.</div>}
             </div>
           </DashCard>
 
@@ -611,25 +747,72 @@ export function HomeDashboard() {
             <FamilyDonut data={result.family} />
           </DashCard>
 
-          <DashCard icon="🍗" title="5 · FPP Cut Plan" description="Top cuts by volume" onOpen={() => openStep(5)}>
-            <div className="mt-2 space-y-2">
-              {cutTotals.map((c, i) => (
-                <div key={c.key} className="flex items-center justify-between text-xs">
-                  <span className="text-neutral-600">
-                    <span className="text-brand-gold font-semibold mr-1">#{i + 1}</span>
-                    {CUT_LABELS[c.key]}
-                  </span>
-                  <span className="font-semibold tabular-nums">{kg(c.total)} kg</span>
-                </div>
-              ))}
+          <DashCard icon="🍗" title="5 · FPP Cut Plan" description="Top cuts by month (t)" onOpen={() => openStep(5)}>
+            <div className="mt-2 overflow-x-auto">
+              <table className="w-full text-[10px]">
+                <thead>
+                  <tr>
+                    <th className="text-left pr-2 py-0.5 font-semibold text-neutral-400 whitespace-nowrap">Cut</th>
+                    {monthGroups.map(({ monthLabel }) => (
+                      <th key={monthLabel} className="text-right px-1 py-0.5 font-semibold text-neutral-400 whitespace-nowrap">
+                        {monthLabel.split(" ")[0]}
+                      </th>
+                    ))}
+                    <th className="text-right pl-2 py-0.5 font-semibold text-neutral-400">Total</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {monthlyTopCuts.map((cut, i) => (
+                    <tr key={cut.key} className="border-t border-[var(--border-subtle)]">
+                      <td className="pr-2 py-1 text-neutral-600 whitespace-nowrap">
+                        <span className="text-brand-gold font-semibold mr-1">#{i + 1}</span>
+                        {cut.label}
+                      </td>
+                      {cut.byMonth.map(({ monthLabel, kgVal }) => (
+                        <td key={monthLabel} className="px-1 py-1 text-right tabular-nums text-neutral-700">
+                          {kgVal > 0 ? (kgVal / 1000).toFixed(0) : <span className="text-neutral-300">—</span>}
+                        </td>
+                      ))}
+                      <td className="pl-2 py-1 text-right tabular-nums font-semibold text-brand-green-dark">
+                        {(cut.total / 1000).toFixed(0)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           </DashCard>
 
-          <DashCard icon="🏭" title="6 · Processing Plan by Plant" description="Avg utilization by plant" onOpen={() => openStep(6)}>
-            <div className="mt-2">
-              {plantUtilization.map((p) => (
-                <UtilizationBar key={p.plant} label={PLANT_LABELS[p.plant]} pct={p.pct} />
-              ))}
+          <DashCard icon="🏭" title="6 · Processing Plan by Plant" description="Monthly utilization % by plant" onOpen={() => openStep(6)}>
+            <div className="mt-2 overflow-x-auto">
+              <table className="w-full text-[10px]">
+                <thead>
+                  <tr>
+                    <th className="text-left pr-2 py-0.5 font-semibold text-neutral-400 whitespace-nowrap">Plant</th>
+                    {monthGroups.map(({ monthLabel }) => (
+                      <th key={monthLabel} className="text-right px-1 py-0.5 font-semibold text-neutral-400 whitespace-nowrap">
+                        {monthLabel.split(" ")[0]}
+                      </th>
+                    ))}
+                    <th className="text-right pl-2 py-0.5 font-semibold text-neutral-400">Avg</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {monthlyPlantUtil.map((p) => (
+                    <tr key={p.plant} className="border-t border-[var(--border-subtle)]">
+                      <td className="pr-2 py-1 text-neutral-600 whitespace-nowrap">{PLANT_LABELS[p.plant]}</td>
+                      {p.byMonth.map(({ monthLabel, pct }) => (
+                        <td key={monthLabel} className={`px-1 py-1 text-right tabular-nums font-medium ${pct > 100 ? "text-red-600" : pct > 80 ? "text-amber-600" : pct > 0 ? "text-neutral-700" : "text-neutral-300"}`}>
+                          {pct > 0 ? `${pct.toFixed(0)}%` : "—"}
+                        </td>
+                      ))}
+                      <td className="pl-2 py-1 text-right tabular-nums font-semibold text-neutral-700">
+                        {plantUtilization.find((u) => u.plant === p.plant)!.pct.toFixed(0)}%
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           </DashCard>
         </div>
