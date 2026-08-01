@@ -91,12 +91,28 @@ export function SalesPlanImportPanel({ onClose }: { onClose: () => void }) {
       });
       setChannelDraft(chDraft);
 
-      // Auto-suggest week alignment
+      // Auto-suggest week alignment — match by human label ("Aug W1") to avoid
+      // numeric mismatch between the plan's ceil-based weekOfYear and the file's.
       const fileWeeks = distinctWeeksOfYear(parsed);
+      const fwLabelsMap = buildFileWeekLabels(parsed);
+      // Reverse map: "Aug W1" → weekOfYear
+      const labelToFw = new Map<string, number>();
+      fwLabelsMap.forEach((label, fw) => labelToFw.set(label, fw));
+
       const initialAssignment: Record<number, string> = {};
       horizonWeeks.forEach((w) => {
-        const suggested = salesWeekNumber(weekStartDate(params.planStartDate, w));
-        initialAssignment[w] = fileWeeks.includes(suggested) ? String(suggested) : NONE;
+        // weekLabel gives "2026.Aug.W1"; extract "Aug W1"
+        const full = weekLabel(w, params.planStartDate);
+        const parts = full.split(".");                    // ["2026", "Aug", "W1"]
+        const shortLabel = `${parts[1]} ${parts[2]}`;    // "Aug W1"
+        const fw = labelToFw.get(shortLabel);
+        if (fw !== undefined) {
+          initialAssignment[w] = String(fw);
+        } else {
+          // Numeric fallback for weeks not present in the file
+          const suggested = salesWeekNumber(weekStartDate(params.planStartDate, w));
+          initialAssignment[w] = fileWeeks.includes(suggested) ? String(suggested) : NONE;
+        }
       });
       setWeekAssignment(initialAssignment);
     };
