@@ -9,7 +9,7 @@ import { exportPlacementTemplate } from "@/lib/export";
 import { DataTable, type DataTableColumn } from "../shared/DataTable";
 import { SummaryCard } from "../shared/SummaryCard";
 import type { PlacementDayRow } from "@/lib/types";
-import { MAX_HORIZON_WEEKS, MIN_HORIZON_WEEKS } from "@/lib/defaults";
+import { MAX_HORIZON_MONTHS, MAX_HORIZON_WEEKS, MIN_HORIZON_MONTHS, MIN_HORIZON_WEEKS } from "@/lib/defaults";
 
 export function PlacementPlan() {
   const placementDays = usePlanStore((s) => s.placementDays);
@@ -135,7 +135,7 @@ export function PlacementPlan() {
           value={totalHousesUsed.toLocaleString()}
           sublabel={`Quick Fill rate: ${params.houseCount}/day`}
         />
-        <SummaryCard label="Horizon" value={`${placementDays.length} days`} sublabel={`${params.planningHorizonWeeks} weeks`} />
+        <SummaryCard label="Horizon" value={`${params.planningHorizonWeeks / 4} months`} sublabel={`${placementDays.length} days`} />
 
         <div className="flex-1" />
 
@@ -146,12 +146,9 @@ export function PlacementPlan() {
             onChange={(e) => setHorizonWeeks(Number(e.target.value))}
             className="border border-[var(--border-subtle)] rounded px-1.5 py-1 text-xs"
           >
-            {Array.from(
-              { length: MAX_HORIZON_WEEKS - MIN_HORIZON_WEEKS + 1 },
-              (_, i) => MIN_HORIZON_WEEKS + i
-            ).map((w) => (
-              <option key={w} value={w}>
-                {w} weeks
+            {Array.from({ length: MAX_HORIZON_MONTHS - MIN_HORIZON_MONTHS + 1 }, (_, i) => MIN_HORIZON_MONTHS + i).map((m) => (
+              <option key={m} value={m * 4}>
+                {m} {m === 1 ? "month" : "months"}
               </option>
             ))}
           </select>

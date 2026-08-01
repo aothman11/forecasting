@@ -109,10 +109,10 @@ export function ParameterPanel() {
 
       <Section title="Planning Horizon" defaultOpen>
         <Field
-          label="Horizon (weeks)"
-          value={params.planningHorizonWeeks}
+          label="Horizon (months)"
+          value={params.planningHorizonWeeks / 4}
           onChange={(v) =>
-            setHorizonWeeks(Math.min(MAX_HORIZON_WEEKS, Math.max(MIN_HORIZON_WEEKS, Math.round(v))))
+            setHorizonWeeks(Math.min(MAX_HORIZON_WEEKS, Math.max(MIN_HORIZON_WEEKS, Math.round(v) * 4)))
           }
         />
         <label className="flex items-center justify-between gap-2 py-1 text-xs">

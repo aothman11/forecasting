@@ -128,8 +128,10 @@ export const SIZE_LABELS: Record<SizeKey, string> = {
   size1500: "1500g",
 };
 
-export const MIN_HORIZON_WEEKS = 16;
-export const MAX_HORIZON_WEEKS = 26;
+export const MIN_HORIZON_MONTHS = 1;
+export const MAX_HORIZON_MONTHS = 12;
+export const MIN_HORIZON_WEEKS = MIN_HORIZON_MONTHS * 4;
+export const MAX_HORIZON_WEEKS = MAX_HORIZON_MONTHS * 4;
 
 // ---------- Demand Plan (Module 1) ----------
 

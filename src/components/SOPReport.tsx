@@ -140,7 +140,7 @@ export function SOPReport() {
         <div>
           <h1 className="text-xl font-bold section-title">S&amp;OP Executive Report</h1>
           <p className="text-sm text-neutral-500 mt-0.5">
-            Weekly review — {params.planningHorizonWeeks}-week horizon starting {params.planStartDate}
+            Weekly review — {params.planningHorizonWeeks / 4}-month horizon starting {params.planStartDate}
             <span className="ml-2 text-neutral-400 text-xs">Generated {generatedDate}</span>
           </p>
         </div>
@@ -237,7 +237,7 @@ export function SOPReport() {
           <div className="text-xl font-bold text-green-600">
             {sopRows.filter((r) => r.overallStatus === "green").length}
           </div>
-          <div className="text-[10px] text-neutral-400 mt-0.5">of {params.planningHorizonWeeks} weeks</div>
+          <div className="text-[10px] text-neutral-400 mt-0.5">of {params.planningHorizonWeeks / 4} months</div>
         </div>
       </div>
 
