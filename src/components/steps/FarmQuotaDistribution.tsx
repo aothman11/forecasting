@@ -408,6 +408,7 @@ function generateSuggestions(
     .sort((a, b) => a.sequencePosition - b.sequencePosition);
 
   const suggestions: Omit<PlacementEntry, "id">[] = [];
+  const placedByFarm = new Map<string, number>();
   let queueIdx = 0;
 
   for (const day of calendarDays) {
@@ -415,18 +416,25 @@ function generateSuggestions(
     if (remaining <= 0) continue;
 
     while (remaining > 0 && queueIdx < queue.length) {
-      const farm = queue[queueIdx++];
-      const qty = Math.min(farm.placementPlanCapacity, remaining);
-      suggestions.push({
-        farmCode: farm.code,
-        date: day.date,
-        birdType: "Cobb",
-        qtyPlaced: qty,
-      });
-      remaining -= qty;
+      const farm = queue[queueIdx];
+      const placedSoFar = placedByFarm.get(farm.code) ?? 0;
+      const farmRemaining = farm.placementPlanCapacity - placedSoFar;
+      const qty = Math.min(farmRemaining, remaining);
+      if (qty > 0) {
+        suggestions.push({
+          farmCode: farm.code,
+          date: day.date,
+          birdType: "Cobb",
+          qtyPlaced: qty,
+        });
+        placedByFarm.set(farm.code, placedSoFar + qty);
+        remaining -= qty;
+      }
+      // Only advance to the next farm once this one's ceiling is fully used;
+      // a partially-filled farm carries its remainder into the next day.
+      if (placedSoFar + qty >= farm.placementPlanCapacity) queueIdx++;
+      else break;
     }
-
-    if (queueIdx >= queue.length) break;
   }
 
   return suggestions;
@@ -441,6 +449,7 @@ function PlacementLogTab({ farms }: { farms: Farm[] }) {
   const addEntry = usePlanStore((s) => s.addPlacementEntry);
   const updateEntry = usePlanStore((s) => s.updatePlacementEntry);
   const removeEntry = usePlanStore((s) => s.removePlacementEntry);
+  const setEntries = usePlanStore((s) => s.setPlacementEntries);
   const updateConfig = usePlanStore((s) => s.updateMonthlyPlanConfig);
   const setOverride = usePlanStore((s) => s.setDailyPlannedQtyOverride);
 
@@ -583,6 +592,19 @@ function PlacementLogTab({ farms }: { farms: Farm[] }) {
                   title="Auto-distribute remaining planned qty across next available farms in sequence order. Bird type defaults to Cobb — change per entry."
                 >
                   {suggesting ? "Suggesting…" : `⚡ Suggest farms (${fmt(totalGap)} gap)`}
+                </button>
+              )}
+              {monthEntries.length > 0 && (
+                <button
+                  onClick={() => {
+                    if (confirm(`Delete all ${monthEntries.length} placement entries for ${monthPrefix}? This cannot be undone.`)) {
+                      setEntries(entries.filter((e) => !e.date.startsWith(monthPrefix)));
+                    }
+                  }}
+                  className="px-3 py-1.5 text-xs font-semibold rounded border border-red-300 text-red-600 hover:bg-red-50 transition-colors"
+                  title="Remove every placement entry in the current planning month"
+                >
+                  🗑 Delete All
                 </button>
               )}
             </div>
@@ -1108,6 +1130,13 @@ export function FarmQuotaDistribution() {
 
   return (
     <div className="space-y-4">
+      <div>
+        <h1 className="text-xl font-bold section-title">Step 7 — Farm Quota Distribution</h1>
+        <p className="text-sm text-neutral-500 mt-0.5">
+          Farm master list with capacity, status, and skip flags per placement cycle. Upload from SAP or edit inline.
+        </p>
+      </div>
+
       <div className="flex gap-1 border-b border-[var(--border-subtle)]">
         {TABS.map((t) => (
           <button
