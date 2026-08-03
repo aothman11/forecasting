@@ -11,9 +11,10 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
+import { useState } from "react";
 import { usePlanStore } from "@/lib/store";
 import { usePipeline } from "@/lib/usePipeline";
-import { categoryTotal, weekLabel } from "@/lib/demandPlan";
+import { alignDemandToSupply, categoryTotal, computeFrozenStock, weekLabel } from "@/lib/demandPlan";
 import { SummaryCard } from "./shared/SummaryCard";
 
 interface ReconciliationWeek {
@@ -109,6 +110,8 @@ export function ReconciliationDashboard() {
   const { result, params } = usePipeline();
   const demandProducts = usePlanStore((s) => s.demandProducts);
   const demandQty = usePlanStore((s) => s.demandQty);
+  const setDemandQty = usePlanStore((s) => s.setDemandQty);
+  const [alignMessage, setAlignMessage] = useState<string | null>(null);
 
   const weeks = Array.from({ length: params.planningHorizonWeeks }, (_, i) => i + 1);
 
@@ -125,8 +128,8 @@ export function ReconciliationDashboard() {
     const totalDemandTons = wcDemandTons + fppDemandTons + cutsDemandTons;
 
     const wcSupplyTons = fam ? (fam.wcFreshKg + fam.wcFrozenKg) / 1000 : 0;
-    const fppSupplyTons = fam ? fam.fppKg / 1000 : 0;
-    const cutsSupplyTons = cuts ? cuts.totalKg / 1000 : 0;
+    const fppSupplyTons = cuts ? cuts.fppInputKg / 1000 : 0;
+    const cutsSupplyTons = cuts ? cuts.netCutsKg / 1000 : 0;
     const totalSupplyTons = wcSupplyTons + fppSupplyTons + cutsSupplyTons;
 
     const wcGapTons = wcSupplyTons - wcDemandTons;
@@ -182,6 +185,33 @@ export function ReconciliationDashboard() {
   const deficitWeeks = rows.filter((r) => r.status === "deficit" && r.totalDemandTons > 0).length;
   const hasDemand = totalDemand > 0;
 
+  // Frozen stock rollforward + avg fresh/frozen split
+  const frozenStock = computeFrozenStock(result.family, demandProducts, demandQty, weeks, params.openingFrozenStockKg);
+  const totalFreshKg = result.family.reduce((s, r) => s + r.wcFreshKg, 0);
+  const totalFrozenKg = result.family.reduce((s, r) => s + r.wcFrozenKg, 0);
+  const totalWcKg = totalFreshKg + totalFrozenKg;
+  const freshPct = totalWcKg > 0 ? (totalFreshKg / totalWcKg) * 100 : 0;
+  const endingFrozenStock = frozenStock.length > 0 ? frozenStock[frozenStock.length - 1].closingKg : params.openingFrozenStockKg;
+  const negativeStockWeeks = frozenStock.filter((r) => r.closingKg < 0).length;
+
+  // Supply-first S&OP: adjust the sales plan down to what production delivers.
+  const handleAlignToProduction = () => {
+    const supplyMap: Record<string, number> = {};
+    for (const r of rows) {
+      supplyMap[`wholeChicken::${r.week}`] = r.wcSupplyTons;
+      supplyMap[`cuts::${r.week}`] = r.cutsSupplyTons;
+      supplyMap[`fpp::${r.week}`] = r.fppSupplyTons;
+    }
+    const { next, adjustedCells, adjustedWeeks } = alignDemandToSupply(demandProducts, demandQty, weeks, supplyMap);
+    if (adjustedCells === 0) {
+      setAlignMessage("Sales plan already fits production — nothing to adjust.");
+      return;
+    }
+    if (!confirm(`Scale down ${adjustedCells} sales-plan cells across ${adjustedWeeks} deficit week(s) to match production? Channel shares are kept pro-rata.`)) return;
+    setDemandQty(next);
+    setAlignMessage(`Adjusted ${adjustedCells} cells in ${adjustedWeeks} week(s) — sales plan now matches production availability.`);
+  };
+
   // Chart data
   const chartData = rows.map((r) => ({
     week: weekLabel(r.week, params.planStartDate),
@@ -193,12 +223,30 @@ export function ReconciliationDashboard() {
 
   return (
     <div className="space-y-4">
-      <div>
-        <h1 className="text-xl font-bold section-title">Reconciliation</h1>
-        <p className="text-sm text-neutral-500 mt-0.5">
-          Demand vs supply side-by-side — where the plan meets the market.
-        </p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-xl font-bold section-title">Reconciliation</h1>
+          <p className="text-sm text-neutral-500 mt-0.5">
+            Demand vs supply side-by-side. Production is the anchor — the sales plan can be adjusted down to
+            what the plants actually deliver.
+          </p>
+        </div>
+        {hasDemand && (
+          <button
+            onClick={handleAlignToProduction}
+            className="text-xs font-semibold px-3 py-2 rounded-md bg-brand-green text-white hover:bg-brand-green-dark transition-colors"
+            title="Scale the sales plan down pro-rata (per category × week) wherever demand exceeds production"
+          >
+            ⚖️ Align Sales Plan to Production
+          </button>
+        )}
       </div>
+
+      {alignMessage && (
+        <div className="text-xs text-brand-green-dark bg-brand-green-tint rounded-md px-3 py-1.5">
+          ✓ {alignMessage}
+        </div>
+      )}
 
       {!hasDemand && (
         <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
@@ -227,8 +275,79 @@ export function ReconciliationDashboard() {
       {/* Per-category summary */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
         <CategoryCard label="Whole Chicken" icon="🐔" demandTons={totalWcDemand} supplyTons={totalWcSupply} />
-        <CategoryCard label="FPP" icon="🍗" demandTons={totalFppDemand} supplyTons={totalFppSupply} />
-        <CategoryCard label="Cuts" icon="🔪" demandTons={totalCutsDemand} supplyTons={totalCutsSupply} />
+        <CategoryCard label="FPP (from cuts)" icon="🍗" demandTons={totalFppDemand} supplyTons={totalFppSupply} />
+        <CategoryCard label="Cuts (net of FPP)" icon="🔪" demandTons={totalCutsDemand} supplyTons={totalCutsSupply} />
+      </div>
+
+      {/* Frozen stock + fresh/frozen mix */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <SummaryCard
+          label="Opening Frozen Stock"
+          value={`${fmtK(params.openingFrozenStockKg)} kg`}
+          sublabel="set in Assumptions → Frozen Stock"
+          icon="🧊"
+        />
+        <SummaryCard
+          label="Ending Frozen Stock"
+          value={`${endingFrozenStock >= 0 ? "" : "−"}${fmtK(Math.abs(endingFrozenStock))} kg`}
+          accent={endingFrozenStock < 0 ? "alert" : "green"}
+          icon="📦"
+        />
+        <SummaryCard
+          label="Stock-out Weeks"
+          value={String(negativeStockWeeks)}
+          sublabel="weeks with negative frozen balance"
+          accent={negativeStockWeeks > 0 ? "alert" : "neutral"}
+          icon="⚠️"
+        />
+        <SummaryCard
+          label="Avg Fresh / Frozen"
+          value={`${freshPct.toFixed(1)}% / ${(100 - freshPct).toFixed(1)}%`}
+          sublabel="share of WC production"
+          icon="❄️"
+        />
+      </div>
+
+      {/* Frozen stock rollforward table */}
+      <div className="rounded-xl border border-[var(--border-subtle)] bg-white shadow-sm overflow-hidden">
+        <div className="px-4 pt-3 pb-1 text-xs font-semibold text-neutral-600 uppercase tracking-wide">
+          Frozen Stock Balance (WC Frozen, kg)
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-xs border-collapse">
+            <thead>
+              <tr className="bg-brand-green-tint text-brand-green-dark text-[11px] uppercase tracking-wide">
+                <th className="px-3 py-2 text-left font-semibold">Wk</th>
+                <th className="px-3 py-2 text-right font-semibold">Opening</th>
+                <th className="px-3 py-2 text-right font-semibold">+ Production (Frozen)</th>
+                <th className="px-3 py-2 text-right font-semibold">− Frozen Demand</th>
+                <th className="px-3 py-2 text-right font-semibold">Closing</th>
+              </tr>
+            </thead>
+            <tbody>
+              {frozenStock.map((r, i) => (
+                <tr
+                  key={r.week}
+                  className={`border-t border-[var(--border-subtle)] ${
+                    r.closingKg < 0 ? "bg-red-50" : i % 2 === 0 ? "bg-white" : "bg-neutral-50/50"
+                  }`}
+                >
+                  <td className="px-3 py-1.5 font-semibold text-brand-green-dark whitespace-nowrap">
+                    {weekLabel(r.week, params.planStartDate)}
+                  </td>
+                  <td className="px-3 py-1.5 text-right tabular-nums text-neutral-600">{fmtK(r.openingKg)}</td>
+                  <td className="px-3 py-1.5 text-right tabular-nums text-green-700">+{fmtK(r.producedFrozenKg)}</td>
+                  <td className="px-3 py-1.5 text-right tabular-nums text-neutral-600">
+                    {r.frozenDemandKg > 0 ? `−${fmtK(r.frozenDemandKg)}` : <span className="text-neutral-300">—</span>}
+                  </td>
+                  <td className={`px-3 py-1.5 text-right tabular-nums font-semibold ${r.closingKg < 0 ? "text-red-600" : "text-neutral-800"}`}>
+                    {r.closingKg < 0 ? `−${fmtK(Math.abs(r.closingKg))}` : fmtK(r.closingKg)}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
 
       {/* Chart */}

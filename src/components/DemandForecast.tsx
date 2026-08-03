@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { usePlanStore } from "@/lib/store";
-import { categoryTotal, getDemandCell, groupWeeksByMonth, slugifyProductName } from "@/lib/demandPlan";
+import { categoryTotal, channelRevenue, getDemandCell, groupWeeksByMonth, slugifyProductName } from "@/lib/demandPlan";
 import { CHANNEL_KEYS, CHANNEL_LABELS, EGG_TRAYS_PER_CARTON, PRODUCT_CATEGORY_LABELS } from "@/lib/defaults";
 import { exportDemandPlanToExcel } from "@/lib/export";
 import { DemandPlanMatrix } from "./DemandPlanMatrix";
@@ -30,6 +30,7 @@ export function DemandForecast() {
   const demandQty = usePlanStore((s) => s.demandQty);
   const setDemandCell = usePlanStore((s) => s.setDemandCell);
   const addDemandProduct = usePlanStore((s) => s.addDemandProduct);
+  const updateDemandProduct = usePlanStore((s) => s.updateDemandProduct);
   const removeDemandProduct = usePlanStore((s) => s.removeDemandProduct);
   const bulkAdjustDemandPlan = usePlanStore((s) => s.bulkAdjustDemandPlan);
   const copyDemandWeekForwardAction = usePlanStore((s) => s.copyDemandWeekForwardAction);
@@ -48,6 +49,8 @@ export function DemandForecast() {
   const [newWeight, setNewWeight] = useState(900);
   const [newFreshFrozen, setNewFreshFrozen] = useState<"fresh" | "frozen">("fresh");
   const [newYieldPct, setNewYieldPct] = useState(10);
+  const [newPrice, setNewPrice] = useState(0);
+  const [pricesOpen, setPricesOpen] = useState(false);
 
   const [adjustCategory, setAdjustCategory] = useState<ProductCategory | "all">("all");
   const [adjustWeekStart, setAdjustWeekStart] = useState(1);
@@ -70,10 +73,20 @@ export function DemandForecast() {
     return { cat, qty, display: `${toCar(cat, qty).toLocaleString()} CAR` };
   });
   const totalCar = categoryTotals.reduce((s, { cat, qty }) => s + toCar(cat, qty), 0);
+  const totalRevenue = channelRevenue(demandProducts, demandQty, channel, weeks);
+  const revenueByChannel = CHANNEL_KEYS.map((ch) => ({
+    ch,
+    revenue: channelRevenue(demandProducts, demandQty, ch, weeks),
+  }));
+  const anyPrices = demandProducts.some((p) => (p.pricePerUnit ?? 0) > 0);
+
+  const fmtSar = (n: number) =>
+    Math.abs(n) >= 1_000_000 ? `${(n / 1_000_000).toFixed(2)}M` : Math.round(n).toLocaleString();
 
   const handleAddProduct = () => {
     if (!newName.trim()) return;
     const id = `${newCategory}-${slugifyProductName(newName)}-${Date.now().toString(36)}`;
+    const pricePerUnit = newPrice > 0 ? newPrice : undefined;
     if (newCategory === "wholeChicken") {
       addDemandProduct({
         id,
@@ -83,13 +96,14 @@ export function DemandForecast() {
         weightBucketG: newWeight,
         freshFrozen: newFreshFrozen,
         unit: "ton",
+        pricePerUnit,
       });
     } else if (newCategory === "fpp") {
-      addDemandProduct({ id, category: "fpp", name: newName.trim(), yieldPct: newYieldPct / 100, unit: "ton" });
+      addDemandProduct({ id, category: "fpp", name: newName.trim(), yieldPct: newYieldPct / 100, unit: "ton", pricePerUnit });
     } else if (newCategory === "eggs") {
-      addDemandProduct({ id, category: "eggs", name: newName.trim(), unit: "tray" });
+      addDemandProduct({ id, category: "eggs", name: newName.trim(), unit: "tray", pricePerUnit });
     } else {
-      addDemandProduct({ id, category: "cuts", name: newName.trim(), unit: "ton" });
+      addDemandProduct({ id, category: "cuts", name: newName.trim(), unit: "ton", pricePerUnit });
     }
     setNewName("");
     setAddOpen(false);
@@ -121,7 +135,20 @@ export function DemandForecast() {
       </div>
 
       {/* KPI cards */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-6 gap-3">
+        {/* Revenue — gold accent */}
+        <div className="rounded-xl border border-[var(--border-subtle)] border-l-4 border-l-amber-400 bg-white shadow-sm p-4 flex flex-col gap-1.5">
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] font-semibold uppercase tracking-wider text-neutral-500">Revenue</span>
+            <span className="text-lg leading-none">💰</span>
+          </div>
+          <div className="text-2xl font-bold text-amber-700 tabular-nums leading-tight">
+            {anyPrices ? fmtSar(totalRevenue) : "—"}
+          </div>
+          <div className="text-[11px] text-neutral-400 font-medium">
+            {anyPrices ? `SAR · ${channel === "ALL" ? "all channels" : CHANNEL_LABELS[channel]}` : "set prices to see value"}
+          </div>
+        </div>
         {/* Total demand — green accent */}
         <div className="rounded-xl border border-[var(--border-subtle)] border-l-4 border-l-brand-green bg-white shadow-sm p-4 flex flex-col gap-1.5">
           <div className="flex items-center justify-between">
@@ -188,6 +215,12 @@ export function DemandForecast() {
           className={`text-xs font-medium px-3 py-1.5 rounded-md border transition-colors ${addOpen ? "border-brand-green text-brand-green-dark bg-brand-green-tint" : "border-[var(--border-subtle)] hover:border-brand-green hover:text-brand-green"}`}
         >
           Add Product
+        </button>
+        <button
+          onClick={() => setPricesOpen((v) => !v)}
+          className={`text-xs font-medium px-3 py-1.5 rounded-md border transition-colors ${pricesOpen ? "border-brand-green text-brand-green-dark bg-brand-green-tint" : "border-[var(--border-subtle)] hover:border-brand-green hover:text-brand-green"}`}
+        >
+          💰 Prices
         </button>
         <button
           onClick={() => setCopyOpen((v) => !v)}
@@ -296,10 +329,75 @@ export function DemandForecast() {
                 />
               </label>
             )}
+            <label className="flex flex-col text-xs text-neutral-600">
+              Price (SAR/{newCategory === "eggs" ? "tray" : "ton"})
+              <input
+                type="number"
+                min={0}
+                step={100}
+                value={newPrice}
+                onChange={(e) => setNewPrice(Number(e.target.value))}
+                className="border border-[var(--border-subtle)] rounded px-2 py-1 text-xs w-24"
+              />
+            </label>
             <button onClick={handleAddProduct} className="text-xs font-medium px-3 py-1.5 rounded-md bg-brand-green text-white hover:bg-brand-green-dark transition-colors">
               Add
             </button>
           </div>
+        </div>
+      )}
+
+      {pricesOpen && (
+        <div className="border border-[var(--border-subtle)] rounded-xl p-4 bg-white shadow-sm space-y-3">
+          <div className="flex items-center justify-between">
+            <div className="text-sm font-semibold text-brand-green-dark">Product Prices (SAR per ton · eggs per tray)</div>
+            <span className="text-[11px] text-neutral-400">Used to compute revenue by channel</span>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-1 max-h-72 overflow-y-auto pr-1">
+            {(["wholeChicken", "cuts", "fpp", "eggs"] as const).map((cat) => (
+              <div key={cat}>
+                <div className="text-[11px] font-semibold text-neutral-500 uppercase tracking-wide mt-2 mb-1">
+                  {PRODUCT_CATEGORY_LABELS[cat]}
+                </div>
+                {demandProducts
+                  .filter((p) => p.category === cat)
+                  .map((p) => (
+                    <div key={p.id} className="flex items-center justify-between gap-2 text-xs py-0.5">
+                      <span className="truncate text-neutral-600">{p.name}</span>
+                      <input
+                        type="number"
+                        min={0}
+                        step={100}
+                        value={p.pricePerUnit ?? 0}
+                        onChange={(e) => updateDemandProduct(p.id, { pricePerUnit: Number(e.target.value) || undefined })}
+                        className="w-24 text-right border border-[var(--border-subtle)] rounded px-1.5 py-0.5 tabular-nums shrink-0"
+                      />
+                    </div>
+                  ))}
+              </div>
+            ))}
+          </div>
+          {anyPrices && (
+            <div className="border-t border-[var(--border-subtle)] pt-2">
+              <div className="text-[11px] font-semibold text-neutral-500 uppercase tracking-wide mb-1.5">
+                Revenue by Channel (full horizon)
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {revenueByChannel
+                  .filter((r) => r.revenue > 0)
+                  .sort((a, b) => b.revenue - a.revenue)
+                  .map(({ ch, revenue }) => (
+                    <span key={ch} className="inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-md bg-amber-50 border border-amber-200 text-amber-800">
+                      {CHANNEL_LABELS[ch]}
+                      <strong className="tabular-nums">{fmtSar(revenue)} SAR</strong>
+                    </span>
+                  ))}
+                <span className="inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-md bg-brand-green-tint border border-brand-green/30 text-brand-green-dark font-semibold">
+                  Total <strong className="tabular-nums">{fmtSar(revenueByChannel.reduce((s, r) => s + r.revenue, 0))} SAR</strong>
+                </span>
+              </div>
+            </div>
+          )}
         </div>
       )}
 

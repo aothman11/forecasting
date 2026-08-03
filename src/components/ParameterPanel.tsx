@@ -88,13 +88,17 @@ export function ParameterPanel() {
 
   if (!assumptionsOpen) return null;
 
-  const patchFamily = (grade: "A" | "B" | "C", key: "wcFresh" | "wcFrozen" | "fpp", v: number) => {
+  const patchFamily = (grade: "A" | "B" | "C", key: "wcFresh" | "wcFrozen" | "cuts", v: number) => {
     setParam({
       familyAllocation: {
         ...params.familyAllocation,
         [grade]: { ...params.familyAllocation[grade], [key]: v },
       },
     });
+  };
+
+  const patchFppFromCuts = (key: keyof Parameters["fppFromCuts"], v: number) => {
+    setParam({ fppFromCuts: { ...params.fppFromCuts, [key]: v } });
   };
 
   const patchCut = (key: keyof Parameters["cutYields"], v: number) => {
@@ -289,12 +293,12 @@ export function ParameterPanel() {
             <div className="text-[11px] font-semibold text-neutral-500 mt-1">Grade {grade}</div>
             <PercentField label="WC Fresh" value={params.familyAllocation[grade].wcFresh} onChange={(v) => patchFamily(grade, "wcFresh", v)} />
             <PercentField label="WC Frozen" value={params.familyAllocation[grade].wcFrozen} onChange={(v) => patchFamily(grade, "wcFrozen", v)} />
-            <PercentField label="FPP" value={params.familyAllocation[grade].fpp} onChange={(v) => patchFamily(grade, "fpp", v)} />
+            <PercentField label="Cuts" value={params.familyAllocation[grade].cuts} onChange={(v) => patchFamily(grade, "cuts", v)} />
           </div>
         ))}
       </Section>
 
-      <Section title="FPP Cut Yields">
+      <Section title="Cut Yields">
         <label className="flex items-center justify-between gap-2 py-1 text-xs">
           <span className="text-neutral-600">Leg split mode</span>
           <input
@@ -317,6 +321,36 @@ export function ParameterPanel() {
         <PercentField label="Back & Neck" value={params.cutYields.backNeck} onChange={(v) => patchCut("backNeck", v)} />
         <PercentField label="Giblets" value={params.cutYields.giblets} onChange={(v) => patchCut("giblets", v)} />
         <PercentField label="Trim / Mince" value={params.cutYields.trimMince} onChange={(v) => patchCut("trimMince", v)} />
+      </Section>
+
+      <Section title="Cuts → FPP Routing">
+        <div className="text-[10px] text-neutral-400 mb-1">
+          Share of each cut&apos;s output routed into FPP production. The rest is sold as cuts.
+        </div>
+        <PercentField label="Breast (bone-in)" value={params.fppFromCuts.breastBoneIn} onChange={(v) => patchFppFromCuts("breastBoneIn", v)} />
+        <PercentField label="Breast (boneless)" value={params.fppFromCuts.breastBoneless} onChange={(v) => patchFppFromCuts("breastBoneless", v)} />
+        {params.legSplitMode ? (
+          <>
+            <PercentField label="Drumstick" value={params.fppFromCuts.drumstick} onChange={(v) => patchFppFromCuts("drumstick", v)} />
+            <PercentField label="Thigh (bone-in)" value={params.fppFromCuts.thighBoneIn} onChange={(v) => patchFppFromCuts("thighBoneIn", v)} />
+          </>
+        ) : (
+          <PercentField label="Whole Leg" value={params.fppFromCuts.wholeLeg} onChange={(v) => patchFppFromCuts("wholeLeg", v)} />
+        )}
+        <PercentField label="Wings" value={params.fppFromCuts.wings} onChange={(v) => patchFppFromCuts("wings", v)} />
+        <PercentField label="Back & Neck" value={params.fppFromCuts.backNeck} onChange={(v) => patchFppFromCuts("backNeck", v)} />
+        <PercentField label="Giblets" value={params.fppFromCuts.giblets} onChange={(v) => patchFppFromCuts("giblets", v)} />
+        <PercentField label="Trim / Mince" value={params.fppFromCuts.trimMince} onChange={(v) => patchFppFromCuts("trimMince", v)} />
+      </Section>
+
+      <Section title="Frozen Stock">
+        <Field
+          label="Opening balance (frozen)"
+          value={params.openingFrozenStockKg}
+          step={1000}
+          suffix="kg"
+          onChange={(v) => setParam({ openingFrozenStockKg: v })}
+        />
       </Section>
 
       <div className="p-4">

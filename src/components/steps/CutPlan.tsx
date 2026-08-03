@@ -36,6 +36,8 @@ export function CutPlan() {
 
   const yieldSum = cutYieldSum(params);
   const outOfTolerance = Math.abs(yieldSum - 1) > 0.02;
+  const totalFppInput = rows.reduce((s, r) => s + r.fppInputKg, 0);
+  const totalNetCuts = rows.reduce((s, r) => s + r.netCutsKg, 0);
 
   const columns: DataTableColumn<CutPlanWeek>[] = [
     { key: "week", header: "Week", render: (r) => weekLabel(r.week, params.planStartDate) },
@@ -60,19 +62,36 @@ export function CutPlan() {
       render: (r) => kg(r.totalKg),
       footer: kg(grandTotal),
     },
+    {
+      key: "fppInput",
+      header: "→ FPP (kg)",
+      align: "right",
+      render: (r) => <span className="text-violet-700">{kg(r.fppInputKg)}</span>,
+      footer: kg(totalFppInput),
+    },
+    {
+      key: "netCuts",
+      header: "Net Cuts (kg)",
+      align: "right",
+      render: (r) => <span className="font-medium">{kg(r.netCutsKg)}</span>,
+      footer: kg(totalNetCuts),
+    },
   ];
 
   return (
     <div className="space-y-4">
       <div>
-        <h1 className="text-xl font-bold section-title">Step 5 — FPP Cut Plan</h1>
+        <h1 className="text-xl font-bold section-title">Step 5 — Cut Plan (Cuts → FPP)</h1>
         <p className="text-sm text-neutral-500 mt-0.5">
-          FPP tonnage from Step 4 broken into individual cuts. Top 3 cuts by volume are highlighted per week.
+          Cuts tonnage from Step 4 broken into individual cuts; a configurable share of each cut is then routed
+          into FPP production (set in Assumptions → Cuts → FPP Routing). Top 3 cuts highlighted per week.
         </p>
       </div>
 
       <div className="flex flex-wrap items-end gap-3">
-        {keys.slice(0, 4).map((k) => (
+        <SummaryCard label="FPP from Cuts" value={`${kg(totalFppInput)} kg`} accent="gold" icon="⚙️" />
+        <SummaryCard label="Net Saleable Cuts" value={`${kg(totalNetCuts)} kg`} accent="green" icon="🔪" />
+        {keys.slice(0, 3).map((k) => (
           <SummaryCard key={k} label={CUT_LABELS[k]} value={`${kg(totalsByKey[k])} kg`} />
         ))}
 
@@ -91,7 +110,7 @@ export function CutPlan() {
       <div className="border border-[var(--border-subtle)] rounded-lg p-3 overflow-x-auto">
         <div className="flex items-center justify-between mb-2">
           <div className="text-xs font-semibold text-brand-green-dark uppercase tracking-wide">
-            Cut Yields (% of FPP carcass weight)
+            Cut Yields (% of cuts-allocated carcass weight)
           </div>
           <span className={`text-xs font-semibold ${outOfTolerance ? "text-brand-alert" : "text-neutral-400"}`}>
             Σ {pct(yieldSum)}% {outOfTolerance ? "(outside ±2% tolerance)" : ""}

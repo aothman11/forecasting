@@ -127,7 +127,7 @@ export function exportPipelineToExcel(
     Week: r.week,
     "WC Fresh (kg)": round(r.wcFreshKg, 0),
     "WC Frozen (kg)": round(r.wcFrozenKg, 0),
-    "FPP (kg)": round(r.fppKg, 0),
+    "Cuts (kg)": round(r.cutsKg, 0),
     "Total (kg)": round(r.totalKg, 0),
   }));
   XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(familySheet), "Product Family");
@@ -139,9 +139,11 @@ export function exportPipelineToExcel(
       row[CUT_LABELS[k]] = round(r.cuts[k], 0);
     });
     row["Total (kg)"] = round(r.totalKg, 0);
+    row["FPP from Cuts (kg)"] = round(r.fppInputKg, 0);
+    row["Net Cuts (kg)"] = round(r.netCutsKg, 0);
     return row;
   });
-  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(cutSheet), "FPP Cut Plan");
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(cutSheet), "Cut Plan");
 
   const plantSheet = result.plants.map((r) => ({
     Week: r.week,
@@ -151,7 +153,7 @@ export function exportPipelineToExcel(
     "Carcass (kg)": round(r.carcassKg, 0),
     "WC Fresh (kg)": round(r.wcFreshKg, 0),
     "WC Frozen (kg)": round(r.wcFrozenKg, 0),
-    "FPP (kg)": round(r.fppKg, 0),
+    "Cuts (kg)": round(r.cutsKg, 0),
     "Daily Birds": round(r.dailyBirds, 0),
     "Capacity Breach": r.capacityBreach ? "YES" : "",
   }));

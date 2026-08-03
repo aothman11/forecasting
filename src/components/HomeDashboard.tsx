@@ -5,7 +5,7 @@ import { usePipeline } from "@/lib/usePipeline";
 import { usePlanStore } from "@/lib/store";
 import { activeCutKeys, computeSummaryMetrics } from "@/lib/calculations";
 import { CHANNEL_KEYS, CHANNEL_LABELS, CUT_LABELS, EGG_TRAYS_PER_CARTON, PLANT_LABELS, PRODUCT_CATEGORY_LABELS } from "@/lib/defaults";
-import { categoryTotal, groupWeeksByMonth } from "@/lib/demandPlan";
+import { categoryTotal, channelRevenue, groupWeeksByMonth } from "@/lib/demandPlan";
 import { computeSupplyRequirements } from "@/lib/supplyRequirements";
 import { SummaryCard } from "./shared/SummaryCard";
 import { CapacityChart } from "./charts/CapacityChart";
@@ -123,12 +123,15 @@ export function HomeDashboard() {
     ),
   })).sort((a, b) => b.car - a.car);
   const channelMax = channelDemand[0]?.car || 1;
+  const anyPrices = demandProducts.some((p) => (p.pricePerUnit ?? 0) > 0);
+  const fmtSar = (n: number) =>
+    Math.abs(n) >= 1_000_000 ? `${(n / 1_000_000).toFixed(2)}M` : Math.round(n).toLocaleString();
 
   const totalWcDemandTons = categoryTotal(demandProducts, demandQty, "wholeChicken", "ALL", horizonWeeks);
   const totalFppDemandTons = categoryTotal(demandProducts, demandQty, "fpp", "ALL", horizonWeeks);
   const totalCutsDemandTons = categoryTotal(demandProducts, demandQty, "cuts", "ALL", horizonWeeks);
   const totalDemandTons = totalWcDemandTons + totalFppDemandTons + totalCutsDemandTons;
-  const totalSupplyTons = (m.totalWcFreshKg + m.totalWcFrozenKg + m.totalFppKg) / 1000;
+  const totalSupplyTons = m.totalProductionKg / 1000;
   const reconcileDeficitWeekList = horizonWeeks.filter((w) => {
     const fam = result.family.find((r) => r.week === w);
     const cuts = result.cuts.find((r) => r.week === w);
@@ -136,8 +139,8 @@ export function HomeDashboard() {
     const fpp = categoryTotal(demandProducts, demandQty, "fpp", "ALL", [w]);
     const cutsD = categoryTotal(demandProducts, demandQty, "cuts", "ALL", [w]);
     const wcS = fam ? (fam.wcFreshKg + fam.wcFrozenKg) / 1000 : 0;
-    const fppS = fam ? fam.fppKg / 1000 : 0;
-    const cutsS = cuts ? cuts.totalKg / 1000 : 0;
+    const fppS = cuts ? cuts.fppInputKg / 1000 : 0;
+    const cutsS = cuts ? cuts.netCutsKg / 1000 : 0;
     return (wc > 0 && wcS - wc < -wc * 0.02) || (fpp > 0 && fppS - fpp < -fpp * 0.02) || (cutsD > 0 && cutsS - cutsD < -cutsD * 0.02);
   });
   const reconcileDeficitWeeks = reconcileDeficitWeekList.length;
@@ -154,8 +157,8 @@ export function HomeDashboard() {
     const fpp = categoryTotal(demandProducts, demandQty, "fpp", "ALL", [w]);
     const cutsD = categoryTotal(demandProducts, demandQty, "cuts", "ALL", [w]);
     const wcS = fam ? (fam.wcFreshKg + fam.wcFrozenKg) / 1000 : 0;
-    const fppS = fam ? fam.fppKg / 1000 : 0;
-    const cutsS = cuts ? cuts.totalKg / 1000 : 0;
+    const fppS = cuts ? cuts.fppInputKg / 1000 : 0;
+    const cutsS = cuts ? cuts.netCutsKg / 1000 : 0;
     return (wc > 0 && wcS - wc < wc * 0.10) || (fpp > 0 && fppS - fpp < fpp * 0.10) || (cutsD > 0 && cutsS - cutsD < cutsD * 0.10);
   }).length;
   const sopCoverageP = totalDemandTons > 0 ? Math.min((totalSupplyTons / totalDemandTons) * 100, 999) : 0;
@@ -185,7 +188,7 @@ export function HomeDashboard() {
     }, 0);
     const productionKg = mw.reduce((s, w) => {
       const r = result.family.find((p) => p.week === w);
-      return s + (r ? r.wcFreshKg + r.wcFrozenKg + r.fppKg : 0);
+      return s + (r ? r.wcFreshKg + r.wcFrozenKg + r.cutsKg : 0);
     }, 0);
     const demandCar = (["wholeChicken", "cuts", "fpp", "eggs"] as const).reduce(
       (s, cat) => s + toCar(cat, categoryTotal(demandProducts, demandQty, cat, "ALL", mw)),
@@ -303,7 +306,7 @@ export function HomeDashboard() {
         <SummaryCard label="Total Carcass" value={`${kg(m.totalCarcassKg)} kg`} accent="gold" icon="⚖️" />
         <SummaryCard
           label="Total Production"
-          value={`${kg(m.totalWcFreshKg + m.totalWcFrozenKg + m.totalFppKg)} kg`}
+          value={`${kg(m.totalProductionKg)} kg`}
           icon="📦"
         />
         <SummaryCard label="Total Demand" value={`${Math.round(demandTotalTon * 1000).toLocaleString()} kg`} icon="📊" />
@@ -662,6 +665,7 @@ export function HomeDashboard() {
                       <th key={monthLabel} className="text-right py-1 px-1.5 font-semibold text-neutral-500 whitespace-nowrap">{monthLabel}</th>
                     ))}
                     <th className="text-right py-1 pl-2 font-semibold text-neutral-500 whitespace-nowrap">Total</th>
+                    {anyPrices && <th className="text-right py-1 pl-2 font-semibold text-amber-600 whitespace-nowrap">Revenue (SAR)</th>}
                   </tr>
                 </thead>
                 <tbody>
@@ -684,6 +688,14 @@ export function HomeDashboard() {
                         <td className="py-1 pl-2 text-right tabular-nums font-semibold text-brand-green-dark">
                           {rowTotal > 0 ? rowTotal.toLocaleString() : <span className="text-neutral-300">—</span>}
                         </td>
+                        {anyPrices && (
+                          <td className="py-1 pl-2 text-right tabular-nums font-semibold text-amber-700">
+                            {(() => {
+                              const rev = channelRevenue(demandProducts, demandQty, ch, horizonWeeks);
+                              return rev > 0 ? fmtSar(rev) : <span className="text-neutral-300">—</span>;
+                            })()}
+                          </td>
+                        )}
                       </tr>
                     );
                   })}

@@ -38,7 +38,8 @@ export interface GradeSplit {
 export interface FamilyAllocationRow {
   wcFresh: number;
   wcFrozen: number;
-  fpp: number;
+  /** Share of the grade's carcass routed to the cutting line (portioning). FPP is produced downstream FROM cuts. */
+  cuts: number;
 }
 
 export interface FamilyAllocation {
@@ -101,6 +102,10 @@ export interface Parameters {
   gradeSplit: GradeSplit;
   familyAllocation: FamilyAllocation;
   cutYields: CutYields;
+  /** Share of each cut's output routed into FPP production (Cuts → FPP). 0..1 per cut. */
+  fppFromCuts: CutYields;
+  /** Frozen WC stock on hand at the start of week 1 (kg). */
+  openingFrozenStockKg: number;
   legSplitMode: boolean;
   planningHorizonWeeks: number;
   workingDaysPerWeek: number;
@@ -142,7 +147,8 @@ export interface ProductFamilyWeek {
   week: number;
   wcFreshKg: number;
   wcFrozenKg: number;
-  fppKg: number;
+  /** Carcass kg allocated to the cutting line (portioning input). */
+  cutsKg: number;
   totalKg: number;
 }
 
@@ -150,6 +156,10 @@ export type CutPlanWeek = {
   week: number;
   cuts: Record<CutKey, number>;
   totalKg: number;
+  /** Cut kg routed into FPP production this week (Σ cuts × fppFromCuts share). */
+  fppInputKg: number;
+  /** Cut kg remaining for sale as cuts after FPP draw. */
+  netCutsKg: number;
 };
 
 // ---------- Demand Plan (Module 1): product x channel x week ----------
@@ -170,6 +180,8 @@ export interface DemandProduct {
   freshFrozen?: "fresh" | "frozen"; // wholeChicken only
   yieldPct?: number; // fpp only: % yield from FPP input tons (simple BOM, editable)
   unit: DemandUnit;
+  /** Selling price in SAR per unit (per ton for weight products, per tray for eggs). Used for revenue by channel. */
+  pricePerUnit?: number;
 }
 
 /** Sparse quantity map keyed by `${productId}::${channel}::${week}`. */
@@ -194,9 +206,19 @@ export interface SupplyRequirementsWeek {
   plannedHarvestableBirds: number;
   plannedWcKg: number;
   plannedFppKg: number;
+  plannedCutsKg: number;
   // gaps (planned − required; positive = surplus)
   carcassGapKg: number;
   harvestableGapBirds: number;
+}
+
+/** Weekly frozen WC stock rollforward: opening + frozen production − frozen demand = closing. */
+export interface FrozenStockWeek {
+  week: number;
+  openingKg: number;
+  producedFrozenKg: number;
+  frozenDemandKg: number;
+  closingKg: number;
 }
 
 export interface CarcassSizeWeek {
@@ -215,7 +237,7 @@ export interface PlantWeek {
   gradeCKg: number;
   wcFreshKg: number;
   wcFrozenKg: number;
-  fppKg: number;
+  cutsKg: number;
   dailyBirds: number;
   plantCapacity: number;
   capacityBreach: boolean;

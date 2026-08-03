@@ -1,5 +1,12 @@
 import { CHANNEL_KEYS } from "./defaults";
-import type { ChannelKey, DemandPlanQty, DemandProduct, ProductCategory } from "./types";
+import type {
+  ChannelKey,
+  DemandPlanQty,
+  DemandProduct,
+  FrozenStockWeek,
+  ProductCategory,
+  ProductFamilyWeek,
+} from "./types";
 
 export function demandCellKey(productId: string, channel: ChannelKey, week: number): string {
   return `${productId}::${channel}::${week}`;
@@ -93,6 +100,111 @@ export function copyDemandWeekForward(
     }
   }
   return next;
+}
+
+// ─── Revenue (SAR) ────────────────────────────────────────────────────────────
+
+/** Revenue of one product across the given weeks for a channel (or ALL): qty × pricePerUnit. */
+export function productRowRevenue(
+  products: DemandProduct[],
+  qty: DemandPlanQty,
+  productId: string,
+  channel: ChannelKey | "ALL",
+  weeks: number[]
+): number {
+  const price = products.find((p) => p.id === productId)?.pricePerUnit ?? 0;
+  return productRowTotal(qty, productId, channel, weeks) * price;
+}
+
+export function channelRevenue(
+  products: DemandProduct[],
+  qty: DemandPlanQty,
+  channel: ChannelKey | "ALL",
+  weeks: number[]
+): number {
+  return products.reduce((s, p) => s + productRowTotal(qty, p.id, channel, weeks) * (p.pricePerUnit ?? 0), 0);
+}
+
+export function categoryRevenue(
+  products: DemandProduct[],
+  qty: DemandPlanQty,
+  category: ProductCategory,
+  channel: ChannelKey | "ALL",
+  weeks: number[]
+): number {
+  return products
+    .filter((p) => p.category === category)
+    .reduce((s, p) => s + productRowTotal(qty, p.id, channel, weeks) * (p.pricePerUnit ?? 0), 0);
+}
+
+// ─── Frozen stock rollforward ─────────────────────────────────────────────────
+
+/**
+ * Weekly frozen WC stock balance: opening + frozen production − frozen WC demand.
+ * Demand comes from wholeChicken products flagged freshFrozen === "frozen" (tons → kg).
+ */
+export function computeFrozenStock(
+  family: ProductFamilyWeek[],
+  products: DemandProduct[],
+  qty: DemandPlanQty,
+  weeks: number[],
+  openingFrozenStockKg: number
+): FrozenStockWeek[] {
+  const famByWeek = new Map(family.map((f) => [f.week, f]));
+  const frozenProducts = products.filter((p) => p.category === "wholeChicken" && p.freshFrozen === "frozen");
+  const rows: FrozenStockWeek[] = [];
+  let opening = openingFrozenStockKg;
+  for (const week of weeks) {
+    const producedFrozenKg = famByWeek.get(week)?.wcFrozenKg ?? 0;
+    const frozenDemandKg =
+      frozenProducts.reduce((s, p) => s + getDemandQtyAllChannels(qty, p.id, week), 0) * 1000;
+    const closingKg = opening + producedFrozenKg - frozenDemandKg;
+    rows.push({ week, openingKg: opening, producedFrozenKg, frozenDemandKg, closingKg });
+    opening = closingKg;
+  }
+  return rows;
+}
+
+// ─── Align sales plan to production (supply-first S&OP) ──────────────────────
+
+/**
+ * Adjusts the sales plan to what production can actually deliver: for every
+ * category × week where demand exceeds available supply, all channel cells of
+ * that category are scaled down pro-rata to the supply. Weeks with surplus are
+ * left untouched (the surplus shows up in frozen stock / reconciliation).
+ * `supplyTonsByCategoryWeek` keys are `${category}::${week}`, values in tons.
+ */
+export function alignDemandToSupply(
+  products: DemandProduct[],
+  qty: DemandPlanQty,
+  weeks: number[],
+  supplyTonsByCategoryWeek: Record<string, number>
+): { next: DemandPlanQty; adjustedCells: number; adjustedWeeks: number } {
+  const next = { ...qty };
+  let adjustedCells = 0;
+  const touchedWeeks = new Set<number>();
+
+  for (const category of ["wholeChicken", "cuts", "fpp"] as const) {
+    const catProducts = products.filter((p) => p.category === category);
+    for (const week of weeks) {
+      const demandTons = catProducts.reduce((s, p) => s + getDemandQtyAllChannels(qty, p.id, week), 0);
+      const supplyTons = supplyTonsByCategoryWeek[`${category}::${week}`] ?? 0;
+      if (demandTons <= 0 || supplyTons >= demandTons) continue;
+      const ratio = supplyTons / demandTons;
+      for (const p of catProducts) {
+        for (const ch of CHANNEL_KEYS) {
+          const key = demandCellKey(p.id, ch, week);
+          const current = next[key] ?? 0;
+          if (current > 0) {
+            next[key] = Math.round(current * ratio * 100) / 100;
+            adjustedCells++;
+          }
+        }
+      }
+      touchedWeeks.add(week);
+    }
+  }
+  return { next, adjustedCells, adjustedWeeks: touchedWeeks.size };
 }
 
 // ─── Week → Calendar Month helpers ───────────────────────────────────────────

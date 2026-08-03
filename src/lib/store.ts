@@ -69,6 +69,7 @@ interface PlanState {
   bulkAdjustDemandPlan: (opts: BulkAdjustOptions) => void;
   copyDemandWeekForwardAction: (channel: ChannelKey | "ALL", fromWeek: number, toWeek: number) => void;
   clearDemandPlan: () => void;
+  setDemandQty: (qty: DemandPlanQty) => void;
   setSalesPlanProductMap: (map: Record<string, string>) => void;
   setSalesPlanChannelMap: (map: Record<string, ChannelKey>) => void;
   addFarm: (farm: Farm) => void;
@@ -191,6 +192,7 @@ export const usePlanStore = create<PlanState>()(
         })),
 
       clearDemandPlan: () => set({ demandQty: {} }),
+      setDemandQty: (qty) => set({ demandQty: qty }),
 
       setSalesPlanProductMap: (map) => set({ salesPlanProductMap: map }),
       setSalesPlanChannelMap: (map) => set({ salesPlanChannelMap: map }),
@@ -351,7 +353,7 @@ export const usePlanStore = create<PlanState>()(
     }),
     {
       name: "awp-broiler-forecast-store",
-      version: 9,
+      version: 10,
       // v2 switched Step 1 from weekly to daily placement rows (PlacementRow -> PlacementDayRow).
       // v3 replaced the farm-based model with the house-based processing chain — discarded wholesale.
       // v4 added housesPerFarm (additive).
@@ -361,11 +363,46 @@ export const usePlanStore = create<PlanState>()(
       // v8 seeded farms from defaults (old placeholder shape).
       // v9 Farm type changed entirely (code/sequencePosition/... vs id/name/sapVendorCode/...).
       //    Added placementEntries, monthlyPlanConfig, dailyPlannedQtyOverrides. Farms reset to new default.
+      // v10 inverted FPP→Cuts to Cuts→FPP: familyAllocation.fpp renamed to .cuts;
+      //     added fppFromCuts (per-cut FPP routing) and openingFrozenStockKg.
       migrate: (persisted, version) => {
-        if (version >= 9) return persisted;
+        if (version >= 10) return persisted;
+        if (version === 9) {
+          const s = persisted as { params?: Parameters & { familyAllocation?: Record<string, Record<string, number>> }; scenarios?: ScenarioSnapshot[] };
+          const migrateParams = (p: Parameters): Parameters => {
+            const fam = p.familyAllocation as unknown as Record<"A" | "B" | "C", { wcFresh: number; wcFrozen: number; fpp?: number; cuts?: number }>;
+            const familyAllocation = Object.fromEntries(
+              (["A", "B", "C"] as const).map((g) => [
+                g,
+                { wcFresh: fam[g].wcFresh, wcFrozen: fam[g].wcFrozen, cuts: fam[g].cuts ?? fam[g].fpp ?? 0 },
+              ])
+            ) as unknown as Parameters["familyAllocation"];
+            return {
+              ...DEFAULT_PARAMETERS,
+              ...p,
+              familyAllocation,
+              fppFromCuts: DEFAULT_PARAMETERS.fppFromCuts,
+              openingFrozenStockKg: DEFAULT_PARAMETERS.openingFrozenStockKg,
+            };
+          };
+          return {
+            ...s,
+            params: s.params ? migrateParams(s.params) : undefined,
+            scenarios: (s.scenarios ?? []).map((sc) => ({ ...sc, params: migrateParams(sc.params) })),
+          };
+        }
         const state = persisted as { params?: Parameters; placementDays?: unknown; scenarios?: unknown };
         if (version < 3) return { scenarios: [] };
-        const params = state.params ? { ...DEFAULT_PARAMETERS, ...state.params } : undefined;
+        // Old stores predate the Cuts→FPP inversion — take defaults for the allocation-related params.
+        const params = state.params
+          ? {
+              ...DEFAULT_PARAMETERS,
+              ...state.params,
+              familyAllocation: DEFAULT_PARAMETERS.familyAllocation,
+              fppFromCuts: DEFAULT_PARAMETERS.fppFromCuts,
+              openingFrozenStockKg: DEFAULT_PARAMETERS.openingFrozenStockKg,
+            }
+          : undefined;
         return {
           params,
           placementDays: state.placementDays,

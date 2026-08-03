@@ -25,12 +25,14 @@ export function ProductFamily() {
     (acc, r) => {
       acc.fresh += r.wcFreshKg;
       acc.frozen += r.wcFrozenKg;
-      acc.fpp += r.fppKg;
+      acc.cuts += r.cutsKg;
       acc.total += r.totalKg;
       return acc;
     },
-    { fresh: 0, frozen: 0, fpp: 0, total: 0 }
+    { fresh: 0, frozen: 0, cuts: 0, total: 0 }
   );
+  const totalWc = totals.fresh + totals.frozen;
+  const freshPct = totalWc > 0 ? (totals.fresh / totalWc) * 100 : 0;
 
   const columns: DataTableColumn<ProductFamilyWeek>[] = [
     { key: "week", header: "Week", render: (r) => weekLabel(r.week, params.planStartDate) },
@@ -49,11 +51,11 @@ export function ProductFamily() {
       footer: kg(totals.frozen),
     },
     {
-      key: "fpp",
-      header: "FPP (kg)",
+      key: "cuts",
+      header: "Cuts (kg)",
       align: "right",
-      render: (r) => kg(r.fppKg),
-      footer: kg(totals.fpp),
+      render: (r) => kg(r.cutsKg),
+      footer: kg(totals.cuts),
     },
     {
       key: "total",
@@ -69,14 +71,21 @@ export function ProductFamily() {
       <div>
         <h1 className="text-xl font-bold section-title">Step 4 — Product Family Allocation</h1>
         <p className="text-sm text-neutral-500 mt-0.5">
-          Grade A/B carcass allocated across product families. Grade C flows entirely to FPP.
+          Carcass allocated to WC Fresh / WC Frozen / Cuts per grade. Grade C flows entirely to the cutting
+          line; FPP is produced downstream from cuts (Step 5).
         </p>
       </div>
 
       <div className="flex flex-wrap gap-3">
         <SummaryCard label="Whole Chicken Fresh" value={`${kg(totals.fresh)} kg`} accent="green" />
-        <SummaryCard label="Whole Chicken Frozen" value={`${kg(totals.frozen)} kg`} accent="gold" />
-        <SummaryCard label="FPP" value={`${kg(totals.fpp)} kg`} />
+        <SummaryCard label="Whole Chicken Frozen" value={`${kg(totals.frozen)} kg`} accent="gold" icon="🧊" />
+        <SummaryCard label="Cuts (to portioning)" value={`${kg(totals.cuts)} kg`} icon="🔪" />
+        <SummaryCard
+          label="Avg Fresh / Frozen"
+          value={`${freshPct.toFixed(1)}% / ${(100 - freshPct).toFixed(1)}%`}
+          sublabel="share of WC production"
+          icon="❄️"
+        />
         <SummaryCard label="Total" value={`${kg(totals.total)} kg`} />
       </div>
 
@@ -90,18 +99,18 @@ export function ProductFamily() {
               <th className="text-left pr-4 pb-1">Source</th>
               <th className="text-right px-3 pb-1">WC Fresh</th>
               <th className="text-right px-3 pb-1">WC Frozen</th>
-              <th className="text-right px-3 pb-1">FPP</th>
+              <th className="text-right px-3 pb-1">Cuts</th>
               <th className="text-right px-3 pb-1">Σ</th>
             </tr>
           </thead>
           <tbody>
             {(["A", "B", "C"] as const).map((grade) => {
               const row = params.familyAllocation[grade];
-              const sum = row.wcFresh + row.wcFrozen + row.fpp;
+              const sum = row.wcFresh + row.wcFrozen + row.cuts;
               return (
                 <tr key={grade}>
                   <td className="pr-4 py-1 font-medium">Grade {grade}</td>
-                  {(["wcFresh", "wcFrozen", "fpp"] as const).map((key) => (
+                  {(["wcFresh", "wcFrozen", "cuts"] as const).map((key) => (
                     <td key={key} className="px-3 py-1 text-right">
                       <input
                         type="number"

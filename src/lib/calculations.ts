@@ -241,18 +241,18 @@ export function computeProductFamily(
     const { A, B, C } = params.familyAllocation;
     const wcFreshKg = c.gradeAKg * A.wcFresh + c.gradeBKg * B.wcFresh + c.gradeCKg * C.wcFresh;
     const wcFrozenKg = c.gradeAKg * A.wcFrozen + c.gradeBKg * B.wcFrozen + c.gradeCKg * C.wcFrozen;
-    const fppKg = c.gradeAKg * A.fpp + c.gradeBKg * B.fpp + c.gradeCKg * C.fpp;
+    const cutsKg = c.gradeAKg * A.cuts + c.gradeBKg * B.cuts + c.gradeCKg * C.cuts;
     return {
       week: c.week,
       wcFreshKg,
       wcFrozenKg,
-      fppKg,
-      totalKg: wcFreshKg + wcFrozenKg + fppKg,
+      cutsKg,
+      totalKg: wcFreshKg + wcFrozenKg + cutsKg,
     };
   });
 }
 
-// ---------- Step 5: FPP Cut Plan ----------
+// ---------- Step 5: Cut Plan (Cuts → FPP) ----------
 
 export function activeCutKeys(legSplitMode: boolean): CutKey[] {
   const common: CutKey[] = [
@@ -283,10 +283,12 @@ export function computeCutPlan(
   return family.map((f): CutPlanWeek => {
     const cuts = {} as Record<CutKey, number>;
     for (const key of keys) {
-      cuts[key] = f.fppKg * params.cutYields[key];
+      cuts[key] = f.cutsKg * params.cutYields[key];
     }
     const totalKg = keys.reduce((sum, k) => sum + cuts[k], 0);
-    return { week: f.week, cuts, totalKg };
+    // Cuts → FPP: a configurable share of each cut is routed into FPP production.
+    const fppInputKg = keys.reduce((sum, k) => sum + cuts[k] * (params.fppFromCuts[k] ?? 0), 0);
+    return { week: f.week, cuts, totalKg, fppInputKg, netCutsKg: totalKg - fppInputKg };
   });
 }
 
@@ -312,7 +314,7 @@ export function computePlantDistribution(
       const { A, B, C } = params.familyAllocation;
       const wcFreshKg = gradeAKg * A.wcFresh + gradeBKg * B.wcFresh + gradeCKg * C.wcFresh;
       const wcFrozenKg = gradeAKg * A.wcFrozen + gradeBKg * B.wcFrozen + gradeCKg * C.wcFrozen;
-      const fppKg = gradeAKg * A.fpp + gradeBKg * B.fpp + gradeCKg * C.fpp;
+      const cutsKg = gradeAKg * A.cuts + gradeBKg * B.cuts + gradeCKg * C.cuts;
       const dailyBirds = birds / params.workingDaysPerWeek;
 
       result.push({
@@ -326,7 +328,7 @@ export function computePlantDistribution(
         gradeCKg,
         wcFreshKg,
         wcFrozenKg,
-        fppKg,
+        cutsKg,
         dailyBirds,
         plantCapacity: capacity,
         capacityBreach: dailyBirds > capacity,
@@ -357,7 +359,15 @@ export interface SummaryMetrics {
   totalCarcassKg: number;
   totalWcFreshKg: number;
   totalWcFrozenKg: number;
+  /** Saleable cuts after the FPP draw (net). */
+  totalCutsKg: number;
+  /** FPP produced from cuts. */
   totalFppKg: number;
+  /** WC Fresh + WC Frozen + net cuts + FPP. */
+  totalProductionKg: number;
+  /** Fresh share of whole-chicken production (0..1). */
+  avgFreshSharePct: number;
+  avgFrozenSharePct: number;
   avgUtilizationPct: number;
   weeksWithCapacityBreach: number;
 }
@@ -368,7 +378,9 @@ export function computeSummaryMetrics(result: PipelineResult): SummaryMetrics {
   const totalCarcassKg = result.carcass.reduce((s, r) => s + r.carcassWeightKg, 0);
   const totalWcFreshKg = result.family.reduce((s, r) => s + r.wcFreshKg, 0);
   const totalWcFrozenKg = result.family.reduce((s, r) => s + r.wcFrozenKg, 0);
-  const totalFppKg = result.family.reduce((s, r) => s + r.fppKg, 0);
+  const totalCutsKg = result.cuts.reduce((s, r) => s + r.netCutsKg, 0);
+  const totalFppKg = result.cuts.reduce((s, r) => s + r.fppInputKg, 0);
+  const totalWc = totalWcFreshKg + totalWcFrozenKg;
   const avgUtilizationPct =
     result.liveBird.length > 0
       ? result.liveBird.reduce((s, r) => s + r.utilizationPct, 0) / result.liveBird.length
@@ -381,7 +393,11 @@ export function computeSummaryMetrics(result: PipelineResult): SummaryMetrics {
     totalCarcassKg,
     totalWcFreshKg,
     totalWcFrozenKg,
+    totalCutsKg,
     totalFppKg,
+    totalProductionKg: totalWcFreshKg + totalWcFrozenKg + totalCutsKg + totalFppKg,
+    avgFreshSharePct: totalWc > 0 ? (totalWcFreshKg / totalWc) * 100 : 0,
+    avgFrozenSharePct: totalWc > 0 ? (totalWcFrozenKg / totalWc) * 100 : 0,
     avgUtilizationPct,
     weeksWithCapacityBreach,
   };

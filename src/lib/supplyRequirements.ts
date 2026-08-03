@@ -20,18 +20,28 @@ export function wcYieldFromCarcass(params: Parameters): number {
   );
 }
 
-/** Fraction of carcass kg that becomes FPP kg. */
-export function fppYieldFromCarcass(params: Parameters): number {
+/** Fraction of carcass kg allocated to the cutting line. */
+function cutsAllocFromCarcass(params: Parameters): number {
   const { A, B, C } = params.familyAllocation;
   const g = params.gradeSplit;
-  return g.A * A.fpp + g.B * B.fpp + g.C * C.fpp;
+  return g.A * A.cuts + g.B * B.cuts + g.C * C.cuts;
 }
 
-/** Fraction of carcass kg that becomes cuts kg (FPP yield × sum of active cut yields). */
+/** Fraction of carcass kg that ends up as FPP (Cuts → FPP: cut output × per-cut FPP routing share). */
+export function fppYieldFromCarcass(params: Parameters): number {
+  const keys = activeCutKeys(params.legSplitMode);
+  const fppPerCutsInput = keys.reduce((s, k) => s + params.cutYields[k] * (params.fppFromCuts[k] ?? 0), 0);
+  return cutsAllocFromCarcass(params) * fppPerCutsInput;
+}
+
+/** Fraction of carcass kg that becomes saleable cuts (after the FPP draw). */
 export function cutsYieldFromCarcass(params: Parameters): number {
-  const fppYield = fppYieldFromCarcass(params);
-  const cutSum = activeCutKeys(params.legSplitMode).reduce((s, k) => s + params.cutYields[k], 0);
-  return fppYield * cutSum;
+  const keys = activeCutKeys(params.legSplitMode);
+  const netCutsPerInput = keys.reduce(
+    (s, k) => s + params.cutYields[k] * (1 - (params.fppFromCuts[k] ?? 0)),
+    0
+  );
+  return cutsAllocFromCarcass(params) * netCutsPerInput;
 }
 
 /**
@@ -66,6 +76,7 @@ export function computeSupplyRequirements(
   const carcassByWeek = new Map(pipeline.carcass.map((r) => [r.week, r.carcassWeightKg]));
   const lbByWeek = new Map(pipeline.liveBird.map((r) => [r.week, r]));
   const famByWeek = new Map(pipeline.family.map((r) => [r.week, r]));
+  const cutsByWeek = new Map(pipeline.cuts.map((r) => [r.week, r]));
 
   return weeks.map((week): SupplyRequirementsWeek => {
     let wcDemandTons = 0;
@@ -104,6 +115,7 @@ export function computeSupplyRequirements(
     const plannedCarcassKg = carcassByWeek.get(week) ?? 0;
     const lbRow = lbByWeek.get(week);
     const famRow = famByWeek.get(week);
+    const cutsRow = cutsByWeek.get(week);
 
     return {
       week,
@@ -119,7 +131,8 @@ export function computeSupplyRequirements(
       plannedCarcassKg,
       plannedHarvestableBirds: lbRow?.harvestableBirds ?? 0,
       plannedWcKg: famRow ? famRow.wcFreshKg + famRow.wcFrozenKg : 0,
-      plannedFppKg: famRow?.fppKg ?? 0,
+      plannedFppKg: cutsRow?.fppInputKg ?? 0,
+      plannedCutsKg: cutsRow?.netCutsKg ?? 0,
       carcassGapKg: plannedCarcassKg - requiredCarcassKg,
       harvestableGapBirds: (lbRow?.harvestableBirds ?? 0) - requiredHarvestableBirds,
     };

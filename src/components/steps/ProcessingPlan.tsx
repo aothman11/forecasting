@@ -21,7 +21,7 @@ interface Row {
   carcassKg: number;
   wcFreshKg: number;
   wcFrozenKg: number;
-  fppKg: number;
+  cutsKg: number;
   dailyBirds: number;
   plantCapacity: number;
   capacityBreach: boolean;
@@ -47,7 +47,7 @@ export function ProcessingPlan() {
         carcassKg: parts.reduce((s, p) => s + p.carcassKg, 0),
         wcFreshKg: parts.reduce((s, p) => s + p.wcFreshKg, 0),
         wcFrozenKg: parts.reduce((s, p) => s + p.wcFrozenKg, 0),
-        fppKg: parts.reduce((s, p) => s + p.fppKg, 0),
+        cutsKg: parts.reduce((s, p) => s + p.cutsKg, 0),
         dailyBirds: parts.reduce((s, p) => s + p.dailyBirds, 0),
         plantCapacity: parts.reduce((s, p) => s + p.plantCapacity, 0),
         capacityBreach: parts.some((p) => p.capacityBreach),
@@ -88,7 +88,7 @@ export function ProcessingPlan() {
     },
     { key: "fresh", header: "WC Fresh (kg)", align: "right", render: (r) => kg(r.wcFreshKg) },
     { key: "frozen", header: "WC Frozen (kg)", align: "right", render: (r) => kg(r.wcFrozenKg) },
-    { key: "fpp", header: "FPP (kg)", align: "right", render: (r) => kg(r.fppKg) },
+    { key: "cuts", header: "Cuts (kg)", align: "right", render: (r) => kg(r.cutsKg) },
     {
       key: "daily",
       header: "Daily Birds",

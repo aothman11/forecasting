@@ -10,16 +10,16 @@ export function FamilyDonut({ data }: { data: ProductFamilyWeek[] }) {
     (acc, d) => {
       acc.wcFresh += d.wcFreshKg;
       acc.wcFrozen += d.wcFrozenKg;
-      acc.fpp += d.fppKg;
+      acc.cuts += d.cutsKg;
       return acc;
     },
-    { wcFresh: 0, wcFrozen: 0, fpp: 0 }
+    { wcFresh: 0, wcFrozen: 0, cuts: 0 }
   );
 
   const chartData = [
     { name: "Whole Chicken Fresh", value: Math.round(totals.wcFresh) },
     { name: "Whole Chicken Frozen", value: Math.round(totals.wcFrozen) },
-    { name: "FPP (Cuts & Further Processing)", value: Math.round(totals.fpp) },
+    { name: "Cuts (Portioning → FPP)", value: Math.round(totals.cuts) },
   ];
 
   return (

@@ -24,7 +24,7 @@ export function validatePipeline(params: Parameters, result: PipelineResult): Va
   // Rule 3: product family allocation per grade sums to 100%
   (["A", "B", "C"] as const).forEach((grade) => {
     const row = params.familyAllocation[grade];
-    const sum = pctSum(row.wcFresh, row.wcFrozen, row.fpp);
+    const sum = pctSum(row.wcFresh, row.wcFrozen, row.cuts);
     if (Math.abs(sum - 1) > PCT_TOLERANCE) {
       issues.push({
         level: "error",

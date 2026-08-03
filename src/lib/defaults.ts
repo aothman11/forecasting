@@ -44,9 +44,9 @@ export const DEFAULT_PARAMETERS: Parameters = {
     C: 0.07,
   },
   familyAllocation: {
-    A: { wcFresh: 0.4, wcFrozen: 0.25, fpp: 0.35 },
-    B: { wcFresh: 0.1, wcFrozen: 0.3, fpp: 0.6 },
-    C: { wcFresh: 0, wcFrozen: 0, fpp: 1 },
+    A: { wcFresh: 0.4, wcFrozen: 0.25, cuts: 0.35 },
+    B: { wcFresh: 0.1, wcFrozen: 0.3, cuts: 0.6 },
+    C: { wcFresh: 0, wcFrozen: 0, cuts: 1 },
   },
   cutYields: {
     breastBoneIn: 0.22,
@@ -59,6 +59,19 @@ export const DEFAULT_PARAMETERS: Parameters = {
     giblets: 0.05,
     trimMince: 0.05,
   },
+  // Cuts → FPP: share of each cut's output routed into FPP production.
+  fppFromCuts: {
+    breastBoneIn: 0,
+    breastBoneless: 0.3,
+    wholeLeg: 0,
+    drumstick: 0,
+    thighBoneIn: 0,
+    wings: 0,
+    backNeck: 0,
+    giblets: 0,
+    trimMince: 1,
+  },
+  openingFrozenStockKg: 0,
   legSplitMode: false,
   planningHorizonWeeks: 16,
   workingDaysPerWeek: 6,

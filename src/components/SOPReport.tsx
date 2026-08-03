@@ -105,8 +105,8 @@ export function SOPReport() {
     const cutsD = categoryTotal(demandProducts, demandQty, "cuts", "ALL", [w]);
 
     const wcS = fam ? (fam.wcFreshKg + fam.wcFrozenKg) / 1000 : 0;
-    const fppS = fam ? fam.fppKg / 1000 : 0;
-    const cutsS = cuts ? cuts.totalKg / 1000 : 0;
+    const fppS = cuts ? cuts.fppInputKg / 1000 : 0;
+    const cutsS = cuts ? cuts.netCutsKg / 1000 : 0;
 
     const wcR = rag(wcD, wcS);
     const fppR = rag(fppD, fppS);
