@@ -405,6 +405,36 @@ export interface SalesPlanImportSummary {
   unmappedRows: number;
 }
 
+/**
+ * Derives a selling price per product unit from the file's Gross Sales Value (SAR)
+ * column: Σ value ÷ Σ quantity (tons for meat, trays for eggs), across all mapped rows.
+ * Products with no value or no quantity in the file are omitted.
+ */
+export function deriveProductPrices(
+  rows: SalesPlanRow[],
+  productMap: Record<string, string>,
+  productsById: Map<string, DemandProduct>
+): Record<string, number> {
+  const valueByProduct = new Map<string, number>();
+  const qtyByProduct = new Map<string, number>();
+
+  for (const row of rows) {
+    const productId = productMap[rowSignature(row)];
+    const product = productId ? productsById.get(productId) : undefined;
+    if (!product || row.grossSalesValueSar <= 0 || row.grossSalesVolumeUom <= 0) continue;
+    const qty = product.unit === "ton" ? row.grossSalesVolumeUom / 1000 : row.grossSalesVolumeUom;
+    valueByProduct.set(productId!, (valueByProduct.get(productId!) ?? 0) + row.grossSalesValueSar);
+    qtyByProduct.set(productId!, (qtyByProduct.get(productId!) ?? 0) + qty);
+  }
+
+  const prices: Record<string, number> = {};
+  valueByProduct.forEach((value, productId) => {
+    const qty = qtyByProduct.get(productId) ?? 0;
+    if (qty > 0) prices[productId] = Math.round((value / qty) * 100) / 100;
+  });
+  return prices;
+}
+
 export function aggregateSalesPlanByProductChannelWeek(
   rows: SalesPlanRow[],
   productMap: Record<string, string>,

@@ -79,7 +79,7 @@ const T = {
           "<strong>💰 Prices</strong> — set a selling price per product (SAR per ton; eggs per tray). Once any price is set, the Revenue KPI card, a Revenue by Channel summary, and a Revenue column on the Home dashboard's channel table appear automatically.",
           "<strong>Delete Plan</strong> — clears all demand quantities to zero (requires confirmation). Use to reset demand without changing the product catalog or parameters.",
         ],
-        tip: "<strong>Import from SAP:</strong> click Import Sales Plan to upload a SAP export (.xlsx / .csv). The panel shows each row's Material Code, description, Weight of Carton, GSV CAR, and GSV UoM so you can verify before applying. Map each row type to a catalog product and each Channels value to a channel key. The week alignment table shows calendar labels (e.g. Aug W1) for both plan weeks and file weeks. Mappings are saved for future imports.",
+        tip: "<strong>Import from SAP:</strong> click Import Sales Plan to upload a SAP export (.xlsx / .csv). The panel shows each row's Material Code, description, Weight of Carton, GSV CAR, and GSV UoM so you can verify before applying. Map each row type to a catalog product and each Channels value to a channel key. The week alignment table shows calendar labels (e.g. Aug W1) for both plan weeks and file weeks. Mappings are saved for future imports. On Apply, product selling prices are derived automatically from the file's <strong>Gross Sales Value (SAR)</strong> column (Σ value ÷ Σ quantity per product) and written into the Prices panel.",
       },
       m2: {
         label: "S&OP Modules",
@@ -279,7 +279,7 @@ const T = {
           "<strong>💰 الأسعار</strong> — حدد سعر بيع لكل منتج (ريال/طن؛ البيض ريال/صينية). بمجرد إدخال أي سعر، تظهر تلقائيًا بطاقة الإيرادات، وملخص الإيرادات حسب القناة، وعمود الإيرادات في جدول القنوات بلوحة البداية.",
           "<strong>حذف الخطة</strong> — يُصفر جميع كميات الطلب (بعد تأكيد). استخدمه لإعادة ضبط الطلب دون تغيير كتالوج المنتجات أو المعاملات.",
         ],
-        tip: "<strong>استيراد من SAP:</strong> انقر على «استيراد خطة المبيعات» لرفع ملف SAP (.xlsx / .csv). تعرض اللوحة كود المادة والوصف ووزن الكرتون وحجم المبيعات الإجمالي (CAR وUoM) لكل نوع صف حتى تتمكن من التحقق قبل التطبيق. عيّن كل نوع صف لمنتج في الكتالوج وكل قيمة قناة لمفتاح قناة. يُظهر جدول محاذاة الأسابيع تسميات تقويمية (مثل: Aug W1) لأسابيع الخطة وملف البيانات. يُحفظ التعيين للاستيرادات المستقبلية.",
+        tip: "<strong>استيراد من SAP:</strong> انقر على «استيراد خطة المبيعات» لرفع ملف SAP (.xlsx / .csv). تعرض اللوحة كود المادة والوصف ووزن الكرتون وحجم المبيعات الإجمالي (CAR وUoM) لكل نوع صف حتى تتمكن من التحقق قبل التطبيق. عيّن كل نوع صف لمنتج في الكتالوج وكل قيمة قناة لمفتاح قناة. يُظهر جدول محاذاة الأسابيع تسميات تقويمية (مثل: Aug W1) لأسابيع الخطة وملف البيانات. يُحفظ التعيين للاستيرادات المستقبلية. عند التطبيق، تُشتق أسعار بيع المنتجات تلقائيًا من عمود <strong>Gross Sales Value (SAR)</strong> في الملف (إجمالي القيمة ÷ إجمالي الكمية لكل منتج) وتُكتب في لوحة الأسعار.",
       },
       m2: {
         label: "وحدات التخطيط التشغيلي",

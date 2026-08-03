@@ -11,6 +11,7 @@ import {
   autoMapProduct,
   buildFileWeekLabels,
   createProductFromRow,
+  deriveProductPrices,
   distinctRowSignatures,
   distinctValues,
   distinctWeeksOfYear,
@@ -35,6 +36,7 @@ export function SalesPlanImportPanel({ onClose }: { onClose: () => void }) {
   const savedProductMap = usePlanStore((s) => s.salesPlanProductMap);
   const savedChannelMap = usePlanStore((s) => s.salesPlanChannelMap);
   const addDemandProduct = usePlanStore((s) => s.addDemandProduct);
+  const updateDemandProduct = usePlanStore((s) => s.updateDemandProduct);
   const setSalesPlanProductMap = usePlanStore((s) => s.setSalesPlanProductMap);
   const setSalesPlanChannelMap = usePlanStore((s) => s.setSalesPlanChannelMap);
 
@@ -206,9 +208,20 @@ export function SalesPlanImportPanel({ onClose }: { onClose: () => void }) {
       appliedCells++;
     });
 
+    // Derive selling prices from the file's Gross Sales Value (SAR) column: Σ value ÷ Σ qty.
+    const derivedPrices = rows ? deriveProductPrices(rows, productMap, productsById) : {};
+    let pricedProducts = 0;
+    Object.entries(derivedPrices).forEach(([productId, price]) => {
+      updateDemandProduct(productId, { pricePerUnit: price });
+      pricedProducts++;
+    });
+
     setSalesPlanProductMap({ ...savedProductMap, ...productMap });
     setSalesPlanChannelMap({ ...savedChannelMap, ...channelMap });
-    setAppliedMessage(`Applied ${appliedCells} product/channel/week cells across ${fileWeekToPlanWeek.size} matched weeks.`);
+    setAppliedMessage(
+      `Applied ${appliedCells} product/channel/week cells across ${fileWeekToPlanWeek.size} matched weeks.` +
+        (pricedProducts > 0 ? ` Prices updated for ${pricedProducts} products from Gross Sales Value (SAR).` : "")
+    );
   };
 
   return (
