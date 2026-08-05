@@ -222,12 +222,11 @@ export function SalesPlanImportPanel({ onClose }: { onClose: () => void }) {
     // Save raw carton rows (SKU × plant × ISO week) so the Processing Plan can
     // explode them through the BOM without a second file upload.
     if (rows) {
-      const VALID_PLANTS = new Set(["1100", "1200", "1300"]);
       const cartonRows = rows
-        .filter((r) => r.materialCode && r.grossSalesVolumeCar > 0 && VALID_PLANTS.has(r.plant))
+        .filter((r) => r.materialCode && r.grossSalesVolumeCar > 0)
         .map((r) => ({
           week: r.weekOfYear,
-          plant: r.plant,
+          plant: r.plant || "ALL",   // fall back to "ALL" if no Plnt column in file
           skuCode: r.materialCode,
           skuDescription: r.materialDescription,
           cartons: r.grossSalesVolumeCar,
