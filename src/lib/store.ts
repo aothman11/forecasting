@@ -15,6 +15,7 @@ import type {
 } from "./types";
 import { DEFAULT_BOM_RECORDS } from "./bomDefaults";
 import type { BomRecord } from "./bomTypes";
+import type { SalesPlanCartonRow } from "./processingPlanTypes";
 import { DEFAULT_DEMAND_PRODUCTS, DEFAULT_FARMS, DEFAULT_MONTHLY_PLAN_CONFIG, DEFAULT_PARAMETERS } from "./defaults";
 import { ensurePlacementDaysHorizon, isFridayDate, quickFillPlacementDays } from "./calculations";
 import { bulkAdjustDemand, copyDemandWeekForward, demandCellKey, type BulkAdjustOptions } from "./demandPlan";
@@ -47,6 +48,9 @@ interface PlanState {
   monthlyPlanConfig: MonthlyPlanConfig;
   dailyPlannedQtyOverrides: Record<string, number>;
   bomRecords: BomRecord[];
+  salesPlanCartonRows: SalesPlanCartonRow[];
+  salesPlanCartonConfirmed: boolean;
+  processingPlanOpen: boolean;
   selectedStep: number;
   selectedPlant: PlantFilter;
   assumptionsOpen: boolean;
@@ -95,6 +99,10 @@ interface PlanState {
   setSelectedStep: (step: number) => void;
   setSelectedPlant: (plant: PlantFilter) => void;
   toggleAssumptions: () => void;
+  setSalesPlanCartonRows: (rows: SalesPlanCartonRow[]) => void;
+  confirmSalesPlan: () => void;
+  clearSalesPlan: () => void;
+  setProcessingPlanOpen: (open: boolean) => void;
   addBomRecord: (record: BomRecord) => void;
   updateBomRecord: (id: string, patch: Partial<BomRecord>) => void;
   removeBomRecord: (id: string) => void;
@@ -131,6 +139,9 @@ export const usePlanStore = create<PlanState>()(
       monthlyPlanConfig: DEFAULT_MONTHLY_PLAN_CONFIG,
       dailyPlannedQtyOverrides: {},
       bomRecords: DEFAULT_BOM_RECORDS,
+      salesPlanCartonRows: [],
+      salesPlanCartonConfirmed: false,
+      processingPlanOpen: false,
       selectedStep: 1,
       selectedPlant: "all",
       assumptionsOpen: false,
@@ -338,6 +349,11 @@ export const usePlanStore = create<PlanState>()(
       setSelectedStep: (step) => set({ selectedStep: step }),
       setSelectedPlant: (plant) => set({ selectedPlant: plant }),
       toggleAssumptions: () => set((s) => ({ assumptionsOpen: !s.assumptionsOpen })),
+      setSalesPlanCartonRows: (rows) => set({ salesPlanCartonRows: rows, salesPlanCartonConfirmed: false }),
+      confirmSalesPlan: () => set({ salesPlanCartonConfirmed: true }),
+      clearSalesPlan: () => set({ salesPlanCartonRows: [], salesPlanCartonConfirmed: false }),
+      setProcessingPlanOpen: (open) => set({ processingPlanOpen: open }),
+
       addBomRecord: (record) => set((s) => ({ bomRecords: [...s.bomRecords, record] })),
       updateBomRecord: (id, patch) =>
         set((s) => ({ bomRecords: s.bomRecords.map((r) => (r.id === id ? { ...r, ...patch } : r)) })),
@@ -371,7 +387,7 @@ export const usePlanStore = create<PlanState>()(
     }),
     {
       name: "awp-broiler-forecast-store",
-      version: 11,
+      version: 12,
       // v2  switched Step 1 from weekly to daily placement rows (PlacementRow -> PlacementDayRow).
       // v3  replaced the farm-based model with the house-based processing chain — discarded wholesale.
       // v4  added housesPerFarm (additive).
@@ -385,7 +401,18 @@ export const usePlanStore = create<PlanState>()(
       //     added fppFromCuts (per-cut FPP routing) and openingFrozenStockKg.
       // v11 BOM editor: added bomRecords (seeded from defaults) and
       //     gradeYields to params (65/15/10/10 from SAP BOM 930-933).
+      // v12 Processing Plan: added salesPlanCartonRows, salesPlanCartonConfirmed (additive).
       migrate: (persisted, version) => {
+        if (version >= 12) return persisted;
+        // v11 → v12: additive — seed empty sales plan carton state
+        if (version === 11) {
+          const s11 = persisted as Record<string, unknown>;
+          return {
+            ...s11,
+            salesPlanCartonRows: [],
+            salesPlanCartonConfirmed: false,
+          };
+        }
         if (version >= 11) return persisted;
         // v10 → v11: additive — seed bomRecords, add gradeYields to params
         if (version === 10) {
@@ -466,6 +493,8 @@ export const usePlanStore = create<PlanState>()(
         monthlyPlanConfig: s.monthlyPlanConfig,
         dailyPlannedQtyOverrides: s.dailyPlannedQtyOverrides,
         bomRecords: s.bomRecords,
+        salesPlanCartonRows: s.salesPlanCartonRows,
+        salesPlanCartonConfirmed: s.salesPlanCartonConfirmed,
         scenarios: s.scenarios,
         harvestDeferrals: s.harvestDeferrals,
       }),

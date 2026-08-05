@@ -25,11 +25,13 @@ export function Sidebar() {
   const setHomeOpen = usePlanStore((s) => s.setHomeOpen);
   const bomOpen = usePlanStore((s) => s.bomOpen);
   const setBomOpen = usePlanStore((s) => s.setBomOpen);
+  const processingPlanOpen = usePlanStore((s) => s.processingPlanOpen);
+  const setProcessingPlanOpen = usePlanStore((s) => s.setProcessingPlanOpen);
 
   const closeAll = () => {
     setCompareOpen(false); setDemandOpen(false); setSupplyOpen(false);
     setReconcileOpen(false); setDdpOpen(false); setReportOpen(false);
-    setBomOpen(false);
+    setBomOpen(false); setProcessingPlanOpen(false);
   };
 
   const btnBase = "w-full text-left flex items-center transition-colors text-sm";
@@ -124,6 +126,13 @@ export function Sidebar() {
           badge="BOM"
           label="Product BOM"
           title="Product BOM"
+        />
+        <NavBtn
+          active={processingPlanOpen}
+          onClick={() => { closeAll(); setHomeOpen(false); setProcessingPlanOpen(true); }}
+          badge="PP"
+          label="Processing Plan"
+          title="Processing Plan (Demand)"
         />
 
         {/* Production Pipeline header */}
