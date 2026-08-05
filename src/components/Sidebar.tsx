@@ -109,17 +109,24 @@ export function Sidebar() {
         {collapsed && <div className="border-t border-neutral-100 my-1 mx-2" />}
 
         <NavBtn active={demandOpen} onClick={() => { closeAll(); setHomeOpen(false); setDemandOpen(true); }} badge="M1" label="Demand Plan" title="M1 · Demand Plan" />
-        <NavBtn
-          active={processingPlanOpen}
-          onClick={() => { closeAll(); setHomeOpen(false); setProcessingPlanOpen(true); }}
-          badge="PP"
-          label="Processing Plan"
-          title="Processing Plan (Demand)"
-        />
         <NavBtn active={supplyOpen} onClick={() => { closeAll(); setHomeOpen(false); setSupplyOpen(true); }} badge="M2" label="Supply Requirements" title="M2 · Supply Requirements" />
         <NavBtn active={reconcileOpen} onClick={() => { closeAll(); setHomeOpen(false); setReconcileOpen(true); }} badge="M3" label="Reconciliation" title="M3 · Reconciliation" />
         <NavBtn active={ddpOpen} onClick={() => { closeAll(); setHomeOpen(false); setDdpOpen(true); }} badge="M4" label="Demand-Driven Placement" title="M4 · Demand-Driven Placement" />
         <NavBtn active={reportOpen} onClick={() => { closeAll(); setHomeOpen(false); setReportOpen(true); }} badge="M5" label="S&OP Report" title="M5 · S&OP Report" />
+
+        {/* Processing Plan header */}
+        {!collapsed && (
+          <div className="px-4 text-[11px] uppercase tracking-wide text-neutral-400 font-semibold mt-4 mb-1">Processing Plan</div>
+        )}
+        {collapsed && <div className="border-t border-neutral-100 my-1 mx-2" />}
+
+        <NavBtn
+          active={processingPlanOpen}
+          onClick={() => { closeAll(); setHomeOpen(false); setProcessingPlanOpen(true); }}
+          badge="PP"
+          label="Carcass Requirement"
+          title="Processing Plan — Carcass Requirement"
+        />
 
         {/* Master Data header */}
         {!collapsed && (

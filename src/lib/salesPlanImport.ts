@@ -5,6 +5,7 @@ export interface SalesPlanRow {
   weekOfYear: number;
   yearMonth: string;
   salesOffice: string;
+  plant: string;          // SAP "Plnt" column — used to feed the Processing Plan
   channel: string;
   materialDivision: string;
   division: string;
@@ -34,6 +35,7 @@ const NUMERIC_FIELDS: (keyof SalesPlanRow)[] = [
 const HEADER_MATCHERS: Partial<Record<keyof SalesPlanRow, string[]>> = {
   yearMonth: ["year.month", "year month", "year/month", "year-month", "yearmonth", "yr.month", "yr month", "period", "year_month", "yyyymm", "month year", "month.year"],
   salesOffice: ["sales office"],
+  plant: ["plnt", "plant", "plant code", "plant no.", "plant no"],
   channel: ["channels", "channel"],
   materialDivision: ["material division"],
   division: ["division"],

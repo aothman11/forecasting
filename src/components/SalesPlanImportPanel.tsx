@@ -39,6 +39,8 @@ export function SalesPlanImportPanel({ onClose }: { onClose: () => void }) {
   const updateDemandProduct = usePlanStore((s) => s.updateDemandProduct);
   const setSalesPlanProductMap = usePlanStore((s) => s.setSalesPlanProductMap);
   const setSalesPlanChannelMap = usePlanStore((s) => s.setSalesPlanChannelMap);
+  const setSalesPlanCartonRows = usePlanStore((s) => s.setSalesPlanCartonRows);
+  const confirmSalesPlan = usePlanStore((s) => s.confirmSalesPlan);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [fileName, setFileName] = useState<string | null>(null);
@@ -215,6 +217,25 @@ export function SalesPlanImportPanel({ onClose }: { onClose: () => void }) {
       updateDemandProduct(productId, { pricePerUnit: price });
       pricedProducts++;
     });
+
+    // ── Processing Plan feed ──────────────────────────────────────────────────
+    // Save raw carton rows (SKU × plant × ISO week) so the Processing Plan can
+    // explode them through the BOM without a second file upload.
+    if (rows) {
+      const VALID_PLANTS = new Set(["1100", "1200", "1300"]);
+      const cartonRows = rows
+        .filter((r) => r.materialCode && r.grossSalesVolumeCar > 0 && VALID_PLANTS.has(r.plant))
+        .map((r) => ({
+          week: r.weekOfYear,
+          plant: r.plant,
+          skuCode: r.materialCode,
+          skuDescription: r.materialDescription,
+          cartons: r.grossSalesVolumeCar,
+        }));
+      setSalesPlanCartonRows(cartonRows);
+      confirmSalesPlan();
+    }
+    // ─────────────────────────────────────────────────────────────────────────
 
     setSalesPlanProductMap({ ...savedProductMap, ...productMap });
     setSalesPlanChannelMap({ ...savedChannelMap, ...channelMap });

@@ -231,34 +231,26 @@ export function ProcessingPlanDemand() {
         </div>
       )}
 
-      {/* Upload section */}
+      {/* Data source panel */}
       <div className="rounded-xl border border-[var(--border-subtle)] bg-white shadow-sm p-4 space-y-3">
         <div className="flex items-center justify-between flex-wrap gap-2">
           <div>
-            <div className="text-sm font-semibold text-neutral-800">SAP Sales Plan</div>
+            <div className="text-sm font-semibold text-neutral-800">Sales Plan Source</div>
             <div className="text-xs text-neutral-500 mt-0.5">
-              Upload the SAP export with columns: <span className="font-mono bg-neutral-100 px-1 rounded">Material Code</span>,{" "}
-              <span className="font-mono bg-neutral-100 px-1 rounded">Plnt</span>,{" "}
-              <span className="font-mono bg-neutral-100 px-1 rounded">Week No. in 2026</span>,{" "}
-              <span className="font-mono bg-neutral-100 px-1 rounded">Gross Sales Volume (CAR)</span>
+              {hasRows
+                ? "Data sourced from the Demand Plan import — updated automatically when you apply a new sales plan in M1."
+                : "No sales plan loaded yet. Go to Demand Plan → Import Sales Plan and click Apply, or upload a file directly below."}
             </div>
           </div>
           <div className="flex items-center gap-2">
             <input ref={fileRef} type="file" accept=".xlsx,.xls" className="hidden" onChange={handleFile} />
             <button
               onClick={() => fileRef.current?.click()}
-              className="text-xs font-semibold px-3 py-2 rounded-lg border border-[var(--border-subtle)] text-neutral-700 hover:border-brand-green hover:text-brand-green-dark transition-colors"
+              className="text-xs font-semibold px-3 py-1.5 rounded-lg border border-[var(--border-subtle)] text-neutral-500 hover:border-brand-green hover:text-brand-green-dark transition-colors"
+              title="Upload a SAP file directly (fallback — normally auto-loaded from Demand Plan)"
             >
-              ⬆ Upload SAP File
+              ⬆ Upload directly
             </button>
-            {hasRows && !salesPlanCartonConfirmed && (
-              <button
-                onClick={confirmSalesPlan}
-                className="text-xs font-semibold px-3 py-2 rounded-lg bg-brand-green text-white hover:bg-brand-green-dark transition-colors"
-              >
-                ✓ Confirm Plan
-              </button>
-            )}
             {hasRows && (
               <button
                 onClick={clearSalesPlan}
@@ -273,10 +265,10 @@ export function ProcessingPlanDemand() {
         {/* Status strip */}
         {hasRows && (
           <div className="flex items-center gap-4 text-xs flex-wrap">
-            <span className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full border font-semibold ${salesPlanCartonConfirmed ? "bg-green-100 text-green-800 border-green-200" : "bg-amber-100 text-amber-800 border-amber-200"}`}>
-              {salesPlanCartonConfirmed ? "✓ Confirmed" : "⏳ Pending confirmation"}
+            <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full border font-semibold bg-green-100 text-green-800 border-green-200">
+              ✓ {salesPlanCartonConfirmed ? "Confirmed" : "Loaded"}
             </span>
-            <span className="text-neutral-500">{fmtNum(salesPlanCartonRows.length)} plan rows</span>
+            <span className="text-neutral-500">{fmtNum(salesPlanCartonRows.length)} rows</span>
             <span className="text-neutral-500">{fmtNum(totalCartons)} total cartons</span>
             {unmatched.length > 0 && (
               <span className="text-amber-700 font-semibold">⚠ {unmatched.length} unmatched SKU(s)</span>
@@ -284,7 +276,7 @@ export function ProcessingPlanDemand() {
           </div>
         )}
 
-        {/* Parse errors */}
+        {/* Parse errors from direct upload */}
         {parseErrors.length > 0 && (
           <div className="space-y-1">
             {parseErrors.slice(0, 5).map((e, i) => (
