@@ -191,9 +191,7 @@ export function ReconciliationDashboard() {
   const totalFrozenKg = result.family.reduce((s, r) => s + r.wcFrozenKg, 0);
   const totalWcKg = totalFreshKg + totalFrozenKg;
   const freshPct = totalWcKg > 0 ? (totalFreshKg / totalWcKg) * 100 : 0;
-  const WC_CARTON_KG = 15;
-  const kgToCar = (kg: number) => Math.round(kg / WC_CARTON_KG);
-  const endingFrozenStockKg = frozenStock.length > 0 ? frozenStock[frozenStock.length - 1].closingKg : params.openingFrozenStockKg;
+  const endingFrozenStock = frozenStock.length > 0 ? frozenStock[frozenStock.length - 1].closingKg : params.openingFrozenStockKg;
   const negativeStockWeeks = frozenStock.filter((r) => r.closingKg < 0).length;
 
   // Supply-first S&OP: adjust the sales plan down to what production delivers.
@@ -285,14 +283,14 @@ export function ReconciliationDashboard() {
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <SummaryCard
           label="Opening Frozen Stock"
-          value={`${kgToCar(params.openingFrozenStockKg).toLocaleString()} CAR`}
+          value={`${fmtK(params.openingFrozenStockKg)} kg`}
           sublabel="set in Assumptions → Frozen Stock"
           icon="🧊"
         />
         <SummaryCard
           label="Ending Frozen Stock"
-          value={`${endingFrozenStockKg >= 0 ? "" : "−"}${Math.abs(kgToCar(endingFrozenStockKg)).toLocaleString()} CAR`}
-          accent={endingFrozenStockKg < 0 ? "alert" : "green"}
+          value={`${endingFrozenStock >= 0 ? "" : "−"}${fmtK(Math.abs(endingFrozenStock))} kg`}
+          accent={endingFrozenStock < 0 ? "alert" : "green"}
           icon="📦"
         />
         <SummaryCard
@@ -313,7 +311,7 @@ export function ReconciliationDashboard() {
       {/* Frozen stock rollforward table */}
       <div className="rounded-xl border border-[var(--border-subtle)] bg-white shadow-sm overflow-hidden">
         <div className="px-4 pt-3 pb-1 text-xs font-semibold text-neutral-600 uppercase tracking-wide">
-          Frozen Stock Balance (WC Frozen, CAR)
+          Frozen Stock Balance (WC Frozen, kg)
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-xs border-collapse">
@@ -331,19 +329,19 @@ export function ReconciliationDashboard() {
                 <tr
                   key={r.week}
                   className={`border-t border-[var(--border-subtle)] ${
-                    r.closingKg < 0 ? "bg-red-50 dark:bg-red-950/20" : i % 2 === 0 ? "bg-white" : "bg-neutral-50/50"
+                    r.closingKg < 0 ? "bg-red-50" : i % 2 === 0 ? "bg-white" : "bg-neutral-50/50"
                   }`}
                 >
                   <td className="px-3 py-1.5 font-semibold text-brand-green-dark whitespace-nowrap">
                     {weekLabel(r.week, params.planStartDate)}
                   </td>
-                  <td className="px-3 py-1.5 text-right tabular-nums text-neutral-600">{kgToCar(r.openingKg).toLocaleString()}</td>
-                  <td className="px-3 py-1.5 text-right tabular-nums text-green-700">+{kgToCar(r.producedFrozenKg).toLocaleString()}</td>
+                  <td className="px-3 py-1.5 text-right tabular-nums text-neutral-600">{fmtK(r.openingKg)}</td>
+                  <td className="px-3 py-1.5 text-right tabular-nums text-green-700">+{fmtK(r.producedFrozenKg)}</td>
                   <td className="px-3 py-1.5 text-right tabular-nums text-neutral-600">
-                    {r.frozenDemandKg > 0 ? `−${kgToCar(r.frozenDemandKg).toLocaleString()}` : <span className="text-neutral-300">—</span>}
+                    {r.frozenDemandKg > 0 ? `−${fmtK(r.frozenDemandKg)}` : <span className="text-neutral-300">—</span>}
                   </td>
                   <td className={`px-3 py-1.5 text-right tabular-nums font-semibold ${r.closingKg < 0 ? "text-red-600" : "text-neutral-800"}`}>
-                    {r.closingKg < 0 ? `−${Math.abs(kgToCar(r.closingKg)).toLocaleString()}` : kgToCar(r.closingKg).toLocaleString()}
+                    {r.closingKg < 0 ? `−${fmtK(Math.abs(r.closingKg))}` : fmtK(r.closingKg)}
                   </td>
                 </tr>
               ))}

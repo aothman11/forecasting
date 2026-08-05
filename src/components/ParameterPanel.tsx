@@ -346,10 +346,10 @@ export function ParameterPanel() {
       <Section title="Frozen Stock">
         <Field
           label="Opening balance (frozen)"
-          value={Math.round(params.openingFrozenStockKg / 15)}
-          step={100}
-          suffix="CAR"
-          onChange={(v) => setParam({ openingFrozenStockKg: v * 15 })}
+          value={params.openingFrozenStockKg}
+          step={1000}
+          suffix="kg"
+          onChange={(v) => setParam({ openingFrozenStockKg: v })}
         />
       </Section>
 
