@@ -12,6 +12,7 @@ import { ReconciliationDashboard } from "@/components/ReconciliationDashboard";
 import { DemandDrivenPlacement } from "@/components/DemandDrivenPlacement";
 import { SOPReport } from "@/components/SOPReport";
 import { HomeDashboard } from "@/components/HomeDashboard";
+import { ProductBOM } from "@/components/ProductBOM";
 import { ExportButtons } from "@/components/shared/ExportButtons";
 import { ValidationBanner } from "@/components/shared/ValidationBanner";
 import { SummaryOverview } from "@/components/shared/SummaryOverview";
@@ -55,6 +56,7 @@ export default function Home() {
   const ddpOpen = usePlanStore((s) => s.ddpOpen);
   const reportOpen = usePlanStore((s) => s.reportOpen);
   const homeOpen = usePlanStore((s) => s.homeOpen);
+  const bomOpen = usePlanStore((s) => s.bomOpen);
   const assumptionsOpen = usePlanStore((s) => s.assumptionsOpen);
   const toggleAssumptions = usePlanStore((s) => s.toggleAssumptions);
   const { result, params, issues } = usePipeline();
@@ -71,7 +73,7 @@ export default function Home() {
         <div className="flex-1 flex flex-col min-w-0">
           <header className="h-14 border-b border-[var(--border-subtle)] bg-white flex items-center justify-between px-6 shrink-0">
             <div className="text-sm font-semibold text-neutral-700">
-              {homeOpen ? "Home" : compareOpen ? "Scenario Comparison" : demandOpen ? "Demand Plan" : supplyOpen ? "Supply Requirements" : reconcileOpen ? "Reconciliation" : ddpOpen ? "Demand-Driven Placement" : reportOpen ? "S&OP Report" : currentLabel}
+              {homeOpen ? "Home" : compareOpen ? "Scenario Comparison" : demandOpen ? "Demand Plan" : supplyOpen ? "Supply Requirements" : reconcileOpen ? "Reconciliation" : ddpOpen ? "Demand-Driven Placement" : reportOpen ? "S&OP Report" : bomOpen ? "Product BOM" : currentLabel}
             </div>
             <div className="flex items-center gap-3">
               <ExportButtons />
@@ -105,6 +107,8 @@ export default function Home() {
               <DemandDrivenPlacement />
             ) : reportOpen ? (
               <SOPReport />
+            ) : bomOpen ? (
+              <ProductBOM />
             ) : (
               <StepContent step={selectedStep} />
             )}

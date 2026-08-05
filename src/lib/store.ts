@@ -13,6 +13,8 @@ import type {
   ScenarioSnapshot,
   SupplyRequirementsWeek,
 } from "./types";
+import { DEFAULT_BOM_RECORDS } from "./bomDefaults";
+import type { BomRecord } from "./bomTypes";
 import { DEFAULT_DEMAND_PRODUCTS, DEFAULT_FARMS, DEFAULT_MONTHLY_PLAN_CONFIG, DEFAULT_PARAMETERS } from "./defaults";
 import { ensurePlacementDaysHorizon, isFridayDate, quickFillPlacementDays } from "./calculations";
 import { bulkAdjustDemand, copyDemandWeekForward, demandCellKey, type BulkAdjustOptions } from "./demandPlan";
@@ -44,6 +46,7 @@ interface PlanState {
   placementEntries: PlacementEntry[];
   monthlyPlanConfig: MonthlyPlanConfig;
   dailyPlannedQtyOverrides: Record<string, number>;
+  bomRecords: BomRecord[];
   selectedStep: number;
   selectedPlant: PlantFilter;
   assumptionsOpen: boolean;
@@ -54,6 +57,7 @@ interface PlanState {
   ddpOpen: boolean;
   reportOpen: boolean;
   homeOpen: boolean;
+  bomOpen: boolean;
   scenarios: ScenarioSnapshot[];
 
   setParam: (patch: Partial<Parameters>) => void;
@@ -91,6 +95,10 @@ interface PlanState {
   setSelectedStep: (step: number) => void;
   setSelectedPlant: (plant: PlantFilter) => void;
   toggleAssumptions: () => void;
+  addBomRecord: (record: BomRecord) => void;
+  updateBomRecord: (id: string, patch: Partial<BomRecord>) => void;
+  removeBomRecord: (id: string) => void;
+  setBomRecords: (records: BomRecord[]) => void;
   setCompareOpen: (open: boolean) => void;
   setDemandOpen: (open: boolean) => void;
   setSupplyOpen: (open: boolean) => void;
@@ -98,6 +106,7 @@ interface PlanState {
   setDdpOpen: (open: boolean) => void;
   setReportOpen: (open: boolean) => void;
   setHomeOpen: (open: boolean) => void;
+  setBomOpen: (open: boolean) => void;
   saveScenario: (name: string) => void;
   deleteScenario: (id: string) => void;
 }
@@ -121,6 +130,7 @@ export const usePlanStore = create<PlanState>()(
       placementEntries: [],
       monthlyPlanConfig: DEFAULT_MONTHLY_PLAN_CONFIG,
       dailyPlannedQtyOverrides: {},
+      bomRecords: DEFAULT_BOM_RECORDS,
       selectedStep: 1,
       selectedPlant: "all",
       assumptionsOpen: false,
@@ -131,6 +141,7 @@ export const usePlanStore = create<PlanState>()(
       ddpOpen: false,
       reportOpen: false,
       homeOpen: true,
+      bomOpen: false,
       scenarios: [],
       harvestDeferrals: {},
 
@@ -327,6 +338,12 @@ export const usePlanStore = create<PlanState>()(
       setSelectedStep: (step) => set({ selectedStep: step }),
       setSelectedPlant: (plant) => set({ selectedPlant: plant }),
       toggleAssumptions: () => set((s) => ({ assumptionsOpen: !s.assumptionsOpen })),
+      addBomRecord: (record) => set((s) => ({ bomRecords: [...s.bomRecords, record] })),
+      updateBomRecord: (id, patch) =>
+        set((s) => ({ bomRecords: s.bomRecords.map((r) => (r.id === id ? { ...r, ...patch } : r)) })),
+      removeBomRecord: (id) => set((s) => ({ bomRecords: s.bomRecords.filter((r) => r.id !== id) })),
+      setBomRecords: (records) => set({ bomRecords: records }),
+
       setCompareOpen: (open) => set({ compareOpen: open }),
       setDemandOpen: (open) => set({ demandOpen: open }),
       setSupplyOpen: (open) => set({ supplyOpen: open }),
@@ -334,6 +351,7 @@ export const usePlanStore = create<PlanState>()(
       setDdpOpen: (open) => set({ ddpOpen: open }),
       setReportOpen: (open) => set({ reportOpen: open }),
       setHomeOpen: (open) => set({ homeOpen: open }),
+      setBomOpen: (open) => set({ bomOpen: open }),
 
       saveScenario: (name) =>
         set((s) => {
@@ -353,19 +371,37 @@ export const usePlanStore = create<PlanState>()(
     }),
     {
       name: "awp-broiler-forecast-store",
-      version: 10,
-      // v2 switched Step 1 from weekly to daily placement rows (PlacementRow -> PlacementDayRow).
-      // v3 replaced the farm-based model with the house-based processing chain — discarded wholesale.
-      // v4 added housesPerFarm (additive).
-      // v5 replaced 3-bucket Demand Forecast with Module 1 Demand Plan — demand state discarded.
-      // v6 expanded WC weight buckets to 50g steps.
-      // v7 corrected to 100g steps; demandProducts and demandQty reset.
-      // v8 seeded farms from defaults (old placeholder shape).
-      // v9 Farm type changed entirely (code/sequencePosition/... vs id/name/sapVendorCode/...).
-      //    Added placementEntries, monthlyPlanConfig, dailyPlannedQtyOverrides. Farms reset to new default.
+      version: 11,
+      // v2  switched Step 1 from weekly to daily placement rows (PlacementRow -> PlacementDayRow).
+      // v3  replaced the farm-based model with the house-based processing chain — discarded wholesale.
+      // v4  added housesPerFarm (additive).
+      // v5  replaced 3-bucket Demand Forecast with Module 1 Demand Plan — demand state discarded.
+      // v6  expanded WC weight buckets to 50g steps.
+      // v7  corrected to 100g steps; demandProducts and demandQty reset.
+      // v8  seeded farms from defaults (old placeholder shape).
+      // v9  Farm type changed entirely. Added placementEntries, monthlyPlanConfig,
+      //     dailyPlannedQtyOverrides. Farms reset to new default.
       // v10 inverted FPP→Cuts to Cuts→FPP: familyAllocation.fpp renamed to .cuts;
       //     added fppFromCuts (per-cut FPP routing) and openingFrozenStockKg.
+      // v11 BOM editor: added bomRecords (seeded from defaults) and
+      //     gradeYields to params (65/15/10/10 from SAP BOM 930-933).
       migrate: (persisted, version) => {
+        if (version >= 11) return persisted;
+        // v10 → v11: additive — seed bomRecords, add gradeYields to params
+        if (version === 10) {
+          const s = persisted as { params?: Parameters; scenarios?: ScenarioSnapshot[] };
+          const patchParams = (p: Parameters): Parameters => ({
+            ...DEFAULT_PARAMETERS,
+            ...p,
+            gradeYields: DEFAULT_PARAMETERS.gradeYields,
+          });
+          return {
+            ...s,
+            bomRecords: DEFAULT_BOM_RECORDS,
+            params: s.params ? patchParams(s.params) : undefined,
+            scenarios: (s.scenarios ?? []).map((sc) => ({ ...sc, params: patchParams(sc.params) })),
+          };
+        }
         if (version >= 10) return persisted;
         if (version === 9) {
           const s = persisted as { params?: Parameters & { familyAllocation?: Record<string, Record<string, number>> }; scenarios?: ScenarioSnapshot[] };
@@ -429,6 +465,7 @@ export const usePlanStore = create<PlanState>()(
         placementEntries: s.placementEntries,
         monthlyPlanConfig: s.monthlyPlanConfig,
         dailyPlannedQtyOverrides: s.dailyPlannedQtyOverrides,
+        bomRecords: s.bomRecords,
         scenarios: s.scenarios,
         harvestDeferrals: s.harvestDeferrals,
       }),

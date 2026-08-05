@@ -23,10 +23,13 @@ export function Sidebar() {
   const setReportOpen = usePlanStore((s) => s.setReportOpen);
   const homeOpen = usePlanStore((s) => s.homeOpen);
   const setHomeOpen = usePlanStore((s) => s.setHomeOpen);
+  const bomOpen = usePlanStore((s) => s.bomOpen);
+  const setBomOpen = usePlanStore((s) => s.setBomOpen);
 
   const closeAll = () => {
     setCompareOpen(false); setDemandOpen(false); setSupplyOpen(false);
     setReconcileOpen(false); setDdpOpen(false); setReportOpen(false);
+    setBomOpen(false);
   };
 
   const btnBase = "w-full text-left flex items-center transition-colors text-sm";
@@ -108,6 +111,20 @@ export function Sidebar() {
         <NavBtn active={reconcileOpen} onClick={() => { closeAll(); setHomeOpen(false); setReconcileOpen(true); }} badge="M3" label="Reconciliation" title="M3 · Reconciliation" />
         <NavBtn active={ddpOpen} onClick={() => { closeAll(); setHomeOpen(false); setDdpOpen(true); }} badge="M4" label="Demand-Driven Placement" title="M4 · Demand-Driven Placement" />
         <NavBtn active={reportOpen} onClick={() => { closeAll(); setHomeOpen(false); setReportOpen(true); }} badge="M5" label="S&OP Report" title="M5 · S&OP Report" />
+
+        {/* Master Data header */}
+        {!collapsed && (
+          <div className="px-4 text-[11px] uppercase tracking-wide text-neutral-400 font-semibold mt-4 mb-1">Master Data</div>
+        )}
+        {collapsed && <div className="border-t border-neutral-100 my-1 mx-2" />}
+
+        <NavBtn
+          active={bomOpen}
+          onClick={() => { closeAll(); setHomeOpen(false); setBomOpen(true); }}
+          badge="BOM"
+          label="Product BOM"
+          title="Product BOM"
+        />
 
         {/* Production Pipeline header */}
         {!collapsed && (

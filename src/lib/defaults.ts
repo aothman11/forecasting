@@ -72,6 +72,8 @@ export const DEFAULT_PARAMETERS: Parameters = {
     trimMince: 1,
   },
   openingFrozenStockKg: 0,
+  // Grade-sorting pool yields from SAP BOM 930/931/932/933 (must sum to 1.0)
+  gradeYields: { "930": 0.65, "931": 0.15, "932": 0.10, "933": 0.10 },
   legSplitMode: false,
   planningHorizonWeeks: 16,
   workingDaysPerWeek: 6,

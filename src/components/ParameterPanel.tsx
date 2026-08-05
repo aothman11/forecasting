@@ -353,6 +353,40 @@ export function ParameterPanel() {
         />
       </Section>
 
+      <Section title="Carcass Grade Splits (BOM)">
+        <div className="text-[11px] text-neutral-400 mb-1 leading-snug">
+          Yield of each sorting pool from total carcass weight (SAP BOM 930–933). Must sum to 100%.
+        </div>
+        {(
+          [
+            ["930", "A-Grade Fresh"],
+            ["931", "A-Grade Frozen"],
+            ["932", "B-Grade"],
+            ["933", "B-Grade Cuts"],
+          ] as const
+        ).map(([pool, label]) => (
+          <PercentField
+            key={pool}
+            label={label}
+            value={params.gradeYields[pool]}
+            onChange={(v) =>
+              setParam({ gradeYields: { ...params.gradeYields, [pool]: v } })
+            }
+          />
+        ))}
+        {(() => {
+          const sum = Object.values(params.gradeYields).reduce((a, b) => a + b, 0);
+          const diff = Math.abs(sum - 1);
+          return diff > 0.001 ? (
+            <div className="text-[11px] text-red-600 font-medium mt-1">
+              ⚠ Total = {(sum * 100).toFixed(1)}% (must be 100%)
+            </div>
+          ) : (
+            <div className="text-[11px] text-green-700 mt-1">✓ Total = 100%</div>
+          );
+        })()}
+      </Section>
+
       <div className="p-4">
         <button
           onClick={() => {

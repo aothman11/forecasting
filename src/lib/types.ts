@@ -106,6 +106,13 @@ export interface Parameters {
   fppFromCuts: CutYields;
   /** Frozen WC stock on hand at the start of week 1 (kg). */
   openingFrozenStockKg: number;
+  /**
+   * Yield of each SAP grade-sorting pool as a fraction of total carcass weight.
+   * Must sum to 1.0.  Source: SAP BOM 930 / 931 / 932 / 933.
+   *   930 = A-Grade Fresh (65 %), 931 = A-Grade Frozen (15 %),
+   *   932 = B-Grade (10 %),        933 = B-Grade Cuts (10 %)
+   */
+  gradeYields: { "930": number; "931": number; "932": number; "933": number };
   legSplitMode: boolean;
   planningHorizonWeeks: number;
   workingDaysPerWeek: number;
