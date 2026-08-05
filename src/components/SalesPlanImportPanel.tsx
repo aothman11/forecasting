@@ -67,6 +67,24 @@ export function SalesPlanImportPanel({ onClose }: { onClose: () => void }) {
       setFileHeaders(getSalesPlanHeaders(buf));
       setAppliedMessage(null);
 
+      // ── Immediately feed the Processing Plan ─────────────────────────────
+      // Save raw carton rows (SKU × plant × ISO week) the moment the file is
+      // parsed — no need to click Apply first. The demand plan mapping (product
+      // catalog, channels, weeks) still requires Apply, but the Processing Plan
+      // gets its carcass-requirement data right away from the same file.
+      const cartonRows = parsed
+        .filter((r) => r.materialCode && r.grossSalesVolumeCar > 0)
+        .map((r) => ({
+          week: r.weekOfYear,
+          plant: r.plant || "ALL",
+          skuCode: r.materialCode,
+          skuDescription: r.materialDescription,
+          cartons: r.grossSalesVolumeCar,
+        }));
+      setSalesPlanCartonRows(cartonRows);
+      confirmSalesPlan();
+      // ─────────────────────────────────────────────────────────────────────
+
       // Auto-map products: try saved map first, then auto-mapping, then NONE
       const prodDraft: Record<string, string> = {};
       distinctRowSignatures(parsed).forEach((g) => {
