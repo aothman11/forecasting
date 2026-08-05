@@ -151,6 +151,8 @@ export function ProcessingPlanDemand() {
   const setSalesPlanCartonRows = usePlanStore((s) => s.setSalesPlanCartonRows);
   const confirmSalesPlan = usePlanStore((s) => s.confirmSalesPlan);
   const clearSalesPlan = usePlanStore((s) => s.clearSalesPlan);
+  const setDemandOpen = usePlanStore((s) => s.setDemandOpen);
+  const setProcessingPlanOpen = usePlanStore((s) => s.setProcessingPlanOpen);
 
   const fileRef = useRef<HTMLInputElement>(null);
   const [parseErrors, setParseErrors] = useState<string[]>([]);
@@ -180,7 +182,13 @@ export function ProcessingPlanDemand() {
     GRADE_POOLS.map((p) => [p, cells.filter((c) => c.gradePool === p).reduce((s, c) => s + c.requiredCarcassKg, 0)])
   ) as Record<GradePool, number>;
 
-  // ── file upload ──
+  // ── navigate to Demand Plan ──
+  const goToDemandPlan = () => {
+    setProcessingPlanOpen(false);
+    setDemandOpen(true);
+  };
+
+  // ── file upload (direct fallback) ──
   const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -232,62 +240,70 @@ export function ProcessingPlanDemand() {
       )}
 
       {/* Data source panel */}
-      <div className="rounded-xl border border-[var(--border-subtle)] bg-white shadow-sm p-4 space-y-3">
-        <div className="flex items-center justify-between flex-wrap gap-2">
-          <div>
-            <div className="text-sm font-semibold text-neutral-800">Sales Plan Source</div>
-            <div className="text-xs text-neutral-500 mt-0.5">
-              {hasRows
-                ? "Data sourced from the Demand Plan import — updated automatically when you apply a new sales plan in M1."
-                : "No sales plan loaded yet. Go to Demand Plan → Import Sales Plan and click Apply, or upload a file directly below."}
+      {hasRows ? (
+        /* ── Loaded state ── */
+        <div className="rounded-xl border border-green-200 bg-green-50/60 px-4 py-3 flex items-center gap-4 flex-wrap">
+          <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full border font-semibold bg-green-100 text-green-800 border-green-200 text-xs shrink-0">
+            ✓ Sales plan loaded
+          </span>
+          <span className="text-xs text-neutral-600">
+            <span className="font-semibold tabular-nums">{fmtNum(salesPlanCartonRows.length)}</span> rows ·{" "}
+            <span className="font-semibold tabular-nums">{fmtNum(totalCartons)}</span> cartons
+            {unmatched.length > 0 && (
+              <span className="ml-2 text-amber-700 font-semibold">· ⚠ {unmatched.length} SKU(s) not in BOM</span>
+            )}
+          </span>
+          <span className="text-xs text-neutral-400 ml-auto">
+            Auto-fed from Demand Plan (M1) import
+          </span>
+          <button
+            onClick={clearSalesPlan}
+            className="text-xs text-neutral-400 hover:text-red-600 transition-colors"
+          >
+            Clear
+          </button>
+        </div>
+      ) : (
+        /* ── Empty state — guide user to M1 ── */
+        <div className="rounded-xl border border-amber-200 bg-amber-50 px-5 py-4 flex items-start gap-4">
+          <div className="text-2xl mt-0.5">📥</div>
+          <div className="flex-1 min-w-0">
+            <div className="text-sm font-semibold text-amber-900">No sales plan data yet</div>
+            <div className="text-xs text-amber-800 mt-1 leading-relaxed">
+              This view is fed automatically from your Demand Plan import.
+              Go to <strong>Demand Plan (M1)</strong>, open <strong>Import Sales Plan</strong>, and click <strong>Apply</strong> — the Processing Plan will populate instantly without any second upload.
+            </div>
+            <div className="flex items-center gap-2 mt-3 flex-wrap">
+              <button
+                onClick={goToDemandPlan}
+                className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-brand-green text-white hover:bg-brand-green-dark transition-colors"
+              >
+                → Go to Demand Plan (M1)
+              </button>
+              <span className="text-xs text-amber-700">or</span>
+              <input ref={fileRef} type="file" accept=".xlsx,.xls" className="hidden" onChange={handleFile} />
+              <button
+                onClick={() => fileRef.current?.click()}
+                className="text-xs font-medium px-3 py-1.5 rounded-lg border border-amber-300 text-amber-800 hover:border-brand-green hover:text-brand-green-dark transition-colors"
+              >
+                ⬆ Upload SAP file directly
+              </button>
             </div>
           </div>
-          <div className="flex items-center gap-2">
-            <input ref={fileRef} type="file" accept=".xlsx,.xls" className="hidden" onChange={handleFile} />
-            <button
-              onClick={() => fileRef.current?.click()}
-              className="text-xs font-semibold px-3 py-1.5 rounded-lg border border-[var(--border-subtle)] text-neutral-500 hover:border-brand-green hover:text-brand-green-dark transition-colors"
-              title="Upload a SAP file directly (fallback — normally auto-loaded from Demand Plan)"
-            >
-              ⬆ Upload directly
-            </button>
-            {hasRows && (
-              <button
-                onClick={clearSalesPlan}
-                className="text-xs text-neutral-400 hover:text-red-600 transition-colors"
-              >
-                Clear
-              </button>
-            )}
-          </div>
         </div>
+      )}
 
-        {/* Status strip */}
-        {hasRows && (
-          <div className="flex items-center gap-4 text-xs flex-wrap">
-            <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full border font-semibold bg-green-100 text-green-800 border-green-200">
-              ✓ {salesPlanCartonConfirmed ? "Confirmed" : "Loaded"}
-            </span>
-            <span className="text-neutral-500">{fmtNum(salesPlanCartonRows.length)} rows</span>
-            <span className="text-neutral-500">{fmtNum(totalCartons)} total cartons</span>
-            {unmatched.length > 0 && (
-              <span className="text-amber-700 font-semibold">⚠ {unmatched.length} unmatched SKU(s)</span>
-            )}
-          </div>
-        )}
-
-        {/* Parse errors from direct upload */}
-        {parseErrors.length > 0 && (
-          <div className="space-y-1">
-            {parseErrors.slice(0, 5).map((e, i) => (
-              <div key={i} className="text-xs text-red-700 bg-red-50 border border-red-200 rounded px-2 py-1">⚠ {e}</div>
-            ))}
-            {parseErrors.length > 5 && (
-              <div className="text-xs text-red-500">…and {parseErrors.length - 5} more errors</div>
-            )}
-          </div>
-        )}
-      </div>
+      {/* Parse errors from direct upload */}
+      {parseErrors.length > 0 && (
+        <div className="space-y-1">
+          {parseErrors.slice(0, 5).map((e, i) => (
+            <div key={i} className="text-xs text-red-700 bg-red-50 border border-red-200 rounded px-2 py-1">⚠ {e}</div>
+          ))}
+          {parseErrors.length > 5 && (
+            <div className="text-xs text-red-500">…and {parseErrors.length - 5} more errors</div>
+          )}
+        </div>
+      )}
 
       {/* Unmatched SKUs */}
       {unmatched.length > 0 && (
