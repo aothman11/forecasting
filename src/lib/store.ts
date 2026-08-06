@@ -398,7 +398,7 @@ export const usePlanStore = create<PlanState>()(
     }),
     {
       name: "awp-broiler-forecast-store",
-      version: 13,
+      version: 14,
       // v2  switched Step 1 from weekly to daily placement rows (PlacementRow -> PlacementDayRow).
       // v3  replaced the farm-based model with the house-based processing chain — discarded wholesale.
       // v4  added housesPerFarm (additive).
@@ -414,7 +414,26 @@ export const usePlanStore = create<PlanState>()(
       //     gradeYields to params (65/15/10/10 from SAP BOM 930-933).
       // v12 Processing Plan: added salesPlanCartonRows, salesPlanCartonConfirmed (additive).
       // v13 Broiler Intake Plan: added broilerIntakeOpen, broilerCapacity (additive).
+      // v14 Fix farm cycleLengthDays: was storing total cycle (43 d) instead of grow-out only
+      //     (25.5 d). computeSequenceQueue adds cleaningDays separately, so the old value caused
+      //     a 60-day turnaround instead of the correct 43 days (25.5 grow-out + 17 cleaning).
       migrate: (persisted, version) => {
+        if (version >= 14) return persisted;
+        // v13 → v14: patch farms that still carry cycleLengthDays === 43 (the buggy total-cycle
+        // value). Only farms with exactly 43 grow-out + 17 cleaning are touched; any farm a user
+        // has manually customised to a different value is left unchanged.
+        if (version === 13) {
+          const s13 = persisted as Record<string, unknown>;
+          const farms = s13.farms as Array<Record<string, unknown>> | undefined;
+          return {
+            ...s13,
+            farms: (farms ?? DEFAULT_FARMS).map((f) =>
+              f.cycleLengthDays === 43 && f.cleaningDays === 17
+                ? { ...f, cycleLengthDays: 25.5 }
+                : f
+            ),
+          };
+        }
         if (version >= 13) return persisted;
         // v12 → v13: additive — seed empty broiler capacity
         if (version === 12) {
