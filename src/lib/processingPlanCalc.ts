@@ -93,6 +93,43 @@ export function weeksInPlan(cells: ProcessingPlanCell[]): number[] {
   return [...new Set(cells.map((c) => c.week))].sort((a, b) => a - b);
 }
 
+/**
+ * Returns the Monday (Date) of a given ISO week within a year.
+ * Jan 4 is always in ISO week 1 — anchor back to Monday of that week,
+ * then step forward by (isoWeek − 1) full weeks.
+ */
+function isoWeekMonday(isoWeek: number, year: number): Date {
+  const jan4 = new Date(year, 0, 4);
+  const dow = jan4.getDay() || 7; // 1 = Mon … 7 = Sun
+  const d = new Date(jan4);
+  d.setDate(jan4.getDate() - dow + 1 + (isoWeek - 1) * 7);
+  return d;
+}
+
+/**
+ * Converts an ISO week-of-year number to the app's standard label format:
+ * "2026.Aug.W1", "2026.Sep.W3", etc.
+ *
+ * Mirrors the counting logic of weekLabel() in demandPlan.ts: the ordinal
+ * week-within-month is the number of ISO weeks (1 … isoWeek) whose Monday
+ * falls in the same year-month as this week's Monday — so W1, W2, W3 …
+ * are always consecutive and never repeat within a month.
+ */
+export function isoWeekLabel(isoWeek: number, year: number): string {
+  const target = isoWeekMonday(isoWeek, year);
+  const targetKey = `${target.getFullYear()}-${target.getMonth()}`;
+
+  // Count ordinal position of this ISO week within its calendar month
+  let wom = 0;
+  for (let w = 1; w <= isoWeek; w++) {
+    const d = isoWeekMonday(w, year);
+    if (`${d.getFullYear()}-${d.getMonth()}` === targetKey) wom++;
+  }
+
+  const mmm = target.toLocaleDateString("en-US", { month: "short" });
+  return `${target.getFullYear()}.${mmm}.W${wom}`;
+}
+
 /** Unique sorted plants present in a cell array. */
 export function plantsInPlan(cells: ProcessingPlanCell[]): string[] {
   return [...new Set(cells.map((c) => c.plant))].sort();

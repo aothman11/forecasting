@@ -3,7 +3,7 @@
 import { useRef, useState, useMemo } from "react";
 import * as XLSX from "xlsx";
 import { usePlanStore } from "@/lib/store";
-import { explodeSalesPlan, weeksInPlan, plantsInPlan } from "@/lib/processingPlanCalc";
+import { explodeSalesPlan, weeksInPlan, plantsInPlan, isoWeekLabel } from "@/lib/processingPlanCalc";
 import type { SalesPlanCartonRow, ProcessingPlanCell } from "@/lib/processingPlanTypes";
 import { GRADE_POOL_LABELS } from "@/lib/bomTypes";
 import type { GradePool } from "@/lib/bomTypes";
@@ -177,6 +177,7 @@ export function ProcessingPlanDemand() {
 
   const weeks = weeksInPlan(cells);
   const plants = plantsInPlan(cells);
+  const planYear = new Date(params.planStartDate).getFullYear();
 
   // cell lookup: `${plant}::${week}::${pool}`
   const cellIndex = new Map(cells.map((c) => [`${c.plant}::${c.week}::${c.gradePool}`, c]));
@@ -468,7 +469,7 @@ export function ProcessingPlanDemand() {
                       <tr className="bg-brand-green-tint text-brand-green-dark text-[11px] uppercase tracking-wide">
                         <th className="px-3 py-2.5 text-left font-semibold sticky left-0 bg-brand-green-tint z-10">Plant</th>
                         {poolWeeks.map((w) => (
-                          <th key={w} className="px-3 py-2.5 text-right font-semibold whitespace-nowrap">Wk {w}</th>
+                          <th key={w} className="px-3 py-2.5 text-right font-semibold whitespace-nowrap">{isoWeekLabel(w, planYear)}</th>
                         ))}
                         <th className="px-3 py-2.5 text-right font-semibold">Total</th>
                       </tr>

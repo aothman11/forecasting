@@ -4,7 +4,7 @@ import { useMemo } from "react";
 import * as XLSX from "xlsx";
 import { usePlanStore } from "@/lib/store";
 import { usePipeline } from "@/lib/usePipeline";
-import { explodeSalesPlan, weeksInPlan, plantsInPlan } from "@/lib/processingPlanCalc";
+import { explodeSalesPlan, weeksInPlan, plantsInPlan, isoWeekLabel } from "@/lib/processingPlanCalc";
 
 // ─── constants ────────────────────────────────────────────────────────────────
 
@@ -95,6 +95,7 @@ export function BroilerIntakePlan() {
   const plants = useMemo(() => plantsInPlan(cells), [cells]);
 
   const hasData = cells.length > 0;
+  const planYear = new Date(params.planStartDate).getFullYear();
 
   // ── summary KPIs ──
   const totalReqKg = useMemo(
@@ -128,7 +129,7 @@ export function BroilerIntakePlan() {
         const availKg = s?.carcassKg ?? 0;
         rows.push({
           Plant: plant,
-          "ISO Week": week,
+          "Week": isoWeekLabel(week, planYear),
           "Required Carcass KG": parseFloat(reqKg.toFixed(2)),
           "Required Birds": Math.round(params.avgCarcassWeightKg > 0 ? reqKg / params.avgCarcassWeightKg : 0),
           "Available Carcass KG (Pipeline)": parseFloat(availKg.toFixed(2)),
@@ -255,7 +256,7 @@ export function BroilerIntakePlan() {
                   <tr className="bg-neutral-50 text-neutral-500 text-[11px] uppercase tracking-wide">
                     <th className="px-3 py-2.5 text-left sticky left-0 bg-neutral-50 z-10 w-40">Metric</th>
                     {weeks.map((w) => (
-                      <th key={w} className="px-3 py-2.5 text-right whitespace-nowrap font-semibold">Wk {w}</th>
+                      <th key={w} className="px-3 py-2.5 text-right whitespace-nowrap font-semibold">{isoWeekLabel(w, planYear)}</th>
                     ))}
                     <th className="px-3 py-2.5 text-right font-semibold">Total</th>
                   </tr>
