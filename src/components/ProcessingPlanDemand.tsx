@@ -315,7 +315,7 @@ export function ProcessingPlanDemand() {
                 onClick={goToDemandPlan}
                 className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-brand-green text-white hover:bg-brand-green-dark transition-colors"
               >
-                → Go to Demand Plan (M1)
+                ↺ Sync from M1
               </button>
               <span className="text-xs text-amber-700">or</span>
               <input ref={fileRef} type="file" accept=".xlsx,.xls" className="hidden" onChange={handleFile} />
