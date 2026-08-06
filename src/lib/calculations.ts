@@ -172,7 +172,13 @@ export function computeLiveBirdForecast(
     const chicksPlaced = refRow ? refRow.totalChicksPlaced : 0;
     const harvestableBirds = chicksPlaced * (1 - params.mortalityRate);
     const totalLiveWeightKg = harvestableBirds * params.avgLiveWeightKg;
-    const utilizationPct = capacity > 0 ? (harvestableBirds / capacity) * 100 : 0;
+    // capacity is in birds/day; harvestableBirds is a weekly total.
+    // Convert to daily rate before comparing so utilization reflects the
+    // actual load on each processing day (not the full-week sum vs one day).
+    const dailyBirds = params.workingDaysPerWeek > 0
+      ? harvestableBirds / params.workingDaysPerWeek
+      : harvestableBirds;
+    const utilizationPct = capacity > 0 ? (dailyBirds / capacity) * 100 : 0;
     const funnel = computeProcessingFunnel(harvestableBirds, params);
 
     return {
@@ -184,10 +190,11 @@ export function computeLiveBirdForecast(
       ),
       placementWeekRef: refRow ? week : null,
       harvestableBirds,
+      dailyBirds,
       totalLiveWeightKg,
       totalPlantCapacity: capacity,
       utilizationPct,
-      exceedsCapacity: harvestableBirds > capacity,
+      exceedsCapacity: dailyBirds > capacity,
       ...funnel,
     };
   });

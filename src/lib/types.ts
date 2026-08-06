@@ -126,6 +126,8 @@ export interface LiveBirdWeek {
   harvestDateEnd: string;
   placementWeekRef: number | null;
   harvestableBirds: number;
+  /** harvestableBirds spread across workingDaysPerWeek — the value compared to daily plant capacity. */
+  dailyBirds: number;
   totalLiveWeightKg: number;
   totalPlantCapacity: number;
   utilizationPct: number;

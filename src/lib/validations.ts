@@ -57,15 +57,16 @@ export function validatePipeline(params: Parameters, result: PipelineResult): Va
     });
   }
 
-  // Rule 5: weekly harvest cannot exceed total plant capacity — error
+  // Rule 5: daily harvest rate cannot exceed total plant capacity — error
+  // dailyBirds = harvestableBirds / workingDaysPerWeek; totalPlantCapacity is birds/day.
   result.liveBird.forEach((lb) => {
     if (lb.exceedsCapacity) {
       issues.push({
         level: "error",
         step: "Live Bird Forecast",
-        message: `Week ${lb.week}: harvestable birds (${Math.round(
-          lb.harvestableBirds
-        ).toLocaleString()}) exceed total plant capacity (${lb.totalPlantCapacity.toLocaleString()}).`,
+        message: `Week ${lb.week}: daily rate (${Math.round(
+          lb.dailyBirds
+        ).toLocaleString()} birds/day) exceeds total plant capacity (${lb.totalPlantCapacity.toLocaleString()} birds/day).`,
       });
     }
   });
