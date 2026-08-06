@@ -511,8 +511,9 @@ export const usePlanStore = create<PlanState>()(
         monthlyPlanConfig: s.monthlyPlanConfig,
         dailyPlannedQtyOverrides: s.dailyPlannedQtyOverrides,
         bomRecords: s.bomRecords,
-        salesPlanCartonRows: s.salesPlanCartonRows,
-        salesPlanCartonConfirmed: s.salesPlanCartonConfirmed,
+        // salesPlanCartonRows intentionally NOT persisted — re-populated on
+        // every file upload. Keeping 40k+ rows out of localStorage prevents
+        // the main-thread serialisation freeze on Zustand state changes.
         broilerCapacity: s.broilerCapacity,
         scenarios: s.scenarios,
         harvestDeferrals: s.harvestDeferrals,

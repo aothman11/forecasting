@@ -68,20 +68,20 @@ export function SalesPlanImportPanel({ onClose }: { onClose: () => void }) {
       setAppliedMessage(null);
 
       // ── Immediately feed the Processing Plan ─────────────────────────────
-      // Save raw carton rows (SKU × plant × ISO week) the moment the file is
-      // parsed — no need to click Apply first. The demand plan mapping (product
-      // catalog, channels, weeks) still requires Apply, but the Processing Plan
-      // gets its carcass-requirement data right away from the same file.
-      const cartonRows = parsed
-        .filter((r) => r.materialCode && r.grossSalesVolumeCar > 0)
-        .map((r) => ({
-          week: r.weekOfYear,
-          plant: r.plant || "ALL",
-          skuCode: r.materialCode,
-          skuDescription: r.materialDescription,
-          cartons: r.grossSalesVolumeCar,
-        }));
-      setSalesPlanCartonRows(cartonRows);
+      // Aggregate to unique (week × plant × skuCode) before storing — the SAP
+      // file can have 40k+ rows for the same SKU split by channel/division/day.
+      // The Processing Plan only needs weekly carton totals per SKU per plant,
+      // so we collapse first. This also keeps localStorage small (avoid
+      // serialising 40k objects on every Zustand state change).
+      const aggMap = new Map<string, { week: number; plant: string; skuCode: string; skuDescription: string; cartons: number }>();
+      for (const r of parsed) {
+        if (!r.materialCode || r.grossSalesVolumeCar <= 0) continue;
+        const key = `${r.weekOfYear}::${r.plant || "ALL"}::${r.materialCode}`;
+        const cur = aggMap.get(key);
+        if (cur) { cur.cartons += r.grossSalesVolumeCar; }
+        else { aggMap.set(key, { week: r.weekOfYear, plant: r.plant || "ALL", skuCode: r.materialCode, skuDescription: r.materialDescription, cartons: r.grossSalesVolumeCar }); }
+      }
+      setSalesPlanCartonRows([...aggMap.values()]);
       confirmSalesPlan();
       // ─────────────────────────────────────────────────────────────────────
 
@@ -236,23 +236,8 @@ export function SalesPlanImportPanel({ onClose }: { onClose: () => void }) {
       pricedProducts++;
     });
 
-    // ── Processing Plan feed ──────────────────────────────────────────────────
-    // Save raw carton rows (SKU × plant × ISO week) so the Processing Plan can
-    // explode them through the BOM without a second file upload.
-    if (rows) {
-      const cartonRows = rows
-        .filter((r) => r.materialCode && r.grossSalesVolumeCar > 0)
-        .map((r) => ({
-          week: r.weekOfYear,
-          plant: r.plant || "ALL",   // fall back to "ALL" if no Plnt column in file
-          skuCode: r.materialCode,
-          skuDescription: r.materialDescription,
-          cartons: r.grossSalesVolumeCar,
-        }));
-      setSalesPlanCartonRows(cartonRows);
-      confirmSalesPlan();
-    }
-    // ─────────────────────────────────────────────────────────────────────────
+    // Processing Plan feed is already done on file parse (handleFile).
+    // No need to re-save here — the aggregated rows are already in the store.
 
     setSalesPlanProductMap({ ...savedProductMap, ...productMap });
     setSalesPlanChannelMap({ ...savedChannelMap, ...channelMap });
