@@ -414,14 +414,15 @@ export const usePlanStore = create<PlanState>()(
       //     gradeYields to params (65/15/10/10 from SAP BOM 930-933).
       // v12 Processing Plan: added salesPlanCartonRows, salesPlanCartonConfirmed (additive).
       // v13 Broiler Intake Plan: added broilerIntakeOpen, broilerCapacity (additive).
-      // v14 Fix farm cycleLengthDays: was storing total cycle (43 d) instead of grow-out only
-      //     (25.5 d). computeSequenceQueue adds cleaningDays separately, so the old value caused
-      //     a 60-day turnaround instead of the correct 43 days (25.5 grow-out + 17 cleaning).
+      // v14 Fix farm cycle params: cycleLengthDays was storing total cycle (43 d) instead of
+      //     grow-out only (25.5 d); cleaningDays was 17 d instead of correct 17.5 d.
+      //     computeSequenceQueue adds both separately, so old values caused a 60-day turnaround
+      //     instead of the correct 43 days (25.5 grow-out + 17.5 cleaning).
       migrate: (persisted, version) => {
         if (version >= 14) return persisted;
-        // v13 → v14: patch farms that still carry cycleLengthDays === 43 (the buggy total-cycle
-        // value). Only farms with exactly 43 grow-out + 17 cleaning are touched; any farm a user
-        // has manually customised to a different value is left unchanged.
+        // v13 → v14: patch farms that still carry the buggy default values
+        // (cycleLengthDays:43 total-cycle, cleaningDays:17). Only farms with exactly
+        // that pair are touched; user-customised values are left unchanged.
         if (version === 13) {
           const s13 = persisted as Record<string, unknown>;
           const farms = s13.farms as Array<Record<string, unknown>> | undefined;
@@ -429,7 +430,7 @@ export const usePlanStore = create<PlanState>()(
             ...s13,
             farms: (farms ?? DEFAULT_FARMS).map((f) =>
               f.cycleLengthDays === 43 && f.cleaningDays === 17
-                ? { ...f, cycleLengthDays: 25.5 }
+                ? { ...f, cycleLengthDays: 25.5, cleaningDays: 17.5 }
                 : f
             ),
           };
