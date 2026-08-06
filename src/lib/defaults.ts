@@ -166,6 +166,14 @@ export const CHANNEL_LABELS: Record<ChannelKey, string> = {
 export const EGG_PIECES_PER_TRAY = 30;
 export const EGG_TRAYS_PER_CARTON = 12;
 
+/**
+ * Default BOM meat-content ratio for FPP products: raw meat kg per kg of finished product.
+ * Source: SAP BOM for burger plain 4pcs 200g (item S8160112):
+ *   225 kg raw chicken meat → 256 kg finished product  →  225 / 256 = 0.879
+ * Used as fallback when a DemandProduct has no yieldPct set.
+ */
+export const DEFAULT_FPP_MEAT_CONTENT = 0.879;
+
 /** Target (not enforced) fresh/frozen split used only by the "Distribute Fresh/Frozen" quick-fill helper. */
 export const WHOLE_CHICKEN_FRESH_FROZEN_TARGET = { fresh: 0.7, frozen: 0.3 };
 

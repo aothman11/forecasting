@@ -187,7 +187,13 @@ export interface DemandProduct {
   grade?: "A" | "B"; // wholeChicken only
   weightBucketG?: number; // wholeChicken only, editable in 50g steps
   freshFrozen?: "fresh" | "frozen"; // wholeChicken only
-  yieldPct?: number; // fpp only: % yield from FPP input tons (simple BOM, editable)
+  /**
+   * FPP only — BOM meat-content ratio: raw meat kg per kg of finished product (0..1).
+   * Example: burger SAP BOM → 225 kg meat / 256 kg finished = 0.879.
+   * Used to convert finished-product demand back to raw-meat requirement.
+   * Defaults to DEFAULT_FPP_MEAT_CONTENT (0.879) when not set.
+   */
+  yieldPct?: number;
   unit: DemandUnit;
   /** Selling price in SAR per unit (per ton for weight products, per tray for eggs). Used for revenue by channel. */
   pricePerUnit?: number;
@@ -205,6 +211,8 @@ export interface SupplyRequirementsWeek {
   cutsDemandTons: number;
   eggsDemandTrays: number;
   // required supply (reverse BOM)
+  /** Total FPP finished-product demand converted to raw-meat equivalent (kg). */
+  fppRawMeatKg: number;
   requiredCarcassKg: number;
   requiredHarvestableBirds: number;
   requiredChicksPlaced: number;

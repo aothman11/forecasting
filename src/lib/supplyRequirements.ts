@@ -1,5 +1,6 @@
 import { activeCutKeys, harvestOffsetWeeks } from "./calculations";
 import { getDemandQtyAllChannels } from "./demandPlan";
+import { DEFAULT_FPP_MEAT_CONTENT } from "./defaults";
 import type {
   DemandPlanQty,
   DemandProduct,
@@ -83,21 +84,30 @@ export function computeSupplyRequirements(
     let fppDemandTons = 0;
     let cutsDemandTons = 0;
     let eggsDemandTrays = 0;
+    // FPP finished-product demand converted to raw-meat equivalent.
+    // Each product's yieldPct is its BOM meat-content ratio (raw meat / finished product).
+    // Example: 1 t finished burger × 0.879 = 0.879 t raw meat needed.
+    // This raw-meat figure is then divided by fppYield (carcass → raw meat fraction)
+    // to get the required carcass kg — both sides of the division are now in raw-meat units.
+    let fppRawMeatKg = 0;
 
     for (const p of demandProducts) {
       const qty = getDemandQtyAllChannels(demandQty, p.id, week);
       if (p.category === "wholeChicken") wcDemandTons += qty;
-      else if (p.category === "fpp") fppDemandTons += qty;
+      else if (p.category === "fpp") {
+        fppDemandTons += qty;
+        const meatContent = p.yieldPct ?? DEFAULT_FPP_MEAT_CONTENT;
+        fppRawMeatKg += qty * 1000 * meatContent;
+      }
       else if (p.category === "cuts") cutsDemandTons += qty;
       else if (p.category === "eggs") eggsDemandTrays += qty;
     }
 
     const wcDemandKg = wcDemandTons * 1000;
-    const fppDemandKg = fppDemandTons * 1000;
     const cutsDemandKg = cutsDemandTons * 1000;
 
     const reqForWc = wcYield > 0 ? wcDemandKg / wcYield : 0;
-    const reqForFpp = fppYield > 0 ? fppDemandKg / fppYield : 0;
+    const reqForFpp = fppYield > 0 ? fppRawMeatKg / fppYield : 0;
     const reqForCuts = cutsYield > 0 ? cutsDemandKg / cutsYield : 0;
 
     const requiredCarcassKg = Math.max(reqForWc, reqForFpp, reqForCuts);
@@ -105,7 +115,7 @@ export function computeSupplyRequirements(
     let bindingCategory: ProductCategory | null = null;
     if (requiredCarcassKg > 0) {
       if (requiredCarcassKg === reqForWc && wcDemandKg > 0) bindingCategory = "wholeChicken";
-      else if (requiredCarcassKg === reqForFpp && fppDemandKg > 0) bindingCategory = "fpp";
+      else if (requiredCarcassKg === reqForFpp && fppRawMeatKg > 0) bindingCategory = "fpp";
       else if (requiredCarcassKg === reqForCuts && cutsDemandKg > 0) bindingCategory = "cuts";
     }
 
@@ -123,6 +133,7 @@ export function computeSupplyRequirements(
       fppDemandTons,
       cutsDemandTons,
       eggsDemandTrays,
+      fppRawMeatKg,
       requiredCarcassKg,
       requiredHarvestableBirds,
       requiredChicksPlaced,
