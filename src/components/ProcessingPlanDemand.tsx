@@ -153,6 +153,7 @@ export function ProcessingPlanDemand() {
   const clearSalesPlan = usePlanStore((s) => s.clearSalesPlan);
   const setDemandOpen = usePlanStore((s) => s.setDemandOpen);
   const setProcessingPlanOpen = usePlanStore((s) => s.setProcessingPlanOpen);
+  const addBomRecord = usePlanStore((s) => s.addBomRecord);
 
   const fileRef = useRef<HTMLInputElement>(null);
   const [parseErrors, setParseErrors] = useState<string[]>([]);
@@ -186,6 +187,29 @@ export function ProcessingPlanDemand() {
   const goToDemandPlan = () => {
     setProcessingPlanOpen(false);
     setDemandOpen(true);
+  };
+
+  // ── create placeholder BOM records for all unmatched SKUs ──
+  const addDummyBoms = () => {
+    // Deduplicate by skuCode — one dummy BOM per unique SKU (plant = ALL)
+    const seen = new Set(bomRecords.map((b) => b.skuCode));
+    const byCode = new Map<string, { skuCode: string; skuDescription: string }>();
+    unmatched.forEach((r) => {
+      if (!seen.has(r.skuCode) && !byCode.has(r.skuCode)) {
+        byCode.set(r.skuCode, { skuCode: r.skuCode, skuDescription: r.skuDescription });
+      }
+    });
+    byCode.forEach(({ skuCode, skuDescription }) => {
+      addBomRecord({
+        id: crypto.randomUUID(),
+        skuCode,
+        skuDescription,
+        packageWeightKg: 1.0,   // placeholder — update in Product BOM
+        unitsPerCarton: 10,      // placeholder — update in Product BOM
+        gradePool: "930",        // default to A-Grade Fresh
+        plant: "ALL",
+      });
+    });
   };
 
   // ── file upload (direct fallback) ──
@@ -253,15 +277,22 @@ export function ProcessingPlanDemand() {
               <span className="ml-2 text-amber-700 font-semibold">· ⚠ {unmatched.length} SKU(s) not in BOM</span>
             )}
           </span>
-          <span className="text-xs text-neutral-400 ml-auto">
-            Auto-fed from Demand Plan (M1) import
-          </span>
-          <button
-            onClick={clearSalesPlan}
-            className="text-xs text-neutral-400 hover:text-red-600 transition-colors"
-          >
-            Clear
-          </button>
+          <div className="ml-auto flex items-center gap-2">
+            <span className="text-xs text-neutral-400">Auto-fed from Demand Plan (M1) import</span>
+            <button
+              onClick={goToDemandPlan}
+              title="Go to Demand Plan (M1) to re-import the sales plan"
+              className="text-xs font-semibold px-2.5 py-1 rounded-lg border border-brand-green/40 text-brand-green-dark hover:bg-brand-green hover:text-white transition-colors"
+            >
+              ↺ Sync from M1
+            </button>
+            <button
+              onClick={clearSalesPlan}
+              className="text-xs text-neutral-400 hover:text-red-600 transition-colors"
+            >
+              Clear
+            </button>
+          </div>
         </div>
       ) : (
         /* ── Empty state — guide user to M1 ── */
@@ -308,8 +339,15 @@ export function ProcessingPlanDemand() {
       {/* Unmatched SKUs */}
       {unmatched.length > 0 && (
         <div className="rounded-xl border border-amber-200 bg-amber-50/60 overflow-hidden">
-          <div className="px-4 py-2.5 text-xs font-semibold text-amber-900 flex items-center gap-2">
+          <div className="px-4 py-2.5 text-xs font-semibold text-amber-900 flex items-center gap-2 flex-wrap">
             <span>⚠ {unmatched.length} SKU{unmatched.length !== 1 ? "s" : ""} not found in Product BOM — excluded from calculation</span>
+            <button
+              onClick={addDummyBoms}
+              title="Create placeholder BOM entries for all unmatched SKUs (packageWeightKg=1.0, unitsPerCarton=10, gradePool=930). Edit real values in Product BOM."
+              className="ml-auto text-xs font-semibold px-2.5 py-1 rounded-lg bg-amber-700 text-white hover:bg-amber-800 transition-colors"
+            >
+              + Add dummy BOMs
+            </button>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-xs border-collapse">

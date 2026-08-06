@@ -149,7 +149,7 @@ export function Sidebar() {
         {collapsed && <div className="border-t border-neutral-100 my-1 mx-2" />}
 
         {STEPS.map((step) => {
-          const active = !compareOpen && !demandOpen && !supplyOpen && !reconcileOpen && !ddpOpen && !reportOpen && !homeOpen && selectedStep === step.id;
+          const active = !compareOpen && !demandOpen && !supplyOpen && !reconcileOpen && !ddpOpen && !reportOpen && !homeOpen && !bomOpen && !processingPlanOpen && selectedStep === step.id;
           return (
             <NavBtn
               key={step.id}
