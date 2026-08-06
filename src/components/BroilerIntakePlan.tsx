@@ -2,7 +2,6 @@
 
 import { useMemo } from "react";
 import * as XLSX from "xlsx";
-import { getISOWeek } from "date-fns";
 import { usePlanStore } from "@/lib/store";
 import { usePipeline } from "@/lib/usePipeline";
 import { explodeSalesPlan, weeksInPlan, plantsInPlan } from "@/lib/processingPlanCalc";
@@ -52,20 +51,10 @@ export function BroilerIntakePlan() {
   // ── production pipeline supply ──
   const { result } = usePipeline();
 
-  // Build a plan-week → ISO-week lookup using the actual harvest dates from liveBird.
-  // This is the only reliable bridge: harvestDateStart was computed by date-fns inside
-  // the pipeline, so getISOWeek() on it is guaranteed to match the SAP file's week numbers.
-  const planWeekToISO = useMemo(() => {
-    const m = new Map<number, number>();
-    for (const lb of result.liveBird) {
-      m.set(lb.week, getISOWeek(new Date(lb.harvestDateStart)));
-    }
-    return m;
-  }, [result.liveBird]);
-
   // Build a supply map: plantCode::isoWeek → available carcass KG + birds.
-  // Also accumulates an "ALL" key per week so that when the SAP file has no Plnt
-  // column (all demand rows fall back to plant "ALL") the totals still match.
+  // pw.isoWeek is computed once in calculations.ts (getISOWeek on harvestDateStart),
+  // so it is guaranteed to use the same calendar dates as the SAP file.
+  // An "ALL::week" key is also accumulated so files without a Plnt column still match.
   const supplyMap = useMemo(() => {
     const m = new Map<string, { carcassKg: number; birds: number }>();
     const add = (key: string, kg: number, birds: number) => {
@@ -75,13 +64,11 @@ export function BroilerIntakePlan() {
     for (const pw of result.plants) {
       const code = PIPELINE_PLANT_TO_CODE[pw.plant];
       if (!code) continue;
-      const isoWeek = planWeekToISO.get(pw.week);
-      if (isoWeek === undefined) continue;
-      add(`${code}::${isoWeek}`, pw.carcassKg, pw.birds);   // per-plant key
-      add(`ALL::${isoWeek}`, pw.carcassKg, pw.birds);        // aggregate key
+      add(`${code}::${pw.isoWeek}`, pw.carcassKg, pw.birds);  // per-plant key
+      add(`ALL::${pw.isoWeek}`, pw.carcassKg, pw.birds);       // aggregate key
     }
     return m;
-  }, [result.plants, planWeekToISO]);
+  }, [result.plants]);
 
   // ── processing plan demand ──
   const { cells } = useMemo(

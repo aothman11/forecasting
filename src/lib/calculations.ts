@@ -1,4 +1,4 @@
-import { addDays, differenceInCalendarDays, format } from "date-fns";
+import { addDays, differenceInCalendarDays, format, getISOWeek } from "date-fns";
 import type {
   CarcassSizeWeek,
   CarcassYieldWeek,
@@ -319,6 +319,7 @@ export function computePlantDistribution(
 
       result.push({
         week: lb.week,
+        isoWeek: getISOWeek(new Date(lb.harvestDateStart)),
         plant,
         birds,
         liveWeightKg,

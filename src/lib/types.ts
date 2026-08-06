@@ -234,7 +234,8 @@ export interface CarcassSizeWeek {
 }
 
 export interface PlantWeek {
-  week: number;
+  week: number;      // plan-relative (1..N from planStartDate)
+  isoWeek: number;   // ISO week-of-year — matches SAP file week numbers directly
   plant: PlantKey;
   birds: number;
   liveWeightKg: number;
