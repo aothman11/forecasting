@@ -164,17 +164,22 @@ export function computeLiveBirdForecast(
   params: Parameters
 ): LiveBirdWeek[] {
   const capacity = totalPlantCapacity(params);
+  // Grow-out offset: birds placed in week P are ready for harvest in week P + offset.
+  // Equivalently, harvest week H draws from placement week H - offset.
+  const offset = harvestOffsetWeeks(params.cycleLengthDays);
   const placementByWeek = new Map(placement.map((r) => [r.week, r]));
 
   return placement.map((row): LiveBirdWeek => {
-    const week = row.week;
-    const refRow = placementByWeek.get(week);
-    const chicksPlaced = refRow ? refRow.totalChicksPlaced : 0;
+    const harvestWeek = row.week;
+    // Look back `offset` weeks to find the placement batch arriving this week.
+    // Weeks 1..offset have no in-plan placement to draw from (opening-flock territory).
+    const placementWeek = harvestWeek - offset;
+    const placementRow = placementByWeek.get(placementWeek);
+    const chicksPlaced = placementRow ? placementRow.totalChicksPlaced : 0;
     const harvestableBirds = chicksPlaced * (1 - params.mortalityRate);
     const totalLiveWeightKg = harvestableBirds * params.avgLiveWeightKg;
     // capacity is in birds/day; harvestableBirds is a weekly total.
-    // Convert to daily rate before comparing so utilization reflects the
-    // actual load on each processing day (not the full-week sum vs one day).
+    // Divide by workingDaysPerWeek to get the daily rate for a like-for-like comparison.
     const dailyBirds = params.workingDaysPerWeek > 0
       ? harvestableBirds / params.workingDaysPerWeek
       : harvestableBirds;
@@ -182,13 +187,13 @@ export function computeLiveBirdForecast(
     const funnel = computeProcessingFunnel(harvestableBirds, params);
 
     return {
-      week,
-      harvestDateStart: weekStartDate(params.planStartDate, week),
+      week: harvestWeek,
+      harvestDateStart: weekStartDate(params.planStartDate, harvestWeek),
       harvestDateEnd: format(
-        addDays(new Date(weekStartDate(params.planStartDate, week)), 6),
+        addDays(new Date(weekStartDate(params.planStartDate, harvestWeek)), 6),
         "yyyy-MM-dd"
       ),
-      placementWeekRef: refRow ? week : null,
+      placementWeekRef: placementRow ? placementWeek : null,
       harvestableBirds,
       dailyBirds,
       totalLiveWeightKg,
