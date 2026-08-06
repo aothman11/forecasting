@@ -205,12 +205,15 @@ export const DEFAULT_DEMAND_PRODUCTS: DemandProduct[] = [
   { id: "cut-giblets", category: "cuts", name: "Giblets", unit: "ton" },
   { id: "cut-trim-mince", category: "cuts", name: "Trim / Mince", unit: "ton" },
   { id: "cut-marinated", category: "cuts", name: "Marinated", unit: "ton" },
-  { id: "fpp-nuggets", category: "fpp", name: "Nuggets", yieldPct: 0.2, unit: "ton" },
-  { id: "fpp-burgers-patties", category: "fpp", name: "Burgers / Patties", yieldPct: 0.15, unit: "ton" },
-  { id: "fpp-strips-tenders", category: "fpp", name: "Strips / Tenders", yieldPct: 0.2, unit: "ton" },
-  { id: "fpp-shawarma", category: "fpp", name: "Shawarma", yieldPct: 0.15, unit: "ton" },
-  { id: "fpp-marinated-pieces", category: "fpp", name: "Marinated Pieces", yieldPct: 0.15, unit: "ton" },
-  { id: "fpp-other", category: "fpp", name: "Other FPP", yieldPct: 0.15, unit: "ton" },
+  // FPP yieldPct = BOM meat-content ratio: raw meat kg per kg of finished product.
+  // Burgers/Patties confirmed from SAP BOM (S8160112): 225 kg meat / 256 kg finished = 0.879.
+  // All other values are indicative industry estimates — update from actual SAP BOMs via the BOM editor.
+  { id: "fpp-nuggets",          category: "fpp", name: "Nuggets",           yieldPct: 0.650, unit: "ton" }, // ~35% breading/batter
+  { id: "fpp-burgers-patties",  category: "fpp", name: "Burgers / Patties", yieldPct: 0.879, unit: "ton" }, // confirmed SAP BOM S8160112
+  { id: "fpp-strips-tenders",   category: "fpp", name: "Strips / Tenders",  yieldPct: 0.700, unit: "ton" }, // ~30% coating
+  { id: "fpp-shawarma",         category: "fpp", name: "Shawarma",          yieldPct: 0.830, unit: "ton" }, // marinated whole muscle
+  { id: "fpp-marinated-pieces", category: "fpp", name: "Marinated Pieces",  yieldPct: 0.879, unit: "ton" }, // whole pieces, minimal additives
+  { id: "fpp-other",            category: "fpp", name: "Other FPP",         yieldPct: 0.879, unit: "ton" }, // fallback = DEFAULT_FPP_MEAT_CONTENT
   { id: "egg-large", category: "eggs", name: "Table Eggs Large", unit: "tray" },
   { id: "egg-medium", category: "eggs", name: "Table Eggs Medium", unit: "tray" },
   { id: "egg-small", category: "eggs", name: "Table Eggs Small", unit: "tray" },

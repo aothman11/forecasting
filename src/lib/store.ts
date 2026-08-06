@@ -398,7 +398,7 @@ export const usePlanStore = create<PlanState>()(
     }),
     {
       name: "awp-broiler-forecast-store",
-      version: 14,
+      version: 15,
       // v2  switched Step 1 from weekly to daily placement rows (PlacementRow -> PlacementDayRow).
       // v3  replaced the farm-based model with the house-based processing chain — discarded wholesale.
       // v4  added housesPerFarm (additive).
@@ -416,9 +416,34 @@ export const usePlanStore = create<PlanState>()(
       // v13 Broiler Intake Plan: added broilerIntakeOpen, broilerCapacity (additive).
       // v14 Fix farm cycle params: cycleLengthDays was storing total cycle (43 d) instead of
       //     grow-out only (25.5 d); cleaningDays was 17 d instead of correct 17.5 d.
-      //     computeSequenceQueue adds both separately, so old values caused a 60-day turnaround
-      //     instead of the correct 43 days (25.5 grow-out + 17.5 cleaning).
+      // v15 Fix FPP yieldPct: placeholder values (0.15/0.20) replaced with BOM-derived
+      //     meat-content ratios. Matched by product id + exact old value so user-customised
+      //     products are not overwritten.
       migrate: (persisted, version) => {
+        if (version >= 15) return persisted;
+        // v14 → v15: patch FPP products carrying the old placeholder yieldPct values.
+        if (version === 14) {
+          type DP = { id: string; category: string; yieldPct?: number };
+          const PATCHES: Record<string, { old: number; next: number }> = {
+            "fpp-nuggets":          { old: 0.2,  next: 0.650 },
+            "fpp-burgers-patties":  { old: 0.15, next: 0.879 },
+            "fpp-strips-tenders":   { old: 0.2,  next: 0.700 },
+            "fpp-shawarma":         { old: 0.15, next: 0.830 },
+            "fpp-marinated-pieces": { old: 0.15, next: 0.879 },
+            "fpp-other":            { old: 0.15, next: 0.879 },
+          };
+          const s14 = persisted as Record<string, unknown>;
+          const products = s14.demandProducts as DP[] | undefined;
+          return {
+            ...s14,
+            demandProducts: (products ?? DEFAULT_DEMAND_PRODUCTS).map((p) => {
+              const patch = p.category === "fpp" ? PATCHES[p.id] : undefined;
+              return patch && p.yieldPct === patch.old
+                ? { ...p, yieldPct: patch.next }
+                : p;
+            }),
+          };
+        }
         if (version >= 14) return persisted;
         // v13 → v14: patch farms that still carry the buggy default values
         // (cycleLengthDays:43 total-cycle, cleaningDays:17). Only farms with exactly
