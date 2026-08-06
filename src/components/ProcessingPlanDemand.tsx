@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useRef, useState, useMemo } from "react";
 import * as XLSX from "xlsx";
 import { usePlanStore } from "@/lib/store";
 import { explodeSalesPlan, weeksInPlan, plantsInPlan } from "@/lib/processingPlanCalc";
@@ -166,9 +166,14 @@ export function ProcessingPlanDemand() {
   const hasBom = bomRecords.length > 0;
   const hasRows = salesPlanCartonRows.length > 0;
 
-  const { cells, unmatched } = hasRows
-    ? explodeSalesPlan(salesPlanCartonRows, bomRecords, gradeYields)
-    : { cells: [], unmatched: [] };
+  const { cells, unmatched } = useMemo(
+    () =>
+      hasRows
+        ? explodeSalesPlan(salesPlanCartonRows, bomRecords, gradeYields)
+        : { cells: [], unmatched: [] },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [salesPlanCartonRows, bomRecords, JSON.stringify(gradeYields)]
+  );
 
   const weeks = weeksInPlan(cells);
   const plants = plantsInPlan(cells);

@@ -51,6 +51,8 @@ interface PlanState {
   salesPlanCartonRows: SalesPlanCartonRow[];
   salesPlanCartonConfirmed: boolean;
   processingPlanOpen: boolean;
+  broilerIntakeOpen: boolean;
+  broilerCapacity: Record<string, number>; // key: `${plant}::${week}`, value: birds available
   selectedStep: number;
   selectedPlant: PlantFilter;
   assumptionsOpen: boolean;
@@ -103,6 +105,8 @@ interface PlanState {
   confirmSalesPlan: () => void;
   clearSalesPlan: () => void;
   setProcessingPlanOpen: (open: boolean) => void;
+  setBroilerIntakeOpen: (open: boolean) => void;
+  setBroilerCapacity: (plant: string, week: number, birds: number) => void;
   addBomRecord: (record: BomRecord) => void;
   updateBomRecord: (id: string, patch: Partial<BomRecord>) => void;
   removeBomRecord: (id: string) => void;
@@ -142,6 +146,8 @@ export const usePlanStore = create<PlanState>()(
       salesPlanCartonRows: [],
       salesPlanCartonConfirmed: false,
       processingPlanOpen: false,
+      broilerIntakeOpen: false,
+      broilerCapacity: {},
       selectedStep: 1,
       selectedPlant: "all",
       assumptionsOpen: false,
@@ -353,6 +359,11 @@ export const usePlanStore = create<PlanState>()(
       confirmSalesPlan: () => set({ salesPlanCartonConfirmed: true }),
       clearSalesPlan: () => set({ salesPlanCartonRows: [], salesPlanCartonConfirmed: false }),
       setProcessingPlanOpen: (open) => set({ processingPlanOpen: open }),
+      setBroilerIntakeOpen: (open) => set({ broilerIntakeOpen: open }),
+      setBroilerCapacity: (plant, week, birds) =>
+        set((s) => ({
+          broilerCapacity: { ...s.broilerCapacity, [`${plant}::${week}`]: birds },
+        })),
 
       addBomRecord: (record) => set((s) => ({ bomRecords: [...s.bomRecords, record] })),
       updateBomRecord: (id, patch) =>
@@ -387,7 +398,7 @@ export const usePlanStore = create<PlanState>()(
     }),
     {
       name: "awp-broiler-forecast-store",
-      version: 12,
+      version: 13,
       // v2  switched Step 1 from weekly to daily placement rows (PlacementRow -> PlacementDayRow).
       // v3  replaced the farm-based model with the house-based processing chain — discarded wholesale.
       // v4  added housesPerFarm (additive).
@@ -402,7 +413,14 @@ export const usePlanStore = create<PlanState>()(
       // v11 BOM editor: added bomRecords (seeded from defaults) and
       //     gradeYields to params (65/15/10/10 from SAP BOM 930-933).
       // v12 Processing Plan: added salesPlanCartonRows, salesPlanCartonConfirmed (additive).
+      // v13 Broiler Intake Plan: added broilerIntakeOpen, broilerCapacity (additive).
       migrate: (persisted, version) => {
+        if (version >= 13) return persisted;
+        // v12 → v13: additive — seed empty broiler capacity
+        if (version === 12) {
+          const s12 = persisted as Record<string, unknown>;
+          return { ...s12, broilerCapacity: {} };
+        }
         if (version >= 12) return persisted;
         // v11 → v12: additive — seed empty sales plan carton state
         if (version === 11) {
@@ -495,6 +513,7 @@ export const usePlanStore = create<PlanState>()(
         bomRecords: s.bomRecords,
         salesPlanCartonRows: s.salesPlanCartonRows,
         salesPlanCartonConfirmed: s.salesPlanCartonConfirmed,
+        broilerCapacity: s.broilerCapacity,
         scenarios: s.scenarios,
         harvestDeferrals: s.harvestDeferrals,
       }),

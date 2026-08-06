@@ -27,11 +27,13 @@ export function Sidebar() {
   const setBomOpen = usePlanStore((s) => s.setBomOpen);
   const processingPlanOpen = usePlanStore((s) => s.processingPlanOpen);
   const setProcessingPlanOpen = usePlanStore((s) => s.setProcessingPlanOpen);
+  const broilerIntakeOpen = usePlanStore((s) => s.broilerIntakeOpen);
+  const setBroilerIntakeOpen = usePlanStore((s) => s.setBroilerIntakeOpen);
 
   const closeAll = () => {
     setCompareOpen(false); setDemandOpen(false); setSupplyOpen(false);
     setReconcileOpen(false); setDdpOpen(false); setReportOpen(false);
-    setBomOpen(false); setProcessingPlanOpen(false);
+    setBomOpen(false); setProcessingPlanOpen(false); setBroilerIntakeOpen(false);
   };
 
   const btnBase = "w-full text-left flex items-center transition-colors text-sm";
@@ -127,6 +129,13 @@ export function Sidebar() {
           label="Carcass Requirement"
           title="Processing Plan — Carcass Requirement"
         />
+        <NavBtn
+          active={broilerIntakeOpen}
+          onClick={() => { closeAll(); setHomeOpen(false); setBroilerIntakeOpen(true); }}
+          badge="BI"
+          label="Broiler Intake"
+          title="Broiler Intake Plan — Supply vs Demand"
+        />
 
         {/* Master Data header */}
         {!collapsed && (
@@ -149,7 +158,7 @@ export function Sidebar() {
         {collapsed && <div className="border-t border-neutral-100 my-1 mx-2" />}
 
         {STEPS.map((step) => {
-          const active = !compareOpen && !demandOpen && !supplyOpen && !reconcileOpen && !ddpOpen && !reportOpen && !homeOpen && !bomOpen && !processingPlanOpen && selectedStep === step.id;
+          const active = !compareOpen && !demandOpen && !supplyOpen && !reconcileOpen && !ddpOpen && !reportOpen && !homeOpen && !bomOpen && !processingPlanOpen && !broilerIntakeOpen && selectedStep === step.id;
           return (
             <NavBtn
               key={step.id}

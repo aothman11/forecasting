@@ -14,6 +14,7 @@ import { SOPReport } from "@/components/SOPReport";
 import { HomeDashboard } from "@/components/HomeDashboard";
 import { ProductBOM } from "@/components/ProductBOM";
 import { ProcessingPlanDemand } from "@/components/ProcessingPlanDemand";
+import { BroilerIntakePlan } from "@/components/BroilerIntakePlan";
 import { ExportButtons } from "@/components/shared/ExportButtons";
 import { ValidationBanner } from "@/components/shared/ValidationBanner";
 import { SummaryOverview } from "@/components/shared/SummaryOverview";
@@ -59,6 +60,7 @@ export default function Home() {
   const homeOpen = usePlanStore((s) => s.homeOpen);
   const bomOpen = usePlanStore((s) => s.bomOpen);
   const processingPlanOpen = usePlanStore((s) => s.processingPlanOpen);
+  const broilerIntakeOpen = usePlanStore((s) => s.broilerIntakeOpen);
   const assumptionsOpen = usePlanStore((s) => s.assumptionsOpen);
   const toggleAssumptions = usePlanStore((s) => s.toggleAssumptions);
   const { result, params, issues } = usePipeline();
@@ -75,7 +77,7 @@ export default function Home() {
         <div className="flex-1 flex flex-col min-w-0">
           <header className="h-14 border-b border-[var(--border-subtle)] bg-white flex items-center justify-between px-6 shrink-0">
             <div className="text-sm font-semibold text-neutral-700">
-              {homeOpen ? "Home" : compareOpen ? "Scenario Comparison" : demandOpen ? "Demand Plan" : supplyOpen ? "Supply Requirements" : reconcileOpen ? "Reconciliation" : ddpOpen ? "Demand-Driven Placement" : reportOpen ? "S&OP Report" : bomOpen ? "Product BOM" : processingPlanOpen ? "Processing Plan" : currentLabel}
+              {homeOpen ? "Home" : compareOpen ? "Scenario Comparison" : demandOpen ? "Demand Plan" : supplyOpen ? "Supply Requirements" : reconcileOpen ? "Reconciliation" : ddpOpen ? "Demand-Driven Placement" : reportOpen ? "S&OP Report" : bomOpen ? "Product BOM" : processingPlanOpen ? "Processing Plan" : broilerIntakeOpen ? "Broiler Intake Plan" : currentLabel}
             </div>
             <div className="flex items-center gap-3">
               <ExportButtons />
@@ -113,6 +115,8 @@ export default function Home() {
               <ProductBOM />
             ) : processingPlanOpen ? (
               <ProcessingPlanDemand />
+            ) : broilerIntakeOpen ? (
+              <BroilerIntakePlan />
             ) : (
               <StepContent step={selectedStep} />
             )}
