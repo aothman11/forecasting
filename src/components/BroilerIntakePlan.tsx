@@ -2,6 +2,7 @@
 
 import { useMemo } from "react";
 import * as XLSX from "xlsx";
+import { getISOWeek } from "date-fns";
 import { usePlanStore } from "@/lib/store";
 import { usePipeline } from "@/lib/usePipeline";
 import { explodeSalesPlan, weeksInPlan, plantsInPlan } from "@/lib/processingPlanCalc";
@@ -14,18 +15,6 @@ const PIPELINE_PLANT_TO_CODE: Record<string, string> = {
   plant2: "1200",
   plant3: "1300",
 };
-
-// ─── week helpers ─────────────────────────────────────────────────────────────
-
-/** Convert a plan-relative week number (1-indexed from planStartDate) to ISO week-of-year. */
-function planWeekToISOWeek(planWeek: number, planStartDate: string): number {
-  const [y, m, d] = planStartDate.split("-").map(Number);
-  const base = new Date(Date.UTC(y, m - 1, d + (planWeek - 1) * 7));
-  const day = base.getUTCDay() || 7;
-  base.setUTCDate(base.getUTCDate() + 4 - day); // shift to Thursday of the ISO week
-  const yearStart = new Date(Date.UTC(base.getUTCFullYear(), 0, 1));
-  return Math.ceil((((base.getTime() - yearStart.getTime()) / 86400000) + 1) / 7);
-}
 
 // ─── number formatters ────────────────────────────────────────────────────────
 
@@ -63,19 +52,31 @@ export function BroilerIntakePlan() {
   // ── production pipeline supply ──
   const { result } = usePipeline();
 
+  // Build a plan-week → ISO-week lookup using the actual harvest dates from liveBird.
+  // This is the only reliable bridge: harvestDateStart was computed by date-fns inside
+  // the pipeline, so getISOWeek() on it is guaranteed to match the SAP file's week numbers.
+  const planWeekToISO = useMemo(() => {
+    const m = new Map<number, number>();
+    for (const lb of result.liveBird) {
+      m.set(lb.week, getISOWeek(new Date(lb.harvestDateStart)));
+    }
+    return m;
+  }, [result.liveBird]);
+
   // Build a supply map: plantCode::isoWeek → available carcass KG + birds
   const supplyMap = useMemo(() => {
     const m = new Map<string, { carcassKg: number; birds: number }>();
     for (const pw of result.plants) {
       const code = PIPELINE_PLANT_TO_CODE[pw.plant];
       if (!code) continue;
-      const isoWeek = planWeekToISOWeek(pw.week, params.planStartDate);
+      const isoWeek = planWeekToISO.get(pw.week);
+      if (isoWeek === undefined) continue;
       const key = `${code}::${isoWeek}`;
       const cur = m.get(key) ?? { carcassKg: 0, birds: 0 };
       m.set(key, { carcassKg: cur.carcassKg + pw.carcassKg, birds: cur.birds + pw.birds });
     }
     return m;
-  }, [result.plants, params.planStartDate]);
+  }, [result.plants, planWeekToISO]);
 
   // ── processing plan demand ──
   const { cells } = useMemo(
@@ -225,8 +226,7 @@ export function BroilerIntakePlan() {
           🔗 <strong>Supply</strong> comes from the Production Pipeline (Placement Plan → grow-out → slaughter).
           Adjust placement in <strong>Step 1</strong> to close any shortfall.
           <span className="ml-2 text-neutral-400">
-            Pipeline weeks mapped to ISO weeks via plan start date ({params.planStartDate}).
-            Plants: plant1→1100, plant2→1200, plant3→1300.
+            Weeks matched via harvest dates · Plants: plant1→1100, plant2→1200, plant3→1300.
           </span>
         </span>
         <button
