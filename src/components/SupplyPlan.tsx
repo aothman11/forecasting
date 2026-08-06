@@ -113,6 +113,27 @@ export function SupplyPlan() {
         </div>
       )}
 
+      {/* F-11: warn when early harvest weeks require placements before the plan start.
+          placementWeek ≤ 0 means the grow-out cycle would have started before Week 1;
+          those birds cannot come from this plan — the demand can only be met from an
+          opening flock that was placed in the prior planning period. */}
+      {(() => {
+        const skipped = rows.filter((r) => r.placementWeek <= 0 && r.requiredCarcassKg > 0);
+        if (skipped.length === 0) return null;
+        return (
+          <div className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800">
+            <span className="font-semibold">Opening-flock weeks ({skipped.length}):</span>{" "}
+            demand for{" "}
+            {skipped
+              .map((r) => weekLabel(r.week, params.planStartDate))
+              .join(", ")}{" "}
+            requires chicks placed before the plan start (placement week{" "}
+            {skipped.map((r) => r.placementWeek).join(", ")}). Supply for these weeks must come
+            from an existing flock — they are not covered by this plan&apos;s placement schedule.
+          </div>
+        );
+      })()}
+
       <YieldInfo params={params} />
 
       {/* Execution adjustment banner */}

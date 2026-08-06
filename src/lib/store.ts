@@ -305,16 +305,25 @@ export const usePlanStore = create<PlanState>()(
         })),
 
       setHorizonWeeks: (weeks) =>
-        set((s) => ({
-          params: { ...s.params, planningHorizonWeeks: weeks },
-          placementDays: ensurePlacementDaysHorizon(
-            s.placementDays,
-            weeks * 7,
-            s.params.planStartDate,
-            s.params.fridayOff,
-            s.params.chicksPerHouse
-          ),
-        })),
+        set((s) => {
+          // Prune harvestDeferrals whose week number is beyond the new horizon —
+          // they would never be rendered and could silently inflate future runs
+          // if the horizon is later extended back out.
+          const prunedDeferrals = Object.fromEntries(
+            Object.entries(s.harvestDeferrals).filter(([k]) => Number(k) <= weeks)
+          );
+          return {
+            params: { ...s.params, planningHorizonWeeks: weeks },
+            placementDays: ensurePlacementDaysHorizon(
+              s.placementDays,
+              weeks * 7,
+              s.params.planStartDate,
+              s.params.fridayOff,
+              s.params.chicksPerHouse
+            ),
+            harvestDeferrals: prunedDeferrals,
+          };
+        }),
 
       setPlanStartDate: (date) =>
         set((s) => ({
@@ -326,6 +335,10 @@ export const usePlanStore = create<PlanState>()(
             s.params.fridayOff,
             s.params.chicksPerHouse
           ),
+          // dailyPlannedQtyOverrides are keyed by ISO date strings; when the plan start
+          // date moves those keys become stale relative to the new calendar positions,
+          // so discard them rather than silently misapply them.
+          dailyPlannedQtyOverrides: {},
         })),
 
       resetToDefaults: () =>
@@ -560,6 +573,9 @@ export const usePlanStore = create<PlanState>()(
           placementEntries: [],
           monthlyPlanConfig: DEFAULT_MONTHLY_PLAN_CONFIG,
           dailyPlannedQtyOverrides: {},
+          // F-19: v3–v8 catch-all didn't seed bomRecords, so users upgrading from
+          // a very old localStorage version got an empty BOM and no yield conversions.
+          bomRecords: DEFAULT_BOM_RECORDS,
         };
       },
       partialize: (s) => ({

@@ -304,6 +304,14 @@ export interface Farm {
   cleaningDays: number;          // cleaning / rest days between cycles
   status: FarmStatus;
   skipThisCycle: boolean;
+  /**
+   * F-18: Opening-flock seed — the most recent placement date before this plan
+   * was created. Used by computeSequenceQueue when no PlacementEntry covers this
+   * farm yet, so the rotation queue shows realistic availability dates at plan
+   * start instead of treating every farm as "never placed / available now".
+   * Optional: null (or absent) means the farm has no known prior placement.
+   */
+  lastPlacementDate?: string | null; // ISO yyyy-mm-dd
 }
 
 /** One placement event — mirrors a data row in Monthly_Plan. */

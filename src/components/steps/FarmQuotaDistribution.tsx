@@ -141,6 +141,8 @@ function parseFarmsFromSheet(ws: XLSX.WorkSheet): Farm[] {
 function FarmMasterTab({ farms }: { farms: Farm[] }) {
   const updateFarm = usePlanStore((s) => s.updateFarm);
   const setFarms = usePlanStore((s) => s.setFarms);
+  // F-16: used to detect when fullCapacity/houses diverges from the global planning parameter
+  const globalChicksPerHouse = usePlanStore((s) => s.params.chicksPerHouse);
   const [statusFilter, setStatusFilter] = useState<FarmStatus | "All">("All");
   const [sortKey, setSortKey] = useState("sequencePosition");
   const [sortDir, setSortDir] = useState<SortDir>("asc");
@@ -255,6 +257,42 @@ function FarmMasterTab({ farms }: { farms: Farm[] }) {
           <button onClick={() => setUploadMsg(null)} className="ml-2 text-neutral-400 hover:text-neutral-600">×</button>
         </div>
       )}
+
+      {/* F-16: alert when fullCapacity / houses diverges significantly from global chicksPerHouse.
+          fullCapacity is entered from SAP; the global param is used for placement-plan grid
+          quick-fill.  When they differ the planner may be using inconsistent capacity figures
+          across the pipeline.  Show a list of offending farms so the user can investigate. */}
+      {(() => {
+        const TOLERANCE = 0.05; // 5 %
+        const mismatched = farms.filter((f) => {
+          if (f.houses <= 0) return false;
+          const impliedPer = f.fullCapacity / f.houses;
+          return Math.abs(impliedPer - globalChicksPerHouse) / globalChicksPerHouse > TOLERANCE;
+        });
+        if (mismatched.length === 0) return null;
+        return (
+          <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5 text-xs text-amber-800">
+            <span className="font-semibold">Capacity mismatch ({mismatched.length} farm{mismatched.length !== 1 ? "s" : ""}):</span>{" "}
+            The global <em>Chicks / House</em> parameter is{" "}
+            <strong>{globalChicksPerHouse.toLocaleString()}</strong>, but the following farms have a{" "}
+            <em>fullCapacity ÷ houses</em> value that differs by more than 5%:
+            <ul className="mt-1 pl-3 list-disc space-y-0.5">
+              {mismatched.slice(0, 10).map((f) => (
+                <li key={f.code}>
+                  <span className="font-mono font-semibold">{f.code}</span>:{" "}
+                  {f.fullCapacity.toLocaleString()} ÷ {f.houses} ={" "}
+                  <strong>{Math.round(f.fullCapacity / f.houses).toLocaleString()}</strong> birds/house
+                </li>
+              ))}
+              {mismatched.length > 10 && <li>…and {mismatched.length - 10} more</li>}
+            </ul>
+            <p className="mt-1.5 text-amber-700">
+              Edit <em>fullCapacity</em> in the table below to match SAP, or update <em>Chicks / House</em>{" "}
+              in Parameters to match the farm master.
+            </p>
+          </div>
+        );
+      })()}
 
       <div className="text-xs text-neutral-500 bg-blue-50 border border-blue-200 rounded px-3 py-2">
         All fields are editable inline. Click <strong>Status</strong> to cycle Active → Inactive → Under Maintenance.
@@ -1128,6 +1166,36 @@ export function FarmQuotaDistribution() {
   const [tab, setTab] = useState<Tab>("placement-log");
   const farms = usePlanStore((s) => s.farms);
 
+  // F-10: cross-module divergence check — compare total chicks in placementEntries
+  // against the total in the Step-1 placement grid (placementDays).
+  // These two modules track related but separate things: placementDays is the aggregate
+  // planning schedule; placementEntries are per-farm actual events.  When both are
+  // populated they should sum to the same total — a significant gap means one module
+  // was updated without updating the other.
+  const placementEntries = usePlanStore((s) => s.placementEntries);
+  const placementDays = usePlanStore((s) => s.placementDays);
+  const dailyOverrides = usePlanStore((s) => s.dailyPlannedQtyOverrides);
+  const chicksPerHouse = usePlanStore((s) => s.params.chicksPerHouse);
+
+  const divergenceBanner = useMemo(() => {
+    const entriesTotal = placementEntries.reduce((s, e) => s + e.qtyPlaced, 0);
+    const planTotal = placementDays.reduce((s, d) => {
+      const qty = dailyOverrides[d.date] ?? d.farmsPlacing * chicksPerHouse;
+      return s + qty;
+    }, 0);
+    if (entriesTotal === 0 || planTotal === 0) return null;
+    const delta = Math.abs(entriesTotal - planTotal);
+    const pct = delta / planTotal;
+    if (pct < 0.01) return null; // within 1% — considered consistent
+    return {
+      entriesTotal,
+      planTotal,
+      delta,
+      pct,
+      isOver: entriesTotal > planTotal,
+    };
+  }, [placementEntries, placementDays, dailyOverrides, chicksPerHouse]);
+
   return (
     <div className="space-y-4">
       <div>
@@ -1136,6 +1204,27 @@ export function FarmQuotaDistribution() {
           Farm master list with capacity, status, and skip flags per placement cycle. Upload from SAP or edit inline.
         </p>
       </div>
+
+      {divergenceBanner && (
+        <div className="rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 flex flex-wrap items-start gap-3 text-sm text-amber-800">
+          <span className="text-base mt-0.5">⚠</span>
+          <div className="flex-1 min-w-0">
+            <span className="font-semibold">Placement totals are out of sync.</span>{" "}
+            The Placement Log has{" "}
+            <strong>{Math.round(divergenceBanner.entriesTotal).toLocaleString()} chicks</strong> across all
+            entries, but the Step 1 Placement Plan shows{" "}
+            <strong>{Math.round(divergenceBanner.planTotal).toLocaleString()} chicks</strong>{" "}
+            (difference:{" "}
+            <strong>
+              {divergenceBanner.isOver ? "+" : "-"}
+              {Math.round(divergenceBanner.delta).toLocaleString()}
+            </strong>
+            {" / "}
+            {(divergenceBanner.pct * 100).toFixed(1)}%). Update one or both modules so they agree before
+            exporting MEQ1.
+          </div>
+        </div>
+      )}
 
       <div className="flex gap-1 border-b border-[var(--border-subtle)]">
         {TABS.map((t) => (

@@ -50,6 +50,12 @@ export function SalesPlanImportPanel({ onClose }: { onClose: () => void }) {
   const [channelDraft, setChannelDraft] = useState<Record<string, ChannelKey | typeof IGNORE>>({});
   const [weekAssignment, setWeekAssignment] = useState<Record<number, string>>({});
   const [appliedMessage, setAppliedMessage] = useState<string | null>(null);
+  // F-13: track which file weeks were auto-merged (silently absorbed into an adjacent
+  // plan week) and which were truly orphaned (couldn't be mapped at all).
+  const [orphanSummary, setOrphanSummary] = useState<{
+    merged: { fileWeek: number; label: string; targetPlanWeek: number; qty: number }[];
+    dropped: { fileWeek: number; label: string; qty: number }[];
+  } | null>(null);
 
   const productsById = useMemo(() => new Map(demandProducts.map((p) => [p.id, p])), [demandProducts]);
   const signatures: RowSignatureGroup[] = useMemo(() => (rows ? distinctRowSignatures(rows) : []), [rows]);
@@ -190,6 +196,9 @@ export function SalesPlanImportPanel({ onClose }: { onClose: () => void }) {
 
   const applyToHorizon = () => {
     const fileWeekToPlanWeek = new Map<number, number>();
+    // Track whether each mapping came from the user's explicit assignment or auto-merge.
+    const autoMergedFileWeeks = new Set<number>();
+
     horizonWeeks.forEach((w) => {
       const assigned = weekAssignment[w];
       if (assigned && assigned !== NONE) fileWeekToPlanWeek.set(Number(assigned), w);
@@ -208,7 +217,10 @@ export function SalesPlanImportPanel({ onClose }: { onClose: () => void }) {
       if (!label) return;
       const month = label.split(" ")[0]; // "Sep"
       const target = monthLastPlanWeek.get(month);
-      if (target !== undefined) fileWeekToPlanWeek.set(fw, target);
+      if (target !== undefined) {
+        fileWeekToPlanWeek.set(fw, target);
+        autoMergedFileWeeks.add(fw);
+      }
     });
 
     // Accumulate into plan cells first (multiple file weeks can share one plan week)
@@ -244,6 +256,24 @@ export function SalesPlanImportPanel({ onClose }: { onClose: () => void }) {
     setAppliedMessage(
       `Applied ${appliedCells} product/channel/week cells across ${fileWeekToPlanWeek.size} matched weeks.` +
         (pricedProducts > 0 ? ` Prices updated for ${pricedProducts} products from Gross Sales Value (SAR).` : "")
+    );
+
+    // F-13: build the orphan summary so the user can see what was auto-merged or silently dropped.
+    const mergedItems: { fileWeek: number; label: string; targetPlanWeek: number; qty: number }[] = [];
+    const droppedItems: { fileWeek: number; label: string; qty: number }[] = [];
+    weeksInFile.forEach((fw) => {
+      const label = fileWeekLabels.get(fw) ?? `Wk ${fw}`;
+      const qty = totalsByFileWeek.get(fw) ?? 0;
+      if (autoMergedFileWeeks.has(fw)) {
+        mergedItems.push({ fileWeek: fw, label, targetPlanWeek: fileWeekToPlanWeek.get(fw)!, qty });
+      } else if (!fileWeekToPlanWeek.has(fw)) {
+        droppedItems.push({ fileWeek: fw, label, qty });
+      }
+    });
+    setOrphanSummary(
+      mergedItems.length > 0 || droppedItems.length > 0
+        ? { merged: mergedItems, dropped: droppedItems }
+        : null
     );
   };
 
@@ -524,6 +554,45 @@ export function SalesPlanImportPanel({ onClose }: { onClose: () => void }) {
           {appliedMessage && (
             <div className="text-xs text-brand-green-dark bg-brand-green-tint rounded-md px-3 py-1.5">
               ✓ {appliedMessage}
+            </div>
+          )}
+
+          {/* F-13: orphaned-week summary — shown after Apply so the user knows
+              which file weeks were silently absorbed and which were dropped. */}
+          {orphanSummary && (orphanSummary.merged.length > 0 || orphanSummary.dropped.length > 0) && (
+            <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5 text-xs text-amber-800 space-y-1.5">
+              {orphanSummary.merged.length > 0 && (
+                <div>
+                  <span className="font-semibold">
+                    {orphanSummary.merged.length} file week{orphanSummary.merged.length !== 1 ? "s" : ""} auto-merged
+                  </span>{" "}
+                  (absorbed into the last plan week of the same month):
+                  <ul className="mt-1 space-y-0.5 pl-3 list-disc">
+                    {orphanSummary.merged.map((m) => (
+                      <li key={m.fileWeek}>
+                        <span className="font-mono">{m.label}</span> →{" "}
+                        <span className="font-mono">{weekLabel(m.targetPlanWeek, params.planStartDate)}</span>
+                        {" "}({m.qty.toFixed(2)} t added to target week)
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              {orphanSummary.dropped.length > 0 && (
+                <div>
+                  <span className="font-semibold text-red-700">
+                    {orphanSummary.dropped.length} file week{orphanSummary.dropped.length !== 1 ? "s" : ""} had no matching plan week and were dropped:
+                  </span>
+                  <ul className="mt-1 space-y-0.5 pl-3 list-disc text-red-700">
+                    {orphanSummary.dropped.map((d) => (
+                      <li key={d.fileWeek}>
+                        <span className="font-mono">{d.label}</span> — {d.qty.toFixed(2)} t discarded.
+                        Extend the plan horizon or manually assign this week above and re-apply.
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
             </div>
           )}
         </>

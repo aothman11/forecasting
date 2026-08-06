@@ -146,7 +146,9 @@ export const SIZE_LABELS: Record<SizeKey, string> = {
 export const MIN_HORIZON_MONTHS = 1;
 export const MAX_HORIZON_MONTHS = 12;
 export const MIN_HORIZON_WEEKS = MIN_HORIZON_MONTHS * 4;
-export const MAX_HORIZON_WEEKS = MAX_HORIZON_MONTHS * 4;
+// 52 weeks = one full ISO calendar year. Using MAX_HORIZON_MONTHS * 4 (= 48) left
+// the last 4 weeks of a calendar year unreachable — decoupled so each can change independently.
+export const MAX_HORIZON_WEEKS = 52;
 
 // ---------- Demand Plan (Module 1) ----------
 

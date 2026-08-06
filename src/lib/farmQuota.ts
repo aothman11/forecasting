@@ -116,14 +116,33 @@ export function computeMEQ1Rows(
       return check.status === "OK";
     });
 
-    validEntries.forEach((e, i) => {
+    // F-15: sort by the farm's stable sequencePosition before assigning QUPOS.
+    // Previously i+1 was used, which changed every time an entry was added or
+    // removed mid-list — causing the same farm to get a different QUPOS in
+    // successive uploads and creating duplicate source-of-supply records in SAP.
+    // Using sequencePosition (the farm's rotation order, e.g. 10, 20, 30 …)
+    // keeps QUPOS stable regardless of which other entries exist.
+    const sortedEntries = validEntries
+      .slice()
+      .sort((a, b) => {
+        const seqA = farmMap.get(a.farmCode)?.sequencePosition ?? 0;
+        const seqB = farmMap.get(b.farmCode)?.sequencePosition ?? 0;
+        return seqA - seqB;
+      });
+
+    sortedEntries.forEach((e, i) => {
+      const farm = farmMap.get(e.farmCode);
+      // QUPOS = farm.sequencePosition padded to 4 digits ("0010", "0020", …).
+      // Fallback to index-based value only if the farm is somehow missing.
+      const farmSeq = farm?.sequencePosition ?? (i + 1) * 10;
+      const qupos = String(farmSeq).padStart(4, "0");
       const qupri = i + 1;
       rows.push({
         matnr,
         werks: config.plant,
         datab: e.date,
         datbi: e.date,
-        qupos: String(qupri * 10).padStart(4, "0"),
+        qupos,
         verid: e.farmCode,
         qumax: Math.round(e.qtyPlaced * (1 - mortalityRate)),
         qupri,
@@ -161,7 +180,14 @@ export function computeSequenceQueue(
     .slice()
     .sort((a, b) => a.sequencePosition - b.sequencePosition)
     .map((farm) => {
-      const lastDate = lastPlacementMap.get(farm.code) ?? null;
+      // F-18: fall back to farm.lastPlacementDate (opening-flock seed) when no
+      // PlacementEntry covers this farm yet. Without this every farm starts with
+      // "Never placed / available now", which overstates how many farms are
+      // actually available at plan start.
+      const lastDate =
+        lastPlacementMap.get(farm.code) ??
+        farm.lastPlacementDate ??
+        null;
       let dayOfCycle: number | null = null;
       let nextAvailableDate: string | null = null;
       let daysUntilAvailable = 0;

@@ -107,27 +107,47 @@ export function ProductFamily() {
             {(["A", "B", "C"] as const).map((grade) => {
               const row = params.familyAllocation[grade];
               const sum = row.wcFresh + row.wcFrozen + row.cuts;
+              // Grade C is an off-spec carcass — it must not be sold as WC Fresh or WC Frozen;
+              // it goes entirely to the cutting line.  Lock those two cells to 0.
+              const isGradeC = grade === "C";
               return (
                 <tr key={grade}>
                   <td className="pr-4 py-1 font-medium">Grade {grade}</td>
-                  {(["wcFresh", "wcFrozen", "cuts"] as const).map((key) => (
-                    <td key={key} className="px-3 py-1 text-right">
-                      <input
-                        type="number"
-                        step={0.5}
-                        value={pct(row[key])}
-                        onChange={(e) =>
-                          setParam({
-                            familyAllocation: {
-                              ...params.familyAllocation,
-                              [grade]: { ...row, [key]: Number(e.target.value) / 100 },
-                            },
-                          })
-                        }
-                        className="w-16 text-right border border-[var(--border-subtle)] rounded px-1 py-0.5 tabular-nums"
-                      />
-                    </td>
-                  ))}
+                  {(["wcFresh", "wcFrozen", "cuts"] as const).map((key) => {
+                    const locked = isGradeC && (key === "wcFresh" || key === "wcFrozen");
+                    return (
+                      <td key={key} className="px-3 py-1 text-right">
+                        {locked ? (
+                          <span
+                            title="Grade C cannot be routed to WC Fresh or WC Frozen"
+                            className="inline-block w-16 text-right px-1 py-0.5 tabular-nums text-neutral-400 cursor-not-allowed select-none"
+                          >
+                            0%
+                          </span>
+                        ) : (
+                          <input
+                            type="number"
+                            step={0.5}
+                            value={pct(row[key])}
+                            onChange={(e) => {
+                              const newVal = Number(e.target.value) / 100;
+                              // For Grade C keep wcFresh/wcFrozen at 0; remainder goes to cuts.
+                              const updated = isGradeC
+                                ? { wcFresh: 0, wcFrozen: 0, cuts: newVal }
+                                : { ...row, [key]: newVal };
+                              setParam({
+                                familyAllocation: {
+                                  ...params.familyAllocation,
+                                  [grade]: updated,
+                                },
+                              });
+                            }}
+                            className="w-16 text-right border border-[var(--border-subtle)] rounded px-1 py-0.5 tabular-nums"
+                          />
+                        )}
+                      </td>
+                    );
+                  })}
                   <td className={`px-3 py-1 text-right ${Math.abs(sum - 1) > 0.005 ? "text-brand-alert font-semibold" : "text-neutral-400"}`}>
                     {pct(sum)}%
                   </td>
