@@ -63,17 +63,22 @@ export function BroilerIntakePlan() {
     return m;
   }, [result.liveBird]);
 
-  // Build a supply map: plantCode::isoWeek → available carcass KG + birds
+  // Build a supply map: plantCode::isoWeek → available carcass KG + birds.
+  // Also accumulates an "ALL" key per week so that when the SAP file has no Plnt
+  // column (all demand rows fall back to plant "ALL") the totals still match.
   const supplyMap = useMemo(() => {
     const m = new Map<string, { carcassKg: number; birds: number }>();
+    const add = (key: string, kg: number, birds: number) => {
+      const cur = m.get(key) ?? { carcassKg: 0, birds: 0 };
+      m.set(key, { carcassKg: cur.carcassKg + kg, birds: cur.birds + birds });
+    };
     for (const pw of result.plants) {
       const code = PIPELINE_PLANT_TO_CODE[pw.plant];
       if (!code) continue;
       const isoWeek = planWeekToISO.get(pw.week);
       if (isoWeek === undefined) continue;
-      const key = `${code}::${isoWeek}`;
-      const cur = m.get(key) ?? { carcassKg: 0, birds: 0 };
-      m.set(key, { carcassKg: cur.carcassKg + pw.carcassKg, birds: cur.birds + pw.birds });
+      add(`${code}::${isoWeek}`, pw.carcassKg, pw.birds);   // per-plant key
+      add(`ALL::${isoWeek}`, pw.carcassKg, pw.birds);        // aggregate key
     }
     return m;
   }, [result.plants, planWeekToISO]);
