@@ -278,6 +278,13 @@ export interface ScenarioSnapshot {
   savedAt: string;
   params: Parameters;
   placementDays: PlacementDayRow[];
+  // Additional state required for a self-consistent snapshot.
+  // Optional so old persisted snapshots (saved before this field was added) remain valid.
+  demandQty?: DemandPlanQty;
+  farms?: Farm[];
+  placementEntries?: PlacementEntry[];
+  harvestDeferrals?: Record<number, number>;
+  bomRecords?: import("./bomTypes").BomRecord[];
 }
 
 // ─── Farm Master (Step 7) ────────────────────────────────────────────────────

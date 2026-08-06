@@ -340,6 +340,19 @@ export const usePlanStore = create<PlanState>()(
           ),
           demandProducts: DEFAULT_DEMAND_PRODUCTS,
           demandQty: {},
+          // Reset all other persisted fields so the store is fully clean.
+          // Previously these survived a reset, leaving old farm rotation,
+          // BOM edits, harvest deferrals, and overrides contaminating the new plan.
+          farms: DEFAULT_FARMS,
+          placementEntries: [],
+          harvestDeferrals: {},
+          broilerCapacity: {},
+          monthlyPlanConfig: DEFAULT_MONTHLY_PLAN_CONFIG,
+          dailyPlannedQtyOverrides: {},
+          salesPlanProductMap: {},
+          salesPlanChannelMap: {},
+          scenarios: [],
+          bomRecords: DEFAULT_BOM_RECORDS,
         })),
 
       setHarvestDeferral: (week, birds) =>
@@ -388,6 +401,11 @@ export const usePlanStore = create<PlanState>()(
             savedAt: new Date().toISOString(),
             params: s.params,
             placementDays: s.placementDays,
+            demandQty: s.demandQty,
+            farms: s.farms,
+            placementEntries: s.placementEntries,
+            harvestDeferrals: s.harvestDeferrals,
+            bomRecords: s.bomRecords,
           };
           const next = [...s.scenarios, snapshot].slice(-3);
           return { scenarios: next };
