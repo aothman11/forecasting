@@ -164,17 +164,15 @@ export function computeLiveBirdForecast(
   params: Parameters
 ): LiveBirdWeek[] {
   const capacity = totalPlantCapacity(params);
-  // Grow-out offset: birds placed in week P are ready for harvest in week P + offset.
-  // Equivalently, harvest week H draws from placement week H - offset.
-  const offset = harvestOffsetWeeks(params.cycleLengthDays);
+  // placementDays uses CATCHING dates, so aggregateToWeeklyPlacement groups by
+  // catching week. Harvest week W draws directly from week W's data — no
+  // grow-out offset needed here (the offset still applies when back-calculating
+  // required placement dates in supplyRequirements.ts).
   const placementByWeek = new Map(placement.map((r) => [r.week, r]));
 
   return placement.map((row): LiveBirdWeek => {
     const harvestWeek = row.week;
-    // Look back `offset` weeks to find the placement batch arriving this week.
-    // Weeks 1..offset have no in-plan placement to draw from (opening-flock territory).
-    const placementWeek = harvestWeek - offset;
-    const placementRow = placementByWeek.get(placementWeek);
+    const placementRow = placementByWeek.get(harvestWeek);
     const chicksPlaced = placementRow ? placementRow.totalChicksPlaced : 0;
     const harvestableBirds = chicksPlaced * (1 - params.mortalityRate);
     const totalLiveWeightKg = harvestableBirds * params.avgLiveWeightKg;
@@ -193,7 +191,7 @@ export function computeLiveBirdForecast(
         addDays(new Date(weekStartDate(params.planStartDate, harvestWeek)), 6),
         "yyyy-MM-dd"
       ),
-      placementWeekRef: placementRow ? placementWeek : null,
+      placementWeekRef: placementRow ? harvestWeek : null,
       harvestableBirds,
       dailyBirds,
       totalLiveWeightKg,
