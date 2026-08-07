@@ -429,7 +429,7 @@ export const usePlanStore = create<PlanState>()(
     }),
     {
       name: "awp-broiler-forecast-store",
-      version: 15,
+      version: 16,
       // v2  switched Step 1 from weekly to daily placement rows (PlacementRow -> PlacementDayRow).
       // v3  replaced the farm-based model with the house-based processing chain — discarded wholesale.
       // v4  added housesPerFarm (additive).
@@ -450,7 +450,24 @@ export const usePlanStore = create<PlanState>()(
       // v15 Fix FPP yieldPct: placeholder values (0.15/0.20) replaced with BOM-derived
       //     meat-content ratios. Matched by product id + exact old value so user-customised
       //     products are not overwritten.
+      // v16 Plant capacities updated: Plant 1 off (0), Plant 2 → 250k/day, Plant 3 → 500k/day.
+      //     Plant shares updated: Plant 1 → 0, Plant 2 → 33.3%, Plant 3 → 66.7%.
       migrate: (persisted, version) => {
+        if (version >= 16) return persisted;
+        // v15 → v16: update plant capacities and shares to reflect Plant 1 offline.
+        if (version === 15) {
+          const s = persisted as { params?: Parameters; scenarios?: ScenarioSnapshot[] };
+          const patchParams = (p: Parameters): Parameters => ({
+            ...p,
+            plantCapacities: { plant1: 0, plant2: 250_000, plant3: 500_000 },
+            plantShares:     { plant1: 0, plant2: 0.333,   plant3: 0.667  },
+          });
+          return {
+            ...s,
+            params:    s.params    ? patchParams(s.params)                                            : undefined,
+            scenarios: (s.scenarios ?? []).map((sc) => ({ ...sc, params: patchParams(sc.params) })),
+          };
+        }
         if (version >= 15) return persisted;
         // v14 → v15: patch FPP products carrying the old placeholder yieldPct values.
         if (version === 14) {

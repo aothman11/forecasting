@@ -29,14 +29,14 @@ export const DEFAULT_PARAMETERS: Parameters = {
   hatcheryCapacity: 1_235_000,
   hatchabilityRate: 0.87,
   plantShares: {
-    plant1: 0.15,
-    plant2: 0.25,
-    plant3: 0.6,
+    plant1: 0,
+    plant2: 0.333,
+    plant3: 0.667,
   },
   plantCapacities: {
-    plant1: 80_000,
-    plant2: 120_000,
-    plant3: 250_000,
+    plant1: 0,
+    plant2: 250_000,
+    plant3: 500_000,
   },
   gradeSplit: {
     A: 0.75,
