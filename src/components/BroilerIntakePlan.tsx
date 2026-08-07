@@ -14,12 +14,14 @@ import {
 
 // ─── constants ────────────────────────────────────────────────────────────────
 
-/** Maps the pipeline's internal plant keys to SAP plant codes used in the Processing Plan. */
+/** Maps the pipeline's internal plant keys to the plant identifiers used in displays and data keys. */
 const PIPELINE_PLANT_TO_CODE: Record<string, string> = {
-  plant1: "1100",
-  plant2: "1200",
-  plant3: "1300",
+  plant1: "P1",
+  plant2: "P2",
+  plant3: "P3",
 };
+
+const ALL_PLANTS = ["P1", "P2", "P3"] as const;
 
 // ─── number formatters ────────────────────────────────────────────────────────
 
@@ -124,8 +126,23 @@ export function BroilerIntakePlan() {
     return m;
   }, [cells]);
 
-  const weeks  = useMemo(() => weeksInPlan(cells),  [cells]);
-  const plants = useMemo(() => plantsInPlan(cells), [cells]);
+  // ── Weeks: union of demand weeks + non-zero supply weeks ──
+  // This ensures both early demand weeks (no harvest yet) AND later supply weeks
+  // (harvest from in-plan placements) are shown side-by-side.
+  const weeks = useMemo(() => {
+    const demandWeeks = new Set(weeksInPlan(cells));
+    const supplyWeeks = new Set<number>();
+    for (const [key, val] of supplyMap) {
+      if (val.carcassKg > 0) {
+        const isoWeek = Number(key.split("::")[1]);
+        supplyWeeks.add(isoWeek);
+      }
+    }
+    return [...new Set([...demandWeeks, ...supplyWeeks])].sort((a, b) => a - b);
+  }, [cells, supplyMap]);
+
+  // Always show all three plants so supply data is never hidden.
+  const plants = ALL_PLANTS as readonly string[];
 
   const hasData       = cells.length > 0;
   const hasForecast   = forecastCells.length > 0;
@@ -291,7 +308,7 @@ export function BroilerIntakePlan() {
           🔗 <strong>Supply</strong> comes from the Production Pipeline (Placement Plan → grow-out → slaughter).
           Adjust placement in <strong>Step 1</strong> to close any shortfall.
           <span className="ml-2 text-neutral-400">
-            Weeks matched via harvest dates · Plants: plant1→1100, plant2→1200, plant3→1300
+            Weeks matched via harvest dates · Plants: plant1→P1, plant2→P2, plant3→P3
             {isForecast && " · Demand derived from Demand Plan via yield ratios"}.
           </span>
         </span>

@@ -141,9 +141,9 @@ export function plantsInPlan(cells: ProcessingPlanCell[]): string[] {
 
 // ─── Forecast fallback ────────────────────────────────────────────────────────
 
-/** Pipeline plant keys → SAP plant codes. */
+/** Pipeline plant keys → plant identifiers used in displays and data keys. */
 const PLANT_KEYS_ORDERED = ["plant1", "plant2", "plant3"] as const;
-const PLANT_CODES_ORDERED = ["1100", "1200", "1300"] as const;
+const PLANT_CODES_ORDERED = ["P1", "P2", "P3"] as const;
 
 /**
  * Map a DemandProduct to the SAP grade pool that best represents it.

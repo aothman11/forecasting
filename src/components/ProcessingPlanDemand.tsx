@@ -77,7 +77,7 @@ function parseSapSalesPlan(buffer: ArrayBuffer): ParseResult {
 
     if (!skuCode) continue;
     if (isNaN(week) || week <= 0) { errors.push(`Row ${i + 2}: invalid week "${weekRaw}"`); continue; }
-    if (!["1100", "1200", "1300"].includes(plantRaw)) { errors.push(`Row ${i + 2}: unknown plant "${plantRaw}" for SKU ${skuCode}`); continue; }
+    if (!["P1", "P2", "P3"].includes(plantRaw)) { errors.push(`Row ${i + 2}: unknown plant "${plantRaw}" for SKU ${skuCode} (expected P1/P2/P3)`); continue; }
     if (isNaN(cartons) || cartons < 0) { errors.push(`Row ${i + 2}: invalid cartons "${cartonRaw}" for SKU ${skuCode}`); continue; }
     if (cartons === 0) continue;
     rows.push({ week, plant: plantRaw, skuCode, skuDescription, cartons });
@@ -182,24 +182,43 @@ export function ProcessingPlanDemand() {
 
   const gradeYields = params.gradeYields;
 
+  // ── Plan-horizon ISO-week set ──
+  // Build plan-week → ISO-week map from the pipeline result.
+  const planWeekToIsoWeek = useMemo(
+    () => new Map(result.plants.map((pw) => [pw.week, pw.isoWeek])),
+    [result.plants]
+  );
+
+  // Set of all ISO weeks that fall within the planning horizon.
+  // Used to filter out SAP rows that reference weeks before plan start or beyond the horizon.
+  const planHorizonIsoWeeks = useMemo(
+    () => new Set(planWeekToIsoWeek.values()),
+    [planWeekToIsoWeek]
+  );
+
   // ── SAP-driven cells ──
   const hasSap = salesPlanCartonRows.length > 0;
   const hasBom = bomRecords.length > 0;
 
-  const { cells: sapCells, unmatched } = useMemo(
-    () =>
-      hasSap
-        ? explodeSalesPlan(salesPlanCartonRows, bomRecords, gradeYields)
-        : { cells: [], unmatched: [] },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [salesPlanCartonRows, bomRecords, JSON.stringify(gradeYields)]
+  // Count rows that fall outside the planning horizon — shown as a warning.
+  const outOfHorizonRows = useMemo(
+    () => hasSap ? salesPlanCartonRows.filter((r) => !planHorizonIsoWeeks.has(r.week)) : [],
+    [hasSap, salesPlanCartonRows, planHorizonIsoWeeks]
   );
 
-  // ── Forecast-driven cells (fallback when no SAP file) ──
-  // Build plan-week → ISO-week map from the pipeline result (computed once in calculations.ts).
-  const planWeekToIsoWeek = useMemo(
-    () => new Map(result.plants.map((pw) => [pw.week, pw.isoWeek])),
-    [result.plants]
+  // Only pass rows within the plan horizon to the explode function.
+  const inHorizonRows = useMemo(
+    () => hasSap ? salesPlanCartonRows.filter((r) => planHorizonIsoWeeks.has(r.week)) : [],
+    [hasSap, salesPlanCartonRows, planHorizonIsoWeeks]
+  );
+
+  const { cells: sapCells, unmatched } = useMemo(
+    () =>
+      inHorizonRows.length > 0
+        ? explodeSalesPlan(inHorizonRows, bomRecords, gradeYields)
+        : { cells: [], unmatched: [] },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [inHorizonRows, bomRecords, JSON.stringify(gradeYields)]
   );
 
   const horizonWeeks = useMemo(
@@ -323,8 +342,13 @@ export function ProcessingPlanDemand() {
             ✓ SAP Sales Plan loaded
           </span>
           <span className="text-xs text-neutral-600">
-            <span className="font-semibold tabular-nums">{fmtNum(salesPlanCartonRows.length)}</span> rows ·{" "}
+            <span className="font-semibold tabular-nums">{fmtNum(inHorizonRows.length)}</span> rows in horizon ·{" "}
             <span className="font-semibold tabular-nums">{fmtNum(totalCartons)}</span> cartons
+            {outOfHorizonRows.length > 0 && (
+              <span className="ml-2 text-amber-700 font-semibold">
+                · ⚠ {outOfHorizonRows.length} row(s) outside plan horizon hidden
+              </span>
+            )}
             {unmatched.length > 0 && (
               <span className="ml-2 text-amber-700 font-semibold">· ⚠ {unmatched.length} SKU(s) not in BOM</span>
             )}
