@@ -20,6 +20,15 @@ export interface ProcessingPlanCell {
   plant: string;
   gradePool: GradePool;
   requiredCarcassKg: number;
+  /**
+   * SAP mode  : actual carton count from the sales plan file.
+   * Forecast mode: demand in tons (label shown as "Demand (t)" in the UI).
+   */
   cartons: number;
+  /**
+   * true when derived from the Demand Plan (demandQty) rather than an imported
+   * SAP carton file. Consumers use this to adapt labels (Cartons → Demand (t)).
+   */
+  isForecast?: boolean;
   skuBreakdown: SkuContribution[];
 }

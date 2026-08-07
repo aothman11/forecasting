@@ -3,7 +3,14 @@
 import { useRef, useState, useMemo } from "react";
 import * as XLSX from "xlsx";
 import { usePlanStore } from "@/lib/store";
-import { explodeSalesPlan, weeksInPlan, plantsInPlan, isoWeekLabel } from "@/lib/processingPlanCalc";
+import { usePipeline } from "@/lib/usePipeline";
+import {
+  explodeSalesPlan,
+  forecastToProcessingCells,
+  weeksInPlan,
+  plantsInPlan,
+  isoWeekLabel,
+} from "@/lib/processingPlanCalc";
 import type { SalesPlanCartonRow, ProcessingPlanCell } from "@/lib/processingPlanTypes";
 import { GRADE_POOL_LABELS } from "@/lib/bomTypes";
 import type { GradePool } from "@/lib/bomTypes";
@@ -55,19 +62,11 @@ function parseSapSalesPlan(buffer: ArrayBuffer): ParseResult {
 
   for (let i = 0; i < raw.length; i++) {
     const r = raw[i];
-
-    // Week — "Week No. in 2026" or "Week" column
     const weekRaw = r["Week No. in 2026"] ?? r["Week No."] ?? r["Week"];
     const week = typeof weekRaw === "number" ? weekRaw : parseInt(String(weekRaw), 10);
-
-    // Plant
     const plantRaw = String(r["Plnt"] ?? r["Plant"] ?? "").trim();
-
-    // SKU
     const skuCode = String(r["Material Code"] ?? r["Material"] ?? r["SKU Code"] ?? "").trim();
     const skuDescription = String(r["Material Description"] ?? r["Material Number"] ?? r["SKU Description"] ?? "").trim();
-
-    // Cartons — "Gross Sales Volume (CAR)" or "Quantity (Units)" etc.
     const cartonRaw =
       r["Gross Sales Volume (CAR)"] ??
       r["Gross Sales Volume (Car)"] ??
@@ -76,12 +75,11 @@ function parseSapSalesPlan(buffer: ArrayBuffer): ParseResult {
       r["CAR"];
     const cartons = typeof cartonRaw === "number" ? cartonRaw : parseFloat(String(cartonRaw));
 
-    if (!skuCode) continue; // skip blank rows
+    if (!skuCode) continue;
     if (isNaN(week) || week <= 0) { errors.push(`Row ${i + 2}: invalid week "${weekRaw}"`); continue; }
     if (!["1100", "1200", "1300"].includes(plantRaw)) { errors.push(`Row ${i + 2}: unknown plant "${plantRaw}" for SKU ${skuCode}`); continue; }
     if (isNaN(cartons) || cartons < 0) { errors.push(`Row ${i + 2}: invalid cartons "${cartonRaw}" for SKU ${skuCode}`); continue; }
     if (cartons === 0) continue;
-
     rows.push({ week, plant: plantRaw, skuCode, skuDescription, cartons });
   }
 
@@ -90,7 +88,14 @@ function parseSapSalesPlan(buffer: ArrayBuffer): ParseResult {
 
 // ─── SKU breakdown popover ────────────────────────────────────────────────────
 
-function BreakdownPopover({ cell, onClose }: { cell: ProcessingPlanCell; onClose: () => void }) {
+function BreakdownPopover({
+  cell,
+  onClose,
+}: {
+  cell: ProcessingPlanCell;
+  onClose: () => void;
+}) {
+  const isForecast = !!cell.isForecast;
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30" onClick={onClose}>
       <div
@@ -99,14 +104,24 @@ function BreakdownPopover({ cell, onClose }: { cell: ProcessingPlanCell; onClose
       >
         <div className="px-4 py-3 border-b border-[var(--border-subtle)] flex items-center justify-between sticky top-0 bg-white">
           <div>
-            <div className="text-sm font-semibold text-neutral-800">
+            <div className="text-sm font-semibold text-neutral-800 flex items-center gap-2">
               Plant {cell.plant} · Week {cell.week}
+              {isForecast && (
+                <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200">
+                  Forecast
+                </span>
+              )}
             </div>
             <div className="flex items-center gap-2 mt-0.5">
               <span className={`inline-flex px-2 py-0.5 rounded border text-[10px] font-semibold ${POOL_COLORS[cell.gradePool]}`}>
                 {cell.gradePool} · {GRADE_POOL_LABELS[cell.gradePool]}
               </span>
-              <span className="text-xs text-neutral-500">{fmtKg(cell.requiredCarcassKg)} KG · {fmtNum(cell.cartons)} CAR</span>
+              <span className="text-xs text-neutral-500">
+                {fmtKg(cell.requiredCarcassKg)} KG ·{" "}
+                {isForecast
+                  ? `${cell.cartons.toFixed(1)} t demand`
+                  : `${fmtNum(cell.cartons)} CAR`}
+              </span>
             </div>
           </div>
           <button onClick={onClose} className="text-neutral-400 hover:text-neutral-700 text-xl leading-none">✕</button>
@@ -114,8 +129,8 @@ function BreakdownPopover({ cell, onClose }: { cell: ProcessingPlanCell; onClose
         <table className="w-full text-xs border-collapse">
           <thead>
             <tr className="bg-neutral-50 text-neutral-500 text-[11px] uppercase tracking-wide">
-              <th className="px-4 py-2 text-left">SKU</th>
-              <th className="px-4 py-2 text-right">Cartons</th>
+              <th className="px-4 py-2 text-left">{isForecast ? "Product" : "SKU"}</th>
+              <th className="px-4 py-2 text-right">{isForecast ? "Demand (t)" : "Cartons"}</th>
               <th className="px-4 py-2 text-right">Carcass KG</th>
               <th className="px-4 py-2 text-right">Share</th>
             </tr>
@@ -124,10 +139,12 @@ function BreakdownPopover({ cell, onClose }: { cell: ProcessingPlanCell; onClose
             {cell.skuBreakdown.map((s, i) => (
               <tr key={s.skuCode} className={`border-t border-[var(--border-subtle)] ${i % 2 === 0 ? "bg-white" : "bg-neutral-50/50"}`}>
                 <td className="px-4 py-2">
-                  <div className="font-mono font-semibold text-neutral-700">{s.skuCode}</div>
-                  <div className="text-[11px] text-neutral-400 truncate max-w-[180px]">{s.skuDescription}</div>
+                  <div className="font-mono font-semibold text-neutral-700">{isForecast ? "" : s.skuCode}</div>
+                  <div className="text-[11px] text-neutral-600 truncate max-w-[200px]">{s.skuDescription}</div>
                 </td>
-                <td className="px-4 py-2 text-right tabular-nums">{fmtNum(s.cartons)}</td>
+                <td className="px-4 py-2 text-right tabular-nums">
+                  {isForecast ? s.cartons.toFixed(1) : fmtNum(s.cartons)}
+                </td>
                 <td className="px-4 py-2 text-right tabular-nums font-semibold text-blue-700">{fmtKg(s.carcassKg)}</td>
                 <td className="px-4 py-2 text-right tabular-nums text-neutral-500">
                   {cell.requiredCarcassKg > 0 ? ((s.carcassKg / cell.requiredCarcassKg) * 100).toFixed(1) + "%" : "—"}
@@ -144,38 +161,67 @@ function BreakdownPopover({ cell, onClose }: { cell: ProcessingPlanCell; onClose
 // ─── main component ───────────────────────────────────────────────────────────
 
 export function ProcessingPlanDemand() {
-  const bomRecords = usePlanStore((s) => s.bomRecords);
-  const params = usePlanStore((s) => s.params);
-  const salesPlanCartonRows = usePlanStore((s) => s.salesPlanCartonRows);
-  const salesPlanCartonConfirmed = usePlanStore((s) => s.salesPlanCartonConfirmed);
-  const setSalesPlanCartonRows = usePlanStore((s) => s.setSalesPlanCartonRows);
-  const confirmSalesPlan = usePlanStore((s) => s.confirmSalesPlan);
-  const clearSalesPlan = usePlanStore((s) => s.clearSalesPlan);
-  const setDemandOpen = usePlanStore((s) => s.setDemandOpen);
-  const setProcessingPlanOpen = usePlanStore((s) => s.setProcessingPlanOpen);
-  const addBomRecord = usePlanStore((s) => s.addBomRecord);
+  const bomRecords              = usePlanStore((s) => s.bomRecords);
+  const params                  = usePlanStore((s) => s.params);
+  const salesPlanCartonRows     = usePlanStore((s) => s.salesPlanCartonRows);
+  const setSalesPlanCartonRows  = usePlanStore((s) => s.setSalesPlanCartonRows);
+  const clearSalesPlan          = usePlanStore((s) => s.clearSalesPlan);
+  const setDemandOpen           = usePlanStore((s) => s.setDemandOpen);
+  const setProcessingPlanOpen   = usePlanStore((s) => s.setProcessingPlanOpen);
+  const addBomRecord            = usePlanStore((s) => s.addBomRecord);
+  const demandProducts          = usePlanStore((s) => s.demandProducts);
+  const demandQty               = usePlanStore((s) => s.demandQty);
+
+  // Pipeline provides plan-week → ISO-week mapping (already computed in calculations.ts)
+  const { result } = usePipeline();
 
   const fileRef = useRef<HTMLInputElement>(null);
   const [parseErrors, setParseErrors] = useState<string[]>([]);
-  const [activeCell, setActiveCell] = useState<ProcessingPlanCell | null>(null);
+  const [activeCell, setActiveCell]   = useState<ProcessingPlanCell | null>(null);
   const [expandedPool, setExpandedPool] = useState<GradePool | null>(null);
 
   const gradeYields = params.gradeYields;
 
-  // ── derived data ──
+  // ── SAP-driven cells ──
+  const hasSap = salesPlanCartonRows.length > 0;
   const hasBom = bomRecords.length > 0;
-  const hasRows = salesPlanCartonRows.length > 0;
 
-  const { cells, unmatched } = useMemo(
+  const { cells: sapCells, unmatched } = useMemo(
     () =>
-      hasRows
+      hasSap
         ? explodeSalesPlan(salesPlanCartonRows, bomRecords, gradeYields)
         : { cells: [], unmatched: [] },
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [salesPlanCartonRows, bomRecords, JSON.stringify(gradeYields)]
   );
 
-  const weeks = weeksInPlan(cells);
+  // ── Forecast-driven cells (fallback when no SAP file) ──
+  // Build plan-week → ISO-week map from the pipeline result (computed once in calculations.ts).
+  const planWeekToIsoWeek = useMemo(
+    () => new Map(result.plants.map((pw) => [pw.week, pw.isoWeek])),
+    [result.plants]
+  );
+
+  const horizonWeeks = useMemo(
+    () => Array.from({ length: params.planningHorizonWeeks }, (_, i) => i + 1),
+    [params.planningHorizonWeeks]
+  );
+
+  const forecastCells = useMemo(
+    () =>
+      forecastToProcessingCells(demandProducts, demandQty, params, horizonWeeks, planWeekToIsoWeek),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [demandProducts, JSON.stringify(demandQty), params, horizonWeeks, planWeekToIsoWeek]
+  );
+
+  const hasForecast = forecastCells.length > 0;
+
+  // ── Active data source ──
+  // SAP takes priority when loaded; otherwise fall back to forecast.
+  const cells      = hasSap ? sapCells      : forecastCells;
+  const isForecast = !hasSap;
+
+  const weeks  = weeksInPlan(cells);
   const plants = plantsInPlan(cells);
   const planYear = new Date(params.planStartDate).getFullYear();
 
@@ -183,8 +229,9 @@ export function ProcessingPlanDemand() {
   const cellIndex = new Map(cells.map((c) => [`${c.plant}::${c.week}::${c.gradePool}`, c]));
 
   // totals
-  const totalCartons = salesPlanCartonRows.reduce((s, r) => s + r.cartons, 0);
-  const totalCarcassKg = cells.reduce((s, c) => s + c.requiredCarcassKg, 0);
+  const totalCartons   = hasSap ? salesPlanCartonRows.reduce((s, r) => s + r.cartons, 0) : 0;
+  const totalDemandTons = isForecast ? cells.reduce((s, c) => s + c.cartons, 0) : 0;
+  const totalCarcassKg  = cells.reduce((s, c) => s + c.requiredCarcassKg, 0);
   const poolTotals = Object.fromEntries(
     GRADE_POOLS.map((p) => [p, cells.filter((c) => c.gradePool === p).reduce((s, c) => s + c.requiredCarcassKg, 0)])
   ) as Record<GradePool, number>;
@@ -195,27 +242,24 @@ export function ProcessingPlanDemand() {
     setDemandOpen(true);
   };
 
-  // ── create placeholder BOM records for all unmatched SKUs ──
+  // ── placeholder BOMs for unmatched SAP SKUs ──
   const addDummyBoms = () => {
-    // Deduplicate by skuCode — one dummy BOM per unique SKU (plant = ALL)
     const seen = new Set(bomRecords.map((b) => b.skuCode));
     const byCode = new Map<string, { skuCode: string; skuDescription: string }>();
     unmatched.forEach((r) => {
-      if (!seen.has(r.skuCode) && !byCode.has(r.skuCode)) {
+      if (!seen.has(r.skuCode) && !byCode.has(r.skuCode))
         byCode.set(r.skuCode, { skuCode: r.skuCode, skuDescription: r.skuDescription });
-      }
     });
-    byCode.forEach(({ skuCode, skuDescription }) => {
+    byCode.forEach(({ skuCode, skuDescription }) =>
       addBomRecord({
         id: crypto.randomUUID(),
-        skuCode,
-        skuDescription,
-        packageWeightKg: 1.0,   // placeholder — update in Product BOM
-        unitsPerCarton: 10,      // placeholder — update in Product BOM
-        gradePool: "930",        // default to A-Grade Fresh
+        skuCode, skuDescription,
+        packageWeightKg: 1.0,
+        unitsPerCarton: 10,
+        gradePool: "930",
         plant: "ALL",
-      });
-    });
+      })
+    );
   };
 
   // ── file upload (direct fallback) ──
@@ -240,9 +284,10 @@ export function ProcessingPlanDemand() {
         Plant: c.plant,
         "Grade Pool": c.gradePool,
         "Grade Pool Name": GRADE_POOL_LABELS[c.gradePool],
-        "SKU Code": s.skuCode,
-        "SKU Description": s.skuDescription,
-        "Cartons": s.cartons,
+        "Source": isForecast ? "Demand Plan (Forecast)" : "SAP Sales Plan",
+        ...(isForecast
+          ? { "Product": s.skuDescription, "Demand (t)": s.cartons }
+          : { "SKU Code": s.skuCode, "SKU Description": s.skuDescription, "Cartons": s.cartons }),
         "Required Carcass (KG)": parseFloat(s.carcassKg.toFixed(2)),
       }))
     );
@@ -258,23 +303,24 @@ export function ProcessingPlanDemand() {
       <div>
         <h1 className="text-xl font-bold text-brand-green-dark">Processing Plan</h1>
         <p className="text-sm text-neutral-500 mt-0.5">
-          Demand-driven carcass requirement — derived from the sales plan via Product BOM.
+          Carcass requirement by plant · grade pool · week — derived from{" "}
+          {hasSap ? "the imported SAP sales plan via Product BOM" : "the Demand Plan forecast via pipeline yields"}.
         </p>
       </div>
 
-      {/* BOM warning */}
-      {!hasBom && (
+      {/* BOM warning (SAP mode only — forecast uses pipeline yields, not BOM) */}
+      {hasSap && !hasBom && (
         <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 font-medium">
           ⚠ No BOM records found. Go to <strong>Product BOM</strong> and add your SKU master before uploading a sales plan.
         </div>
       )}
 
-      {/* Data source panel */}
-      {hasRows ? (
-        /* ── Loaded state ── */
+      {/* ── Data source banner ── */}
+      {hasSap ? (
+        /* SAP loaded — green banner */
         <div className="rounded-xl border border-green-200 bg-green-50/60 px-4 py-3 flex items-center gap-4 flex-wrap">
           <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full border font-semibold bg-green-100 text-green-800 border-green-200 text-xs shrink-0">
-            ✓ Sales plan loaded
+            ✓ SAP Sales Plan loaded
           </span>
           <span className="text-xs text-neutral-600">
             <span className="font-semibold tabular-nums">{fmtNum(salesPlanCartonRows.length)}</span> rows ·{" "}
@@ -284,13 +330,13 @@ export function ProcessingPlanDemand() {
             )}
           </span>
           <div className="ml-auto flex items-center gap-2">
-            <span className="text-xs text-neutral-400">Auto-fed from Demand Plan (M1) import</span>
+            <input ref={fileRef} type="file" accept=".xlsx,.xls" className="hidden" onChange={handleFile} />
             <button
-              onClick={goToDemandPlan}
-              title="Go to Demand Plan (M1) to re-import the sales plan"
-              className="text-xs font-semibold px-2.5 py-1 rounded-lg border border-brand-green/40 text-brand-green-dark hover:bg-brand-green hover:text-white transition-colors"
+              onClick={() => fileRef.current?.click()}
+              title="Replace the current SAP file"
+              className="text-xs font-medium px-2.5 py-1 rounded-lg border border-[var(--border-subtle)] text-neutral-600 hover:border-brand-green hover:text-brand-green-dark transition-colors"
             >
-              ↺ Sync from M1
+              ↑ Replace file
             </button>
             <button
               onClick={clearSalesPlan}
@@ -300,22 +346,50 @@ export function ProcessingPlanDemand() {
             </button>
           </div>
         </div>
+      ) : hasForecast ? (
+        /* Forecast mode — blue informational banner */
+        <div className="rounded-xl border border-blue-200 bg-blue-50/60 px-4 py-3 flex items-center gap-4 flex-wrap">
+          <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full border font-semibold bg-blue-100 text-blue-800 border-blue-200 text-xs shrink-0">
+            📊 Forecast mode
+          </span>
+          <span className="text-xs text-neutral-600">
+            Showing carcass requirements derived from your <strong>Demand Plan</strong> using pipeline yields.
+            Import a SAP Sales Plan to switch to confirmed order data.
+          </span>
+          <div className="ml-auto flex items-center gap-2">
+            <button
+              onClick={goToDemandPlan}
+              className="text-xs font-medium px-2.5 py-1 rounded-lg border border-blue-300 text-blue-700 hover:bg-blue-100 transition-colors whitespace-nowrap"
+            >
+              Edit Demand Plan
+            </button>
+            <input ref={fileRef} type="file" accept=".xlsx,.xls" className="hidden" onChange={handleFile} />
+            <button
+              onClick={() => fileRef.current?.click()}
+              className="text-xs font-semibold px-2.5 py-1 rounded-lg border border-brand-green/50 text-brand-green-dark hover:bg-brand-green hover:text-white transition-colors whitespace-nowrap"
+            >
+              ⬆ Import SAP Sales Plan
+            </button>
+          </div>
+        </div>
       ) : (
-        /* ── Empty state — guide user to M1 ── */
+        /* No SAP, no demand — guide user to Demand Plan */
         <div className="rounded-xl border border-amber-200 bg-amber-50 px-5 py-4 flex items-start gap-4">
-          <div className="text-2xl mt-0.5">📥</div>
+          <div className="text-2xl mt-0.5">📋</div>
           <div className="flex-1 min-w-0">
-            <div className="text-sm font-semibold text-amber-900">No sales plan data yet</div>
+            <div className="text-sm font-semibold text-amber-900">No demand data yet</div>
             <div className="text-xs text-amber-800 mt-1 leading-relaxed">
-              This view is fed automatically from your Demand Plan import.
-              Go to <strong>Demand Plan (M1)</strong>, open <strong>Import Sales Plan</strong>, and click <strong>Apply</strong> — the Processing Plan will populate instantly without any second upload.
+              This view needs demand quantities to calculate carcass requirements.
+              Enter weekly demand in the <strong>Demand Plan</strong> — the Processing Plan will populate
+              automatically from your forecast without any file upload.
+              Alternatively, upload a SAP Sales Plan for confirmed orders.
             </div>
             <div className="flex items-center gap-2 mt-3 flex-wrap">
               <button
                 onClick={goToDemandPlan}
                 className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-brand-green text-white hover:bg-brand-green-dark transition-colors"
               >
-                ↺ Sync from M1
+                Go to Demand Plan
               </button>
               <span className="text-xs text-amber-700">or</span>
               <input ref={fileRef} type="file" accept=".xlsx,.xls" className="hidden" onChange={handleFile} />
@@ -342,14 +416,14 @@ export function ProcessingPlanDemand() {
         </div>
       )}
 
-      {/* Unmatched SKUs */}
-      {unmatched.length > 0 && (
+      {/* Unmatched SKUs (SAP mode only) */}
+      {hasSap && unmatched.length > 0 && (
         <div className="rounded-xl border border-amber-200 bg-amber-50/60 overflow-hidden">
           <div className="px-4 py-2.5 text-xs font-semibold text-amber-900 flex items-center gap-2 flex-wrap">
             <span>⚠ {unmatched.length} SKU{unmatched.length !== 1 ? "s" : ""} not found in Product BOM — excluded from calculation</span>
             <button
               onClick={addDummyBoms}
-              title="Create placeholder BOM entries for all unmatched SKUs (packageWeightKg=1.0, unitsPerCarton=10, gradePool=930). Edit real values in Product BOM."
+              title="Create placeholder BOM entries for all unmatched SKUs. Edit real values in Product BOM."
               className="ml-auto text-xs font-semibold px-2.5 py-1 rounded-lg bg-amber-700 text-white hover:bg-amber-800 transition-colors"
             >
               + Add dummy BOMs
@@ -390,14 +464,18 @@ export function ProcessingPlanDemand() {
         </div>
       )}
 
-      {/* Results — only shown when there are matched cells */}
+      {/* Results */}
       {cells.length > 0 && (
         <>
           {/* KPI summary */}
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
             <div className="rounded-xl border border-[var(--border-subtle)] bg-white shadow-sm p-3 col-span-2 md:col-span-1">
-              <div className="text-[11px] uppercase tracking-wide text-neutral-500 font-semibold">Total Cartons</div>
-              <div className="text-xl font-bold text-neutral-800 tabular-nums mt-1">{fmtNum(totalCartons)}</div>
+              <div className="text-[11px] uppercase tracking-wide text-neutral-500 font-semibold">
+                {isForecast ? "Total Demand" : "Total Cartons"}
+              </div>
+              <div className="text-xl font-bold text-neutral-800 tabular-nums mt-1">
+                {isForecast ? `${totalDemandTons.toFixed(1)} t` : fmtNum(totalCartons)}
+              </div>
             </div>
             <div className="rounded-xl border border-[var(--border-subtle)] bg-white shadow-sm p-3 col-span-2 md:col-span-1">
               <div className="text-[11px] uppercase tracking-wide text-neutral-500 font-semibold">Total Carcass Req.</div>
@@ -419,7 +497,7 @@ export function ProcessingPlanDemand() {
             ))}
           </div>
 
-          {/* Grade pool selector + export */}
+          {/* Pool selector + export */}
           <div className="flex items-center gap-2 flex-wrap">
             <span className="text-xs font-semibold text-neutral-500">Show pool:</span>
             <button
@@ -447,9 +525,9 @@ export function ProcessingPlanDemand() {
 
           {/* Weekly table per plant × grade pool */}
           {(expandedPool ? [expandedPool] : GRADE_POOLS).map((pool) => {
-            const poolCells = cells.filter((c) => c.gradePool === pool);
+            const poolCells   = cells.filter((c) => c.gradePool === pool);
             if (poolCells.length === 0) return null;
-            const poolWeeks = weeksInPlan(poolCells);
+            const poolWeeks  = weeksInPlan(poolCells);
             const poolPlants = plantsInPlan(poolCells);
 
             return (
@@ -458,7 +536,9 @@ export function ProcessingPlanDemand() {
                   <span className={`inline-flex px-2 py-0.5 rounded border text-[11px] font-bold ${POOL_COLORS[pool]}`}>
                     {pool} · {GRADE_POOL_LABELS[pool]}
                   </span>
-                  <span className="text-xs text-neutral-500">Required carcass KG — click any cell for SKU breakdown</span>
+                  <span className="text-xs text-neutral-500">
+                    Required carcass KG — click any cell for {isForecast ? "product" : "SKU"} breakdown
+                  </span>
                   <span className="ml-auto text-xs font-semibold tabular-nums" style={{ color: POOL_BAR_COLORS[pool] }}>
                     Total: {fmtKg(poolTotals[pool])} KG
                   </span>
@@ -469,7 +549,9 @@ export function ProcessingPlanDemand() {
                       <tr className="bg-brand-green-tint text-brand-green-dark text-[11px] uppercase tracking-wide">
                         <th className="px-3 py-2.5 text-left font-semibold sticky left-0 bg-brand-green-tint z-10">Plant</th>
                         {poolWeeks.map((w) => (
-                          <th key={w} className="px-3 py-2.5 text-right font-semibold whitespace-nowrap">{isoWeekLabel(w, planYear)}</th>
+                          <th key={w} className="px-3 py-2.5 text-right font-semibold whitespace-nowrap">
+                            {isoWeekLabel(w, planYear)}
+                          </th>
                         ))}
                         <th className="px-3 py-2.5 text-right font-semibold">Total</th>
                       </tr>
@@ -490,7 +572,11 @@ export function ProcessingPlanDemand() {
                                     <button
                                       onClick={() => setActiveCell(cell)}
                                       className="tabular-nums font-semibold text-blue-700 hover:underline cursor-pointer"
-                                      title={`${cell.cartons.toLocaleString()} CAR — click for SKU breakdown`}
+                                      title={
+                                        isForecast
+                                          ? `${cell.cartons.toFixed(1)} t demand — click for product breakdown`
+                                          : `${cell.cartons.toLocaleString()} CAR — click for SKU breakdown`
+                                      }
                                     >
                                       {fmtKg(cell.requiredCarcassKg)}
                                     </button>
@@ -530,16 +616,7 @@ export function ProcessingPlanDemand() {
         </>
       )}
 
-      {/* Empty state */}
-      {!hasRows && (
-        <div className="rounded-xl border border-dashed border-neutral-300 bg-neutral-50 py-16 text-center">
-          <div className="text-3xl mb-3">📋</div>
-          <div className="text-sm font-semibold text-neutral-600">No sales plan uploaded yet</div>
-          <div className="text-xs text-neutral-400 mt-1">Upload your SAP sales plan file above to see the carcass requirement</div>
-        </div>
-      )}
-
-      {/* SKU breakdown popover */}
+      {/* SKU / product breakdown popover */}
       {activeCell && <BreakdownPopover cell={activeCell} onClose={() => setActiveCell(null)} />}
     </div>
   );

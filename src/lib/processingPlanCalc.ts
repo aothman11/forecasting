@@ -1,5 +1,9 @@
 import type { BomRecord, GradePool } from "./bomTypes";
 import type { SalesPlanCartonRow, ProcessingPlanCell, SkuContribution } from "./processingPlanTypes";
+import { getDemandQtyAllChannels } from "./demandPlan";
+import { wcYieldFromCarcass, fppYieldFromCarcass, cutsYieldFromCarcass } from "./supplyRequirements";
+import { DEFAULT_FPP_MEAT_CONTENT } from "./defaults";
+import type { DemandProduct, DemandPlanQty, Parameters } from "./types";
 
 /** Carcass KG consumed per carton of this SKU. */
 function carcassKgPerCarton(rec: BomRecord, gradeYields: Record<string, number>): number {
@@ -133,4 +137,128 @@ export function isoWeekLabel(isoWeek: number, year: number): string {
 /** Unique sorted plants present in a cell array. */
 export function plantsInPlan(cells: ProcessingPlanCell[]): string[] {
   return [...new Set(cells.map((c) => c.plant))].sort();
+}
+
+// ─── Forecast fallback ────────────────────────────────────────────────────────
+
+/** Pipeline plant keys → SAP plant codes. */
+const PLANT_KEYS_ORDERED = ["plant1", "plant2", "plant3"] as const;
+const PLANT_CODES_ORDERED = ["1100", "1200", "1300"] as const;
+
+/**
+ * Map a DemandProduct to the SAP grade pool that best represents it.
+ * 930 = A-Grade Fresh WC · 931 = A-Grade Frozen WC · 932 = B-Grade / Cuts · 933 = B-Grade Cuts (FPP)
+ * Returns null for eggs (demand-only, no carcass requirement).
+ */
+function productToGradePool(p: DemandProduct): GradePool | null {
+  if (p.category === "eggs") return null;
+  if (p.category === "wholeChicken") {
+    if (p.grade === "B") return "932";
+    return p.freshFrozen === "frozen" ? "931" : "930";
+  }
+  if (p.category === "cuts") return "932";
+  if (p.category === "fpp")  return "933";
+  return null;
+}
+
+/**
+ * Build ProcessingPlanCell[] from the Demand Plan (demandQty) when no SAP
+ * sales-plan file has been imported yet.
+ *
+ * Algorithm:
+ *   1. For each plan week × product, sum demand across all channels.
+ *   2. Reverse-BOM: demand tons → required carcass kg using the same yield
+ *      helpers that power SupplyPlan.tsx (wcYield / cutsYield / fppYield).
+ *   3. Distribute carcass kg across plants using params.plantShares.
+ *   4. Group into cells keyed by (plant × ISO week × gradePool) — same shape
+ *      as explodeSalesPlan() so the rendering table is identical.
+ *
+ * @param planWeekToIsoWeek  Map<planWeek, isoWeek> built from result.plants.
+ */
+export function forecastToProcessingCells(
+  demandProducts: DemandProduct[],
+  demandQty: DemandPlanQty,
+  params: Parameters,
+  horizonWeeks: number[],
+  planWeekToIsoWeek: Map<number, number>,
+): ProcessingPlanCell[] {
+  const wcYield    = wcYieldFromCarcass(params);
+  const fppYield   = fppYieldFromCarcass(params);
+  const cutsYield  = cutsYieldFromCarcass(params);
+
+  type Accum = {
+    week: number; plant: string; gradePool: GradePool;
+    carcassKg: number; demandTons: number;
+    skus: Map<string, SkuContribution>;
+  };
+  const cellMap = new Map<string, Accum>();
+
+  for (const planWeek of horizonWeeks) {
+    const isoWeek = planWeekToIsoWeek.get(planWeek);
+    if (isoWeek === undefined) continue;
+
+    for (const product of demandProducts) {
+      const demandTons = getDemandQtyAllChannels(demandQty, product.id, planWeek);
+      if (demandTons <= 0) continue;
+
+      const gradePool = productToGradePool(product);
+      if (!gradePool) continue;
+
+      const demandKg = demandTons * 1000;
+      let totalCarcassKg = 0;
+
+      if (product.category === "wholeChicken") {
+        totalCarcassKg = wcYield > 0 ? demandKg / wcYield : 0;
+      } else if (product.category === "cuts") {
+        totalCarcassKg = cutsYield > 0 ? demandKg / cutsYield : 0;
+      } else if (product.category === "fpp") {
+        const meatContent = product.yieldPct ?? DEFAULT_FPP_MEAT_CONTENT;
+        totalCarcassKg = fppYield > 0 ? (demandKg * meatContent) / fppYield : 0;
+      }
+      if (totalCarcassKg <= 0) continue;
+
+      // Distribute across plants by plantShares
+      PLANT_KEYS_ORDERED.forEach((pk, idx) => {
+        const share = params.plantShares[pk];
+        if (share <= 0) return;
+        const plantCode = PLANT_CODES_ORDERED[idx];
+        const plantCarcassKg  = totalCarcassKg * share;
+        const plantDemandTons = demandTons      * share;
+
+        const key = `${plantCode}::${isoWeek}::${gradePool}`;
+        let cell = cellMap.get(key);
+        if (!cell) {
+          cell = { week: isoWeek, plant: plantCode, gradePool, carcassKg: 0, demandTons: 0, skus: new Map() };
+          cellMap.set(key, cell);
+        }
+        cell.carcassKg  += plantCarcassKg;
+        cell.demandTons += plantDemandTons;
+
+        const existing = cell.skus.get(product.id);
+        if (existing) {
+          existing.cartons   += Math.round(plantDemandTons * 100) / 100;
+          existing.carcassKg += plantCarcassKg;
+        } else {
+          cell.skus.set(product.id, {
+            skuCode: product.id,
+            skuDescription: product.name,
+            cartons: Math.round(plantDemandTons * 100) / 100, // stored as tons
+            carcassKg: plantCarcassKg,
+          });
+        }
+      });
+    }
+  }
+
+  return Array.from(cellMap.values())
+    .map((c): ProcessingPlanCell => ({
+      week: c.week,
+      plant: c.plant,
+      gradePool: c.gradePool,
+      requiredCarcassKg: c.carcassKg,
+      cartons: Math.round(c.demandTons * 100) / 100, // tons
+      isForecast: true,
+      skuBreakdown: [...c.skus.values()].sort((a, b) => b.carcassKg - a.carcassKg),
+    }))
+    .sort((a, b) => a.week - b.week || a.plant.localeCompare(b.plant));
 }
