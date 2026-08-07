@@ -4,7 +4,13 @@ import { useMemo } from "react";
 import * as XLSX from "xlsx";
 import { usePlanStore } from "@/lib/store";
 import { usePipeline } from "@/lib/usePipeline";
-import { explodeSalesPlan, weeksInPlan, plantsInPlan, isoWeekLabel } from "@/lib/processingPlanCalc";
+import {
+  explodeSalesPlan,
+  forecastToProcessingCells,
+  weeksInPlan,
+  plantsInPlan,
+  isoWeekLabel,
+} from "@/lib/processingPlanCalc";
 
 // ─── constants ────────────────────────────────────────────────────────────────
 
@@ -45,8 +51,11 @@ export function BroilerIntakePlan() {
   const salesPlanCartonRows = usePlanStore((s) => s.salesPlanCartonRows);
   const bomRecords          = usePlanStore((s) => s.bomRecords);
   const params              = usePlanStore((s) => s.params);
+  const demandProducts      = usePlanStore((s) => s.demandProducts);
+  const demandQty           = usePlanStore((s) => s.demandQty);
   const setProcessingPlanOpen = usePlanStore((s) => s.setProcessingPlanOpen);
   const setBroilerIntakeOpen  = usePlanStore((s) => s.setBroilerIntakeOpen);
+  const setDemandOpen         = usePlanStore((s) => s.setDemandOpen);
 
   // ── production pipeline supply ──
   const { result } = usePipeline();
@@ -70,15 +79,39 @@ export function BroilerIntakePlan() {
     return m;
   }, [result.plants]);
 
+  // ── plan-week → ISO-week map (from pipeline result) ──
+  const planWeekToIsoWeek = useMemo(
+    () => new Map(result.plants.map((pw) => [pw.week, pw.isoWeek])),
+    [result.plants]
+  );
+
+  const horizonWeeks = useMemo(
+    () => Array.from({ length: params.planningHorizonWeeks }, (_, i) => i + 1),
+    [params.planningHorizonWeeks]
+  );
+
   // ── processing plan demand ──
-  const { cells } = useMemo(
+  const hasSap = salesPlanCartonRows.length > 0;
+
+  const { cells: sapCells } = useMemo(
     () =>
-      salesPlanCartonRows.length > 0
+      hasSap
         ? explodeSalesPlan(salesPlanCartonRows, bomRecords, params.gradeYields)
         : { cells: [], unmatched: [] },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [salesPlanCartonRows, bomRecords, JSON.stringify(params.gradeYields)]
+    [hasSap, salesPlanCartonRows, bomRecords, JSON.stringify(params.gradeYields)]
   );
+
+  const forecastCells = useMemo(
+    () =>
+      forecastToProcessingCells(demandProducts, demandQty, params, horizonWeeks, planWeekToIsoWeek),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [demandProducts, JSON.stringify(demandQty), params, horizonWeeks, planWeekToIsoWeek]
+  );
+
+  // SAP takes priority; fall back to forecast when no SAP file loaded
+  const cells      = hasSap ? sapCells      : forecastCells;
+  const isForecast = !hasSap;
 
   // Aggregate demand to plant × week (sum all grade pools)
   const demandMap = useMemo(() => {
@@ -94,8 +127,9 @@ export function BroilerIntakePlan() {
   const weeks  = useMemo(() => weeksInPlan(cells),  [cells]);
   const plants = useMemo(() => plantsInPlan(cells), [cells]);
 
-  const hasData = cells.length > 0;
-  const planYear = new Date(params.planStartDate).getFullYear();
+  const hasData       = cells.length > 0;
+  const hasForecast   = forecastCells.length > 0;
+  const planYear      = new Date(params.planStartDate).getFullYear();
 
   // ── summary KPIs ──
   const totalReqKg = useMemo(
@@ -117,6 +151,7 @@ export function BroilerIntakePlan() {
 
   // ── navigation ──
   const goToProcessingPlan = () => { setBroilerIntakeOpen(false); setProcessingPlanOpen(true); };
+  const goToDemandPlan     = () => { setBroilerIntakeOpen(false); setDemandOpen(true); };
 
   // ── export ──
   const handleExport = () => {
@@ -145,8 +180,8 @@ export function BroilerIntakePlan() {
     XLSX.writeFile(wb, "AWP_Broiler_Intake_Plan.xlsx");
   };
 
-  // ── empty state ──
-  if (!hasData) {
+  // ── empty state (no SAP and no demand plan entries) ──
+  if (!hasData && !hasForecast) {
     return (
       <div className="space-y-5">
         <div>
@@ -158,17 +193,27 @@ export function BroilerIntakePlan() {
         <div className="rounded-xl border border-amber-200 bg-amber-50 px-5 py-4 flex items-start gap-4">
           <div className="text-2xl mt-0.5">📋</div>
           <div className="flex-1">
-            <div className="text-sm font-semibold text-amber-900">No processing demand data yet</div>
+            <div className="text-sm font-semibold text-amber-900">No demand data yet</div>
             <div className="text-xs text-amber-800 mt-1 leading-relaxed">
-              The Broiler Intake Plan is driven by the <strong>Processing Plan</strong>. Upload your SAP
-              sales plan in <strong>Demand Plan (M1)</strong> first, then come back here.
+              Enter weekly demand in the <strong>Demand Plan</strong> — this view will populate
+              automatically from your forecast. Alternatively, upload a SAP Sales Plan in the{" "}
+              <strong>Processing Plan</strong> for confirmed order data.
             </div>
-            <button
-              onClick={goToProcessingPlan}
-              className="mt-3 text-xs font-semibold px-3 py-1.5 rounded-lg bg-brand-green text-white hover:bg-brand-green-dark transition-colors"
-            >
-              → Go to Processing Plan
-            </button>
+            <div className="flex items-center gap-2 mt-3 flex-wrap">
+              <button
+                onClick={goToDemandPlan}
+                className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-brand-green text-white hover:bg-brand-green-dark transition-colors"
+              >
+                Go to Demand Plan
+              </button>
+              <span className="text-xs text-amber-700">or</span>
+              <button
+                onClick={goToProcessingPlan}
+                className="text-xs font-medium px-3 py-1.5 rounded-lg border border-amber-300 text-amber-800 hover:border-brand-green hover:text-brand-green-dark transition-colors"
+              >
+                Go to Processing Plan
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -181,16 +226,43 @@ export function BroilerIntakePlan() {
       <div>
         <h1 className="text-xl font-bold text-brand-green-dark">Broiler Intake Plan</h1>
         <p className="text-sm text-neutral-500 mt-0.5">
-          Pipeline supply (from Placement Plan) vs processing demand (from SAP sales plan) — by plant × week.
+          Pipeline supply (from Placement Plan) vs processing demand (from{" "}
+          {isForecast ? "Demand Plan forecast" : "SAP sales plan"}) — by plant × week.
         </p>
       </div>
+
+      {/* Data source banner */}
+      {isForecast ? (
+        <div className="rounded-xl border border-blue-200 bg-blue-50/60 px-4 py-2.5 flex items-center gap-3 flex-wrap text-xs">
+          <span className="flex items-center gap-1.5 px-2 py-0.5 rounded-full border font-semibold bg-blue-100 text-blue-800 border-blue-200 shrink-0">
+            📊 Forecast mode
+          </span>
+          <span className="text-neutral-600">
+            Demand derived from your <strong>Demand Plan</strong> via pipeline yields. Import a SAP Sales Plan in{" "}
+            <strong>Processing Plan</strong> to switch to confirmed orders.
+          </span>
+          <button
+            onClick={goToDemandPlan}
+            className="ml-auto font-medium px-2.5 py-1 rounded-lg border border-blue-300 text-blue-700 hover:bg-blue-100 transition-colors whitespace-nowrap"
+          >
+            Edit Demand Plan
+          </button>
+        </div>
+      ) : (
+        <div className="rounded-xl border border-green-200 bg-green-50/60 px-4 py-2.5 flex items-center gap-2 text-xs">
+          <span className="flex items-center gap-1.5 px-2 py-0.5 rounded-full border font-semibold bg-green-100 text-green-800 border-green-200 shrink-0">
+            ✓ SAP Sales Plan loaded
+          </span>
+          <span className="text-neutral-600">Demand from confirmed SAP carton orders via Product BOM.</span>
+        </div>
+      )}
 
       {/* KPI summary */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <div className="rounded-xl border border-[var(--border-subtle)] bg-white shadow-sm p-3">
           <div className="text-[11px] uppercase tracking-wide text-neutral-500 font-semibold">Required Carcass</div>
           <div className="text-xl font-bold text-neutral-800 tabular-nums mt-1">{fmtKg(totalReqKg)} KG</div>
-          <div className="text-[11px] text-neutral-400">from sales plan demand</div>
+          <div className="text-[11px] text-neutral-400">{isForecast ? "from demand plan forecast" : "from SAP sales plan"}</div>
         </div>
         <div className="rounded-xl border border-[var(--border-subtle)] bg-white shadow-sm p-3">
           <div className="text-[11px] uppercase tracking-wide text-neutral-500 font-semibold">Pipeline Supply</div>
@@ -219,7 +291,8 @@ export function BroilerIntakePlan() {
           🔗 <strong>Supply</strong> comes from the Production Pipeline (Placement Plan → grow-out → slaughter).
           Adjust placement in <strong>Step 1</strong> to close any shortfall.
           <span className="ml-2 text-neutral-400">
-            Weeks matched via harvest dates · Plants: plant1→1100, plant2→1200, plant3→1300.
+            Weeks matched via harvest dates · Plants: plant1→1100, plant2→1200, plant3→1300
+            {isForecast && " · Demand derived from Demand Plan via yield ratios"}.
           </span>
         </span>
         <button
