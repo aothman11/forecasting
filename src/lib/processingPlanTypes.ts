@@ -2,7 +2,14 @@ import type { GradePool } from "./bomTypes";
 
 export interface SalesPlanCartonRow {
   week: number;           // ISO week number from SAP (e.g. 32)
-  plant: string;          // "1100" | "1200" | "1300"
+  /**
+   * Calendar year of this SAP row, extracted from the column header when available
+   * (e.g. "Week No. in 2026" → 2026).  When present, enables year-aware horizon
+   * filtering so pre-plan weeks (e.g. July 2026 when plan starts Aug 2026) are
+   * correctly excluded even for 52-week plans where all ISO week numbers appear.
+   */
+  year?: number;
+  plant: string;          // "P1" | "P2" | "P3"
   skuCode: string;        // SAP material code — must match a BomRecord.skuCode
   skuDescription: string;
   cartons: number;

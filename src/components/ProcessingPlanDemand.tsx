@@ -57,6 +57,14 @@ function parseSapSalesPlan(buffer: ArrayBuffer): ParseResult {
   const ws = wb.Sheets[wb.SheetNames[0]];
   const raw = XLSX.utils.sheet_to_json<Record<string, unknown>>(ws, { defval: "" });
 
+  // Extract calendar year from a column header like "Week No. in 2026".
+  // When present, enables year-aware horizon filtering (fixes July-leak bug for
+  // 52-week plans where every ISO week number is technically "in horizon").
+  const allKeys = Object.keys(raw[0] ?? {});
+  const weekKey = allKeys.find((k) => /week/i.test(k)) ?? "";
+  const yearMatch = weekKey.match(/\b(20\d\d)\b/);
+  const detectedYear: number | undefined = yearMatch ? parseInt(yearMatch[1]) : undefined;
+
   const rows: SalesPlanCartonRow[] = [];
   const errors: string[] = [];
 
@@ -80,7 +88,7 @@ function parseSapSalesPlan(buffer: ArrayBuffer): ParseResult {
     if (!["P1", "P2", "P3"].includes(plantRaw)) { errors.push(`Row ${i + 2}: unknown plant "${plantRaw}" for SKU ${skuCode} (expected P1/P2/P3)`); continue; }
     if (isNaN(cartons) || cartons < 0) { errors.push(`Row ${i + 2}: invalid cartons "${cartonRaw}" for SKU ${skuCode}`); continue; }
     if (cartons === 0) continue;
-    rows.push({ week, plant: plantRaw, skuCode, skuDescription, cartons });
+    rows.push({ week, year: detectedYear, plant: plantRaw, skuCode, skuDescription, cartons });
   }
 
   return { rows, errors };
@@ -189,27 +197,66 @@ export function ProcessingPlanDemand() {
     [result.plants]
   );
 
-  // Set of all ISO weeks that fall within the planning horizon.
-  // Used to filter out SAP rows that reference weeks before plan start or beyond the horizon.
+  // Fallback: set of all ISO week numbers in the horizon (imprecise for 52-week plans
+  // where every ISO week number 1-52 appears — used only when the SAP year is unknown).
   const planHorizonIsoWeeks = useMemo(
     () => new Set(planWeekToIsoWeek.values()),
     [planWeekToIsoWeek]
   );
 
+  // Year-aware plan boundaries (for the precise filter path).
+  const planStartObj = useMemo(() => new Date(params.planStartDate), [params.planStartDate]);
+  const planEndObj   = useMemo(() => {
+    const d = new Date(params.planStartDate);
+    d.setDate(d.getDate() + params.planningHorizonWeeks * 7);
+    return d;
+  }, [params.planStartDate, params.planningHorizonWeeks]);
+
   // ── SAP-driven cells ──
   const hasSap = salesPlanCartonRows.length > 0;
   const hasBom = bomRecords.length > 0;
 
+  /**
+   * Determine if a SAP row falls within the plan horizon.
+   *
+   * Preferred path (when `r.year` is known, extracted from the SAP column header):
+   *   Compute the actual Monday of ISO week W in year Y and check that it falls
+   *   within [planStart, planEnd).  This correctly excludes e.g. July 2026 rows
+   *   when the plan starts Aug 7 2026 — even in 52-week plans where every ISO week
+   *   number 1-52 appears in the horizon set.
+   *
+   * Fallback path (year unknown): test whether the ISO week number is in the
+   * horizon set.  For plans < 52 weeks this still works well; for full-year plans
+   * it accepts everything (no worse than before this fix).
+   */
+  function isoWeekMondayDate(isoWeek: number, year: number): Date {
+    const jan4 = new Date(year, 0, 4);
+    const dow  = jan4.getDay() || 7;          // 1=Mon … 7=Sun
+    const d    = new Date(jan4);
+    d.setDate(jan4.getDate() - dow + 1 + (isoWeek - 1) * 7);
+    return d;
+  }
+
+  const isInHorizon = (r: { week: number; year?: number }): boolean => {
+    if (r.year != null) {
+      const weekStart = isoWeekMondayDate(r.week, r.year);
+      return weekStart >= planStartObj && weekStart < planEndObj;
+    }
+    return planHorizonIsoWeeks.has(r.week);
+  };
+
   // Count rows that fall outside the planning horizon — shown as a warning.
   const outOfHorizonRows = useMemo(
-    () => hasSap ? salesPlanCartonRows.filter((r) => !planHorizonIsoWeeks.has(r.week)) : [],
-    [hasSap, salesPlanCartonRows, planHorizonIsoWeeks]
+    () => hasSap ? salesPlanCartonRows.filter((r) => !isInHorizon(r)) : [],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [hasSap, salesPlanCartonRows, planHorizonIsoWeeks, planStartObj, planEndObj]
   );
 
   // Only pass rows within the plan horizon to the explode function.
   const inHorizonRows = useMemo(
-    () => hasSap ? salesPlanCartonRows.filter((r) => planHorizonIsoWeeks.has(r.week)) : [],
-    [hasSap, salesPlanCartonRows, planHorizonIsoWeeks]
+    () => hasSap ? salesPlanCartonRows.filter((r) => isInHorizon(r)) : [],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [hasSap, salesPlanCartonRows, planHorizonIsoWeeks, planStartObj, planEndObj]
   );
 
   const { cells: sapCells, unmatched } = useMemo(

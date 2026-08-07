@@ -69,13 +69,14 @@ export function PlacementPlan() {
   const columns: DataTableColumn<PlacementDayRow>[] = [
     {
       key: "date",
-      header: "Harvest Date",
+      header: "Catching Date",
       render: (r) => {
+        // r.date is the catching (harvest) date. Birds were placed cycleLengthDays earlier.
         const placementDate = addDays(new Date(r.date), -Math.round(params.cycleLengthDays));
         return (
           <div>
             <div className="font-medium">{r.date} ({format(new Date(r.date), "EEE")})</div>
-            <div className="text-[11px] text-neutral-400">Place: {format(placementDate, "yyyy-MM-dd")} ({format(placementDate, "EEE")})</div>
+            <div className="text-[11px] text-neutral-400">Placed: {format(placementDate, "yyyy-MM-dd")} ({format(placementDate, "EEE")})</div>
           </div>
         );
       },
@@ -127,7 +128,7 @@ export function PlacementPlan() {
   return (
     <div className="space-y-4">
       <div>
-        <h1 className="text-xl font-bold section-title">Step 1 — Placement Plan</h1>
+        <h1 className="text-xl font-bold section-title">Step 1 — Catching Plan</h1>
         <p className="text-sm text-neutral-500 mt-0.5">
           The only manual input in the workbench, entered day by day. Every downstream step rolls this up into
           weekly totals and calculates forward from there.{" "}

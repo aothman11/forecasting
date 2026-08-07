@@ -21,7 +21,7 @@ import { ensurePlacementDaysHorizon, isFridayDate, quickFillPlacementDays } from
 import { bulkAdjustDemand, copyDemandWeekForward, demandCellKey, type BulkAdjustOptions } from "./demandPlan";
 
 export const STEPS = [
-  { id: 1, label: "Placement Plan", short: "Placement", icon: "🐣" },
+  { id: 1, label: "Catching Plan", short: "Catching", icon: "🐣" },
   { id: 2, label: "Live Bird Forecast", short: "Live Birds", icon: "🐔" },
   { id: 3, label: "Carcass Yield & Grade Split", short: "Carcass", icon: "⚖️" },
   { id: 4, label: "Product Family Allocation", short: "Products", icon: "📦" },
