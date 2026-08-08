@@ -197,7 +197,37 @@ function BroilerBreakdownPopover({
               {fmtKg(totalCarcassKg)} KG carcass · {fmtNum(Math.round(totalBirds))} birds required
             </div>
           </div>
-          <button onClick={onClose} className="text-neutral-400 hover:text-neutral-700 text-xl leading-none">✕</button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => {
+                const rows: Record<string, unknown>[] = [];
+                plantCells.forEach((cell) => {
+                  cell.skuBreakdown.forEach((s) => {
+                    const birds = birdsForSku(s.skuCode, s.carcassKg, bomMap, params.gradeYields, params.avgCarcassWeightKg);
+                    rows.push({
+                      Plant: plant,
+                      Week: isoWeekLbl,
+                      "Grade Pool": `${cell.gradePool} · ${GRADE_POOL_LABELS[cell.gradePool as keyof typeof GRADE_POOL_LABELS] ?? cell.gradePool}`,
+                      ...(isForecast ? {} : { "SKU Code": s.skuCode }),
+                      Product: s.skuDescription,
+                      [isForecast ? "Demand (t)" : "Cartons"]: isForecast ? parseFloat(s.cartons.toFixed(2)) : s.cartons,
+                      "Carcass KG": parseFloat(s.carcassKg.toFixed(2)),
+                      "Req. Birds": Math.round(birds),
+                      "Share %": cell.requiredCarcassKg > 0 ? parseFloat(((s.carcassKg / cell.requiredCarcassKg) * 100).toFixed(1)) : 0,
+                    });
+                  });
+                });
+                const ws = XLSX.utils.json_to_sheet(rows);
+                const wb = XLSX.utils.book_new();
+                XLSX.utils.book_append_sheet(wb, ws, "Breakdown");
+                XLSX.writeFile(wb, `Broiler_Breakdown_P${plant}_${isoWeekLbl}.xlsx`);
+              }}
+              className="text-xs px-2.5 py-1 rounded border border-neutral-200 bg-neutral-50 hover:bg-neutral-100 text-neutral-600 font-medium flex items-center gap-1"
+            >
+              ↓ Export
+            </button>
+            <button onClick={onClose} className="text-neutral-400 hover:text-neutral-700 text-xl leading-none">✕</button>
+          </div>
         </div>
 
         {/* One section per grade pool */}
