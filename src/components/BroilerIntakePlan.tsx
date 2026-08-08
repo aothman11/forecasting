@@ -126,6 +126,38 @@ export function BroilerIntakePlan() {
     return m;
   }, [cells]);
 
+  /**
+   * Required birds per plant × week, computed from the SKU breakdown in each
+   * processing-plan cell so that the carcass-size distribution is honoured.
+   *
+   * WC products (grade pool 930 / 931):
+   *   birds = skuCarcassKg × gradeYield / packageWeightKg
+   *   (uses the actual weight bucket — 800 g, 900 g … — from the BOM)
+   *
+   * Cuts / FPP (932 / 933) and unknown SKUs:
+   *   birds = skuCarcassKg / avgCarcassWeightKg  (parameter fallback)
+   */
+  const requiredBirdsMap = useMemo(() => {
+    const bomMap = new Map(bomRecords.map((r) => [r.skuCode, r]));
+    const m = new Map<string, number>();
+    for (const cell of cells) {
+      const key = `${cell.plant}::${cell.week}`;
+      let birds = 0;
+      for (const sku of cell.skuBreakdown) {
+        const bom = bomMap.get(sku.skuCode);
+        if (bom && (bom.gradePool === "930" || bom.gradePool === "931") && bom.packageWeightKg > 0) {
+          const yield_ = params.gradeYields[bom.gradePool] ?? 1;
+          birds += sku.carcassKg * yield_ / bom.packageWeightKg;
+        } else {
+          birds += params.avgCarcassWeightKg > 0 ? sku.carcassKg / params.avgCarcassWeightKg : 0;
+        }
+      }
+      m.set(key, (m.get(key) ?? 0) + birds);
+    }
+    return m;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cells, bomRecords, params.gradeYields, params.avgCarcassWeightKg]);
+
   // ── Weeks: union of demand weeks + non-zero supply weeks ──
   // This ensures both early demand weeks (no harvest yet) AND later supply weeks
   // (harvest from in-plan placements) are shown side-by-side.
@@ -183,7 +215,7 @@ export function BroilerIntakePlan() {
           Plant: plant,
           "Week": isoWeekLabel(week, planYear),
           "Required Carcass KG": parseFloat(reqKg.toFixed(2)),
-          "Required Birds": Math.round(params.avgCarcassWeightKg > 0 ? reqKg / params.avgCarcassWeightKg : 0),
+          "Required Birds (size-adjusted)": Math.round(demandMap.get(`${plant}::${week}`) ? (requiredBirdsMap.get(`${plant}::${week}`) ?? 0) : 0),
           "Available Carcass KG (Pipeline)": parseFloat(availKg.toFixed(2)),
           "Available Birds (Pipeline)": Math.round(s?.birds ?? 0),
           "Gap KG": parseFloat((availKg - reqKg).toFixed(2)),
@@ -366,6 +398,25 @@ export function BroilerIntakePlan() {
                       );
                     })}
                     <td className="px-3 py-2 text-right tabular-nums font-bold text-neutral-700">{fmtKg(plantReqKg)}</td>
+                  </tr>
+
+                  {/* Required birds — derived from SKU weight-class breakdown */}
+                  <tr className="border-t border-[var(--border-subtle)] bg-neutral-50/30">
+                    <td className="px-3 py-2 text-neutral-500 sticky left-0 bg-neutral-50/30 z-10 whitespace-nowrap text-xs">
+                      Required birds
+                      <span className="ml-1 text-neutral-300 font-normal">(size-adjusted)</span>
+                    </td>
+                    {weeks.map((w) => {
+                      const birds = requiredBirdsMap.get(`${plant}::${w}`);
+                      return (
+                        <td key={w} className="px-3 py-2 text-right tabular-nums text-neutral-600 text-xs">
+                          {birds ? fmtNum(Math.round(birds)) : <span className="text-neutral-200">—</span>}
+                        </td>
+                      );
+                    })}
+                    <td className="px-3 py-2 text-right tabular-nums text-neutral-600 text-xs font-semibold">
+                      {fmtNum(Math.round(weeks.reduce((s, w) => s + (requiredBirdsMap.get(`${plant}::${w}`) ?? 0), 0)))}
+                    </td>
                   </tr>
 
                   {/* Available from pipeline */}
