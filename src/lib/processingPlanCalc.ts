@@ -139,6 +139,53 @@ export function plantsInPlan(cells: ProcessingPlanCell[]): string[] {
   return [...new Set(cells.map((c) => c.plant))].sort();
 }
 
+/**
+ * Build a Map<isoWeek → column label> using the plan's *own* start dates rather
+ * than the Monday of each ISO week.
+ *
+ * Why: a plan starting Aug 1 falls in ISO week 31 (Monday July 27 – Sunday Aug 2).
+ * Using the ISO Monday (July 27) would label the first column "Jul.W4" even though
+ * all plan data is for the week beginning Aug 1. Using the plan week's start date
+ * instead (Aug 1) gives "Aug.W1", which matches user expectations.
+ *
+ * The ordinal W1/W2/W3… counts plan-week start dates that fall in the same calendar
+ * month (year+month), in plan order, so they are always consecutive.
+ *
+ * Also fixes cross-year plans: a week starting Jan 2027 is correctly labeled
+ * "2027.Jan.W1" even though planYear is 2026.
+ *
+ * @param planWeekToIsoWeek  Map<planWeek (1-based), isoWeek>
+ * @param planStartDate      ISO date string, e.g. "2026-08-01"
+ */
+export function buildPlanWeekLabels(
+  planWeekToIsoWeek: Map<number, number>,
+  planStartDate: string,
+): Map<number, string> {
+  // isoWeek → plan-week start date
+  const startDateByIsoWeek = new Map<number, Date>();
+  for (const [planWeek, isoWeek] of planWeekToIsoWeek) {
+    const base = new Date(planStartDate);
+    base.setDate(base.getDate() + (planWeek - 1) * 7);
+    startDateByIsoWeek.set(isoWeek, base);
+  }
+
+  // Process in plan order (ascending isoWeek start date)
+  const sorted = [...startDateByIsoWeek.entries()].sort((a, b) => a[1].getTime() - b[1].getTime());
+
+  const monthCount = new Map<string, number>(); // "YYYY-M" → ordinal so far
+  const labels = new Map<number, string>();
+
+  for (const [isoWeek, d] of sorted) {
+    const key = `${d.getFullYear()}-${d.getMonth()}`;
+    const wom = (monthCount.get(key) ?? 0) + 1;
+    monthCount.set(key, wom);
+    const mmm = d.toLocaleDateString("en-US", { month: "short" });
+    labels.set(isoWeek, `${d.getFullYear()}.${mmm}.W${wom}`);
+  }
+
+  return labels;
+}
+
 // ─── Forecast fallback ────────────────────────────────────────────────────────
 
 /** Pipeline plant keys → plant identifiers used in displays and data keys. */

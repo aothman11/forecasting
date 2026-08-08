@@ -11,6 +11,7 @@ import {
   weeksInPlan,
   plantsInPlan,
   isoWeekLabel,
+  buildPlanWeekLabels,
 } from "@/lib/processingPlanCalc";
 import type { SalesPlanCartonRow, ProcessingPlanCell } from "@/lib/processingPlanTypes";
 import { GRADE_POOL_LABELS } from "@/lib/bomTypes";
@@ -303,6 +304,14 @@ export function ProcessingPlanDemand() {
   const weeks  = weeksInPlan(cells);
   const plants = plantsInPlan(cells);
   const planYear = new Date(params.planStartDate).getFullYear();
+
+  // Column labels derived from plan week start dates (not ISO week Mondays).
+  // Prevents "Jul.W4" appearing for a plan starting Aug 1 (ISO week 31 starts July 27).
+  const planWeekLabels = useMemo(
+    () => buildPlanWeekLabels(planWeekToIsoWeek, params.planStartDate),
+    [planWeekToIsoWeek, params.planStartDate]
+  );
+  const wkLabel = (isoWeek: number) => planWeekLabels.get(isoWeek) ?? isoWeekLabel(isoWeek, planYear);
 
   // cell lookup: `${plant}::${week}::${pool}`
   const cellIndex = new Map(cells.map((c) => [`${c.plant}::${c.week}::${c.gradePool}`, c]));
@@ -634,7 +643,7 @@ export function ProcessingPlanDemand() {
                         <th className="px-3 py-2.5 text-left font-semibold sticky left-0 bg-brand-green-tint z-10">Plant</th>
                         {poolWeeks.map((w) => (
                           <th key={w} className="px-3 py-2.5 text-right font-semibold whitespace-nowrap">
-                            {isoWeekLabel(w, planYear)}
+                            {wkLabel(w)}
                           </th>
                         ))}
                         <th className="px-3 py-2.5 text-right font-semibold">Total</th>

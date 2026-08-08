@@ -14,6 +14,7 @@ import {
   weeksInPlan,
   plantsInPlan,
   isoWeekLabel,
+  buildPlanWeekLabels,
 } from "@/lib/processingPlanCalc";
 
 // ─── constants ────────────────────────────────────────────────────────────────
@@ -308,6 +309,14 @@ export function BroilerIntakePlan() {
   const hasForecast   = forecastCells.length > 0;
   const planYear      = new Date(params.planStartDate).getFullYear();
 
+  // Column labels using plan-week start dates — prevents "Jul.W4" for a plan
+  // starting Aug 1 (ISO week 31 starts July 27; we want "Aug.W1").
+  const planWeekLabels = useMemo(
+    () => buildPlanWeekLabels(planWeekToIsoWeek, params.planStartDate),
+    [planWeekToIsoWeek, params.planStartDate]
+  );
+  const wkLabel = (isoWeek: number) => planWeekLabels.get(isoWeek) ?? isoWeekLabel(isoWeek, planYear);
+
   // ── breakdown popover state ──
   const [activeBreakdown, setActiveBreakdown] = useState<{ plant: string; week: number } | null>(null);
 
@@ -344,7 +353,7 @@ export function BroilerIntakePlan() {
         const availKg = s?.carcassKg ?? 0;
         rows.push({
           Plant: plant,
-          "Week": isoWeekLabel(week, planYear),
+          "Week": wkLabel(week),
           "Required Carcass KG": parseFloat(reqKg.toFixed(2)),
           "Required Birds (size-adjusted)": Math.round(demandMap.get(`${plant}::${week}`) ? (requiredBirdsMap.get(`${plant}::${week}`) ?? 0) : 0),
           "Available Carcass KG (Pipeline)": parseFloat(availKg.toFixed(2)),
@@ -509,7 +518,7 @@ export function BroilerIntakePlan() {
                   <tr className="bg-neutral-50 text-neutral-500 text-[11px] uppercase tracking-wide">
                     <th className="px-3 py-2.5 text-left sticky left-0 bg-neutral-50 z-10 w-40">Metric</th>
                     {weeks.map((w) => (
-                      <th key={w} className="px-3 py-2.5 text-right whitespace-nowrap font-semibold">{isoWeekLabel(w, planYear)}</th>
+                      <th key={w} className="px-3 py-2.5 text-right whitespace-nowrap font-semibold">{wkLabel(w)}</th>
                     ))}
                     <th className="px-3 py-2.5 text-right font-semibold">Total</th>
                   </tr>
@@ -661,7 +670,7 @@ export function BroilerIntakePlan() {
         <BroilerBreakdownPopover
           plant={activeBreakdown.plant}
           week={activeBreakdown.week}
-          isoWeekLbl={isoWeekLabel(activeBreakdown.week, planYear)}
+          isoWeekLbl={wkLabel(activeBreakdown.week)}
           cells={cells}
           bomRecords={bomRecords}
           params={params}
