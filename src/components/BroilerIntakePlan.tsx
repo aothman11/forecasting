@@ -16,6 +16,7 @@ import {
   isoWeekLabel,
   buildPlanWeekLabels,
 } from "@/lib/processingPlanCalc";
+import { SIZE_KEYS, SIZE_KG } from "@/lib/defaults";
 
 // ─── constants ────────────────────────────────────────────────────────────────
 
@@ -76,6 +77,84 @@ function birdsForSku(
     return carcassKg * y / bom.packageWeightKg;
   }
   return avgCarcassWeightKg > 0 ? carcassKg / avgCarcassWeightKg : 0;
+}
+
+// ─── pipeline birds by size popover ──────────────────────────────────────────
+
+function PipelineBirdsPopover({
+  plant, week, isoWeekLbl, carcassKg, params, onClose,
+}: {
+  plant: string;
+  week: number;
+  isoWeekLbl: string;
+  carcassKg: number;
+  params: Parameters;
+  onClose: () => void;
+}) {
+  const dist = params.carcassSizeDistribution;
+  const wtdAvgKg = SIZE_KEYS.reduce((s, k) => s + (dist[k] ?? 0) * SIZE_KG[k], 0);
+  const totalBirds = wtdAvgKg > 0 ? carcassKg / wtdAvgKg : 0;
+
+  const rows = SIZE_KEYS.map((k) => {
+    const pct   = (dist[k] ?? 0) * 100;
+    const kgAmt = carcassKg * (dist[k] ?? 0);
+    const birds = SIZE_KG[k] > 0 ? kgAmt / SIZE_KG[k] : 0;
+    return { key: k, label: `${SIZE_KG[k] * 1000}g`, pct, kgAmt, birds };
+  }).filter((r) => r.pct > 0);
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30" onClick={onClose}>
+      <div
+        className="bg-white rounded-xl shadow-2xl border border-[var(--border-subtle)] w-[460px] max-h-[70vh] overflow-y-auto"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div className="px-4 py-3 border-b border-[var(--border-subtle)] flex items-center justify-between sticky top-0 bg-white">
+          <div>
+            <div className="text-sm font-semibold text-neutral-800">
+              Plant {plant} · {isoWeekLbl} — Pipeline Birds
+            </div>
+            <div className="text-xs text-neutral-500 mt-0.5">
+              {fmtKg(carcassKg)} KG carcass · {fmtNum(Math.round(totalBirds))} birds (size-adjusted)
+            </div>
+          </div>
+          <button onClick={onClose} className="text-neutral-400 hover:text-neutral-700 text-xl leading-none">✕</button>
+        </div>
+
+        {/* Size breakdown table */}
+        <table className="w-full text-xs border-collapse">
+          <thead>
+            <tr className="bg-neutral-50 text-neutral-500 text-[11px] uppercase tracking-wide">
+              <th className="px-4 py-2 text-left">Size bucket</th>
+              <th className="px-4 py-2 text-right">Share</th>
+              <th className="px-4 py-2 text-right">Carcass KG</th>
+              <th className="px-4 py-2 text-right">Birds</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((r, i) => (
+              <tr key={r.key} className={`border-t border-[var(--border-subtle)] ${i % 2 === 0 ? "bg-white" : "bg-neutral-50/50"}`}>
+                <td className="px-4 py-2 font-semibold text-neutral-700">{r.label}</td>
+                <td className="px-4 py-2 text-right tabular-nums text-neutral-600">{r.pct.toFixed(1)}%</td>
+                <td className="px-4 py-2 text-right tabular-nums text-neutral-600">{fmtKg(r.kgAmt)}</td>
+                <td className="px-4 py-2 text-right tabular-nums text-neutral-800 font-semibold">{fmtNum(Math.round(r.birds))}</td>
+              </tr>
+            ))}
+          </tbody>
+          <tfoot>
+            <tr className="border-t-2 border-neutral-200 bg-neutral-50 font-semibold">
+              <td className="px-4 py-2 text-neutral-700">Total</td>
+              <td className="px-4 py-2 text-right tabular-nums text-neutral-600">
+                {rows.reduce((s, r) => s + r.pct, 0).toFixed(1)}%
+              </td>
+              <td className="px-4 py-2 text-right tabular-nums text-neutral-700">{fmtKg(carcassKg)}</td>
+              <td className="px-4 py-2 text-right tabular-nums text-neutral-800">{fmtNum(Math.round(totalBirds))}</td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+    </div>
+  );
 }
 
 // ─── breakdown popover ────────────────────────────────────────────────────────
@@ -287,6 +366,29 @@ export function BroilerIntakePlan() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cells, bomRecords, params.gradeYields, params.avgCarcassWeightKg]);
 
+  /**
+   * Pipeline birds — size-adjusted.
+   *
+   * The pipeline carcassKg was produced by a flock with a known size distribution.
+   * Inverting that distribution gives the bird count:
+   *
+   *   pipelineBirds = carcassKg / Σ(dist[size] × sizeKg[size])
+   *
+   * This is the exact mathematical inverse of how the pipeline computes carcass weight,
+   * making it directly comparable to requiredBirdsMap (which uses SKU-level weights).
+   */
+  const pipelineBirdsMap = useMemo(() => {
+    const dist = params.carcassSizeDistribution;
+    const wtdAvgKg = SIZE_KEYS.reduce((s, k) => s + (dist[k] ?? 0) * SIZE_KG[k], 0);
+    const m = new Map<string, number>();
+    if (wtdAvgKg <= 0) return m;
+    for (const [key, val] of supplyMap) {
+      m.set(key, val.carcassKg / wtdAvgKg);
+    }
+    return m;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [supplyMap, params.carcassSizeDistribution]);
+
   // ── Weeks: union of demand weeks + non-zero supply weeks ──
   // This ensures both early demand weeks (no harvest yet) AND later supply weeks
   // (harvest from in-plan placements) are shown side-by-side.
@@ -318,7 +420,8 @@ export function BroilerIntakePlan() {
   const wkLabel = (isoWeek: number) => planWeekLabels.get(isoWeek) ?? isoWeekLabel(isoWeek, planYear);
 
   // ── breakdown popover state ──
-  const [activeBreakdown, setActiveBreakdown] = useState<{ plant: string; week: number } | null>(null);
+  const [activeBreakdown,         setActiveBreakdown]         = useState<{ plant: string; week: number } | null>(null);
+  const [activePipelineBreakdown, setActivePipelineBreakdown] = useState<{ plant: string; week: number } | null>(null);
 
   // ── summary KPIs ──
   const totalReqKg = useMemo(
@@ -357,7 +460,7 @@ export function BroilerIntakePlan() {
           "Required Carcass KG": parseFloat(reqKg.toFixed(2)),
           "Required Birds (size-adjusted)": Math.round(demandMap.get(`${plant}::${week}`) ? (requiredBirdsMap.get(`${plant}::${week}`) ?? 0) : 0),
           "Available Carcass KG (Pipeline)": parseFloat(availKg.toFixed(2)),
-          "Available Birds (Pipeline)": Math.round(s?.birds ?? 0),
+          "Available Birds (Pipeline, size-adj.)": Math.round(pipelineBirdsMap.get(`${plant}::${week}`) ?? 0),
           "Gap KG": parseFloat((availKg - reqKg).toFixed(2)),
           "Coverage %": reqKg > 0 ? parseFloat(((availKg / reqKg) * 100).toFixed(1)) : null,
         });
@@ -600,21 +703,32 @@ export function BroilerIntakePlan() {
                     <td className="px-3 py-2 text-right tabular-nums font-bold text-blue-700">{fmtKg(plantAvailKg)}</td>
                   </tr>
 
-                  {/* Available birds from pipeline */}
+                  {/* Available birds from pipeline — size-adjusted, clickable */}
                   <tr className="border-t border-[var(--border-subtle)] bg-neutral-50/40">
-                    <td className="px-3 py-2 text-neutral-400 sticky left-0 bg-neutral-50/40 z-10 whitespace-nowrap">
+                    <td className="px-3 py-2 text-neutral-400 sticky left-0 bg-neutral-50/40 z-10 whitespace-nowrap text-xs">
                       Pipeline birds
+                      <span className="ml-1 text-neutral-300 font-normal">(size-adjusted)</span>
+                      <div className="text-[10px] text-neutral-300 font-normal">click cell for breakdown</div>
                     </td>
                     {weeks.map((w) => {
-                      const s = supplyMap.get(`${plant}::${w}`);
+                      const birds = pipelineBirdsMap.get(`${plant}::${w}`);
                       return (
-                        <td key={w} className="px-3 py-2 text-right tabular-nums text-neutral-500">
-                          {s ? fmtNum(s.birds) : <span className="text-neutral-200">—</span>}
+                        <td key={w} className="px-3 py-2 text-right tabular-nums text-xs">
+                          {birds ? (
+                            <button
+                              onClick={() => setActivePipelineBreakdown({ plant, week: w })}
+                              className="tabular-nums font-semibold text-blue-600 hover:underline cursor-pointer"
+                            >
+                              {fmtNum(Math.round(birds))}
+                            </button>
+                          ) : (
+                            <span className="text-neutral-200">—</span>
+                          )}
                         </td>
                       );
                     })}
-                    <td className="px-3 py-2 text-right tabular-nums text-neutral-500">
-                      {fmtNum(weeks.reduce((s, w) => s + (supplyMap.get(`${plant}::${w}`)?.birds ?? 0), 0))}
+                    <td className="px-3 py-2 text-right tabular-nums text-neutral-500 text-xs font-semibold">
+                      {fmtNum(Math.round(weeks.reduce((s, w) => s + (pipelineBirdsMap.get(`${plant}::${w}`) ?? 0), 0)))}
                     </td>
                   </tr>
 
@@ -665,7 +779,7 @@ export function BroilerIntakePlan() {
         );
       })}
 
-      {/* Breakdown popup */}
+      {/* Demand breakdown popup */}
       {activeBreakdown && (
         <BroilerBreakdownPopover
           plant={activeBreakdown.plant}
@@ -678,6 +792,21 @@ export function BroilerIntakePlan() {
           onClose={() => setActiveBreakdown(null)}
         />
       )}
+
+      {/* Pipeline birds by size popup */}
+      {activePipelineBreakdown && (() => {
+        const s = supplyMap.get(`${activePipelineBreakdown.plant}::${activePipelineBreakdown.week}`);
+        return s ? (
+          <PipelineBirdsPopover
+            plant={activePipelineBreakdown.plant}
+            week={activePipelineBreakdown.week}
+            isoWeekLbl={wkLabel(activePipelineBreakdown.week)}
+            carcassKg={s.carcassKg}
+            params={params}
+            onClose={() => setActivePipelineBreakdown(null)}
+          />
+        ) : null;
+      })()}
     </div>
   );
 }
