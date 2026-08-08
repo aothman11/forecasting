@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState, useMemo } from "react";
+import { addDays } from "date-fns";
 import * as XLSX from "xlsx";
 import { usePlanStore } from "@/lib/store";
 import { usePipeline } from "@/lib/usePipeline";
@@ -216,30 +217,42 @@ export function ProcessingPlanDemand() {
   const hasSap = salesPlanCartonRows.length > 0;
   const hasBom = bomRecords.length > 0;
 
-  /**
-   * Determine if a SAP row falls within the plan horizon.
-   *
-   * Preferred path (when `r.year` is known, extracted from the SAP column header):
-   *   Compute the actual Monday of ISO week W in year Y and check that it falls
-   *   within [planStart, planEnd).  This correctly excludes e.g. July 2026 rows
-   *   when the plan starts Aug 7 2026 — even in 52-week plans where every ISO week
-   *   number 1-52 appears in the horizon set.
-   *
-   * Fallback path (year unknown): test whether the ISO week number is in the
-   * horizon set.  For plans < 52 weeks this still works well; for full-year plans
-   * it accepts everything (no worse than before this fix).
-   */
   function isoWeekMondayDate(isoWeek: number, year: number): Date {
     const jan4 = new Date(year, 0, 4);
-    const dow  = jan4.getDay() || 7;          // 1=Mon … 7=Sun
+    const dow  = jan4.getDay() || 7;
     const d    = new Date(jan4);
     d.setDate(jan4.getDate() - dow + 1 + (isoWeek - 1) * 7);
     return d;
   }
 
+  /**
+   * For each ISO week in the plan, derive its calendar year from the plan week's
+   * date. This lets us apply a year-aware date check even for rows that were
+   * imported before the `year` field was added to SalesPlanCartonRow (i.e. where
+   * r.year is undefined in the persisted store).
+   *
+   * Example: planStartDate = 2026-08-01 → planWeek 1 falls on Aug 1 (year 2026)
+   *   → ISO week 31 maps to year 2026.
+   *   isoWeekMondayDate(31, 2026) = July 27 < planStartObj (Aug 1) → filtered out.
+   */
+  const planIsoWeekYear = useMemo(() => {
+    const map = new Map<number, number>();
+    for (const [planWeek, isoWeek] of planWeekToIsoWeek) {
+      const d = addDays(new Date(params.planStartDate), (planWeek - 1) * 7);
+      map.set(isoWeek, d.getFullYear());
+    }
+    return map;
+  }, [planWeekToIsoWeek, params.planStartDate]);
+
   const isInHorizon = (r: { week: number; year?: number }): boolean => {
-    if (r.year != null) {
-      const weekStart = isoWeekMondayDate(r.week, r.year);
+    // Prefer the year stored on the row (extracted from SAP column header).
+    // Fall back to the year derived from the plan's own week mapping so that
+    // rows imported before the year field was introduced still get a date-level
+    // check (prevents partial ISO weeks that start before planStartDate from
+    // appearing as "July" columns even when they straddle the plan start).
+    const year = r.year ?? planIsoWeekYear.get(r.week);
+    if (year != null) {
+      const weekStart = isoWeekMondayDate(r.week, year);
       return weekStart >= planStartObj && weekStart < planEndObj;
     }
     return planHorizonIsoWeeks.has(r.week);
@@ -249,14 +262,14 @@ export function ProcessingPlanDemand() {
   const outOfHorizonRows = useMemo(
     () => hasSap ? salesPlanCartonRows.filter((r) => !isInHorizon(r)) : [],
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [hasSap, salesPlanCartonRows, planHorizonIsoWeeks, planStartObj, planEndObj]
+    [hasSap, salesPlanCartonRows, planHorizonIsoWeeks, planStartObj, planEndObj, planIsoWeekYear]
   );
 
   // Only pass rows within the plan horizon to the explode function.
   const inHorizonRows = useMemo(
     () => hasSap ? salesPlanCartonRows.filter((r) => isInHorizon(r)) : [],
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [hasSap, salesPlanCartonRows, planHorizonIsoWeeks, planStartObj, planEndObj]
+    [hasSap, salesPlanCartonRows, planHorizonIsoWeeks, planStartObj, planEndObj, planIsoWeekYear]
   );
 
   const { cells: sapCells, unmatched } = useMemo(
