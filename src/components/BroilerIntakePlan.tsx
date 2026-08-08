@@ -1,9 +1,13 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import * as XLSX from "xlsx";
 import { usePlanStore } from "@/lib/store";
 import { usePipeline } from "@/lib/usePipeline";
+import { GRADE_POOL_LABELS } from "@/lib/bomTypes";
+import type { ProcessingPlanCell } from "@/lib/processingPlanTypes";
+import type { Parameters } from "@/lib/types";
+import type { BomRecord } from "@/lib/bomTypes";
 import {
   explodeSalesPlan,
   forecastToProcessingCells,
@@ -44,6 +48,130 @@ function CoverageBadge({ pct }: { pct: number | null }) {
     <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded border text-[10px] font-semibold ${cls}`}>
       {pct >= 100 ? "✓" : "✗"} {pct.toFixed(0)}%
     </span>
+  );
+}
+
+// ─── pool colours (mirrors ProcessingPlanDemand) ─────────────────────────────
+
+const POOL_COLORS: Record<string, string> = {
+  "930": "bg-green-100 text-green-800 border-green-200",
+  "931": "bg-blue-100 text-blue-800 border-blue-200",
+  "932": "bg-yellow-100 text-yellow-800 border-yellow-200",
+  "933": "bg-orange-100 text-orange-800 border-orange-200",
+};
+
+// ─── per-SKU birds helper ─────────────────────────────────────────────────────
+
+function birdsForSku(
+  skuCode: string,
+  carcassKg: number,
+  bomMap: Map<string, BomRecord>,
+  gradeYields: Parameters["gradeYields"],
+  avgCarcassWeightKg: number,
+): number {
+  const bom = bomMap.get(skuCode);
+  if (bom && (bom.gradePool === "930" || bom.gradePool === "931") && bom.packageWeightKg > 0) {
+    const y = gradeYields[bom.gradePool] ?? 1;
+    return carcassKg * y / bom.packageWeightKg;
+  }
+  return avgCarcassWeightKg > 0 ? carcassKg / avgCarcassWeightKg : 0;
+}
+
+// ─── breakdown popover ────────────────────────────────────────────────────────
+
+function BroilerBreakdownPopover({
+  plant, week, isoWeekLbl, cells, bomRecords, params, isForecast, onClose,
+}: {
+  plant: string;
+  week: number;
+  isoWeekLbl: string;
+  cells: ProcessingPlanCell[];
+  bomRecords: BomRecord[];
+  params: Parameters;
+  isForecast: boolean;
+  onClose: () => void;
+}) {
+  const bomMap = useMemo(() => new Map(bomRecords.map((r) => [r.skuCode, r])), [bomRecords]);
+  const plantCells = cells.filter((c) => c.plant === plant && c.week === week);
+  const totalBirds = plantCells.reduce((sum, cell) =>
+    sum + cell.skuBreakdown.reduce((s, sku) =>
+      s + birdsForSku(sku.skuCode, sku.carcassKg, bomMap, params.gradeYields, params.avgCarcassWeightKg), 0), 0);
+  const totalCarcassKg = plantCells.reduce((s, c) => s + c.requiredCarcassKg, 0);
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30" onClick={onClose}>
+      <div
+        className="bg-white rounded-xl shadow-2xl border border-[var(--border-subtle)] w-[560px] max-h-[75vh] overflow-y-auto"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div className="px-4 py-3 border-b border-[var(--border-subtle)] flex items-center justify-between sticky top-0 bg-white">
+          <div>
+            <div className="text-sm font-semibold text-neutral-800 flex items-center gap-2">
+              Plant {plant} · {isoWeekLbl}
+              {isForecast && (
+                <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200">Forecast</span>
+              )}
+            </div>
+            <div className="text-xs text-neutral-500 mt-0.5">
+              {fmtKg(totalCarcassKg)} KG carcass · {fmtNum(Math.round(totalBirds))} birds required
+            </div>
+          </div>
+          <button onClick={onClose} className="text-neutral-400 hover:text-neutral-700 text-xl leading-none">✕</button>
+        </div>
+
+        {/* One section per grade pool */}
+        {plantCells.map((cell) => {
+          const cellTotalBirds = cell.skuBreakdown.reduce((s, sku) =>
+            s + birdsForSku(sku.skuCode, sku.carcassKg, bomMap, params.gradeYields, params.avgCarcassWeightKg), 0);
+          return (
+            <div key={cell.gradePool}>
+              {/* Grade pool sub-header */}
+              <div className="px-4 py-2 border-b border-[var(--border-subtle)] bg-neutral-50 flex items-center gap-2">
+                <span className={`inline-flex px-2 py-0.5 rounded border text-[10px] font-semibold ${POOL_COLORS[cell.gradePool] ?? ""}`}>
+                  {cell.gradePool} · {GRADE_POOL_LABELS[cell.gradePool as keyof typeof GRADE_POOL_LABELS] ?? cell.gradePool}
+                </span>
+                <span className="text-xs text-neutral-500">
+                  {fmtKg(cell.requiredCarcassKg)} KG · {fmtNum(Math.round(cellTotalBirds))} birds
+                </span>
+              </div>
+              <table className="w-full text-xs border-collapse">
+                <thead>
+                  <tr className="bg-neutral-50 text-neutral-500 text-[11px] uppercase tracking-wide">
+                    <th className="px-4 py-2 text-left">{isForecast ? "Product" : "SKU"}</th>
+                    <th className="px-4 py-2 text-right">{isForecast ? "Demand (t)" : "Cartons"}</th>
+                    <th className="px-4 py-2 text-right">Carcass KG</th>
+                    <th className="px-4 py-2 text-right">Req. Birds</th>
+                    <th className="px-4 py-2 text-right">Share</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {cell.skuBreakdown.map((s, i) => {
+                    const birds = birdsForSku(s.skuCode, s.carcassKg, bomMap, params.gradeYields, params.avgCarcassWeightKg);
+                    return (
+                      <tr key={s.skuCode} className={`border-t border-[var(--border-subtle)] ${i % 2 === 0 ? "bg-white" : "bg-neutral-50/50"}`}>
+                        <td className="px-4 py-2">
+                          {!isForecast && <div className="font-mono font-semibold text-neutral-700">{s.skuCode}</div>}
+                          <div className="text-[11px] text-neutral-600 truncate max-w-[200px]">{s.skuDescription}</div>
+                        </td>
+                        <td className="px-4 py-2 text-right tabular-nums">
+                          {isForecast ? s.cartons.toFixed(1) : fmtNum(s.cartons)}
+                        </td>
+                        <td className="px-4 py-2 text-right tabular-nums font-semibold text-blue-700">{fmtKg(s.carcassKg)}</td>
+                        <td className="px-4 py-2 text-right tabular-nums font-semibold text-brand-green-dark">{fmtNum(Math.round(birds))}</td>
+                        <td className="px-4 py-2 text-right tabular-nums text-neutral-500">
+                          {cell.requiredCarcassKg > 0 ? ((s.carcassKg / cell.requiredCarcassKg) * 100).toFixed(1) + "%" : "—"}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          );
+        })}
+      </div>
+    </div>
   );
 }
 
@@ -179,6 +307,9 @@ export function BroilerIntakePlan() {
   const hasData       = cells.length > 0;
   const hasForecast   = forecastCells.length > 0;
   const planYear      = new Date(params.planStartDate).getFullYear();
+
+  // ── breakdown popover state ──
+  const [activeBreakdown, setActiveBreakdown] = useState<{ plant: string; week: number } | null>(null);
 
   // ── summary KPIs ──
   const totalReqKg = useMemo(
@@ -384,23 +515,36 @@ export function BroilerIntakePlan() {
                   </tr>
                 </thead>
                 <tbody>
-                  {/* Required carcass KG */}
+                  {/* Required carcass KG — clickable */}
                   <tr className="border-t border-[var(--border-subtle)] bg-white">
                     <td className="px-3 py-2 text-neutral-600 sticky left-0 bg-white z-10 font-medium whitespace-nowrap">
                       Required (KG)
+                      <div className="text-[10px] text-neutral-400 font-normal">click cell for breakdown</div>
                     </td>
                     {weeks.map((w) => {
                       const d = demandMap.get(`${plant}::${w}`);
+                      const hasCells = cells.some((c) => c.plant === plant && c.week === w);
                       return (
-                        <td key={w} className="px-3 py-2 text-right tabular-nums text-neutral-700 font-semibold">
-                          {d ? fmtKg(d.carcassKg) : <span className="text-neutral-200">—</span>}
+                        <td key={w} className="px-3 py-2 text-right tabular-nums">
+                          {d && hasCells ? (
+                            <button
+                              onClick={() => setActiveBreakdown({ plant, week: w })}
+                              className="tabular-nums font-semibold text-blue-700 hover:underline cursor-pointer"
+                            >
+                              {fmtKg(d.carcassKg)}
+                            </button>
+                          ) : d ? (
+                            <span className="font-semibold text-neutral-700">{fmtKg(d.carcassKg)}</span>
+                          ) : (
+                            <span className="text-neutral-200">—</span>
+                          )}
                         </td>
                       );
                     })}
                     <td className="px-3 py-2 text-right tabular-nums font-bold text-neutral-700">{fmtKg(plantReqKg)}</td>
                   </tr>
 
-                  {/* Required birds — derived from SKU weight-class breakdown */}
+                  {/* Required birds — derived from SKU weight-class breakdown, clickable */}
                   <tr className="border-t border-[var(--border-subtle)] bg-neutral-50/30">
                     <td className="px-3 py-2 text-neutral-500 sticky left-0 bg-neutral-50/30 z-10 whitespace-nowrap text-xs">
                       Required birds
@@ -408,9 +552,21 @@ export function BroilerIntakePlan() {
                     </td>
                     {weeks.map((w) => {
                       const birds = requiredBirdsMap.get(`${plant}::${w}`);
+                      const hasCells = cells.some((c) => c.plant === plant && c.week === w);
                       return (
-                        <td key={w} className="px-3 py-2 text-right tabular-nums text-neutral-600 text-xs">
-                          {birds ? fmtNum(Math.round(birds)) : <span className="text-neutral-200">—</span>}
+                        <td key={w} className="px-3 py-2 text-right tabular-nums text-xs">
+                          {birds && hasCells ? (
+                            <button
+                              onClick={() => setActiveBreakdown({ plant, week: w })}
+                              className="tabular-nums font-semibold text-brand-green-dark hover:underline cursor-pointer"
+                            >
+                              {fmtNum(Math.round(birds))}
+                            </button>
+                          ) : birds ? (
+                            <span className="text-neutral-600">{fmtNum(Math.round(birds))}</span>
+                          ) : (
+                            <span className="text-neutral-200">—</span>
+                          )}
                         </td>
                       );
                     })}
@@ -499,6 +655,20 @@ export function BroilerIntakePlan() {
           </div>
         );
       })}
+
+      {/* Breakdown popup */}
+      {activeBreakdown && (
+        <BroilerBreakdownPopover
+          plant={activeBreakdown.plant}
+          week={activeBreakdown.week}
+          isoWeekLbl={isoWeekLabel(activeBreakdown.week, planYear)}
+          cells={cells}
+          bomRecords={bomRecords}
+          params={params}
+          isForecast={isForecast}
+          onClose={() => setActiveBreakdown(null)}
+        />
+      )}
     </div>
   );
 }
