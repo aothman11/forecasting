@@ -180,6 +180,52 @@ const T = {
         farmMaster: "The Farm Master is fully editable here — farm code (VERID in SAP), sequence position, capacity ceiling, cycle length, and a Skip This Cycle flag. Inactive and Under Maintenance farms are excluded automatically.",
         exports: "Export options: SAP MEQ1 Excel, TXT, and Farm Master Excel — all within Step 7.",
       },
+      pp: {
+        label: "Processing Plan",
+        badge: "PP",
+        title: "PP · Carcass Requirement",
+        subtitle: "Grade-pool demand by plant and week from the Demand Plan",
+        body: "Translates your Demand Plan into carcass KG requirements per grade pool (930 A-Grade Fresh WC, 931 A-Grade Frozen WC, 932 B-Grade/Cuts, 933 FPP) broken down by plant and ISO week. All data comes from the Demand Plan catalog — the same products and quantities you entered in M1.",
+        items: [
+          "<strong>Grade pools</strong> — 930: Fresh A-Grade whole chicken and fresh cuts; 931: Frozen A-Grade WC; 932: B-Grade WC, frozen cuts, and cuts routed off-grade; 933: FPP products.",
+          "<strong>Plant columns</strong> — P1, P2, P3. Demand is distributed using the plant share % in Assumptions.",
+          "<strong>Popup breakdown</strong> — click any cell to see the per-product contribution: product name, demand (tons), carcass KG, required birds, and share %.",
+          "<strong>Export</strong> — the popup has an ↓ Export button to download the breakdown as Excel.",
+          "<strong>Edit Demand Plan</strong> — the banner button navigates directly to M1 to adjust quantities.",
+        ],
+        tip: "The Processing Plan always reads from the Demand Plan catalog. The SAP Sales Plan (if imported) is used only for reconciliation in M3 — it does not override the carcass requirement shown here.",
+      },
+      bi: {
+        label: "Processing Plan",
+        badge: "BI",
+        title: "BI · Broiler Intake Plan",
+        subtitle: "Pipeline supply vs processing demand — by plant × week",
+        body: "The central supply-demand matching view. Shows required carcass KG and birds (from Demand Plan) alongside available carcass KG and birds (from your Placement Plan pipeline) per plant per week, with a gap row and a coverage % badge.",
+        items: [
+          "<strong>Required (KG / birds)</strong> — from the Processing Plan, distributed by plant share. Click any cell to see the per-grade-pool SKU breakdown.",
+          "<strong>Pipeline supply (KG / birds)</strong> — from the Production Pipeline (placement → grow-out → slaughter). Pipeline birds are size-adjusted using the Carcass Size Distribution in Assumptions. Click any birds cell to see the per-size-bucket breakdown.",
+          "<strong>Gap (KG)</strong> — pipeline supply minus demand. Green = surplus, red = shortfall.",
+          "<strong>Coverage badge</strong> — ✓ green ≥100 %, amber 80–99 %, red <80 %.",
+          "<strong>KPI cards</strong> — total required carcass, total pipeline supply, overall gap, and shortfall week count across the horizon.",
+          "<strong>Export Excel</strong> — downloads a full plant × week table with required KG/birds, available KG/birds, gap, and coverage %.",
+        ],
+        tip: "When coverage is red, go to Step 1 (Placement Plan) and increase houses/day for the corresponding placement weeks — the pipeline recalculates immediately. Use M4 (Demand-Driven Placement) to do this automatically.",
+      },
+      bom: {
+        label: "Processing Plan",
+        badge: "BOM",
+        title: "BOM · Product BOM",
+        subtitle: "SKU-level bill of materials for carcass back-calculation",
+        body: "The Product BOM defines the weight and packaging data that the Broiler Intake Plan uses to convert carton orders into required birds when SAP sales plan rows are present. Each BOM record maps one SKU to its grade pool.",
+        items: [
+          "<strong>Fields per SKU</strong>: SKU Code, Description, Package Weight (kg), Units per Carton, Grade Pool (930/931/932/933), Plant (1100 / 1200 / 1300 / ALL).",
+          "<strong>Carcass KG per carton</strong> is computed as (packageWeightKg × unitsPerCarton) ÷ gradeYield and shown in the table as a derived column.",
+          "<strong>Add / Edit / Delete</strong> rows inline — changes take effect immediately without a save step.",
+          "<strong>Import BOM from SAP Excel</strong> — upload a SAP BOM export. The parser reads Material, Material Description, Component net weight (kg), Quantity, Plnt, and grade pool from the file.",
+          "<strong>Export BOM</strong> — download the current BOM as Excel for archiving or sharing.",
+        ],
+        note: "The BOM is only needed when using SAP sales-plan data in the Broiler Intake popup for per-bird breakdowns on whole-chicken SKUs. The Processing Plan carcass requirement always comes from the Demand Plan regardless of whether a BOM is loaded.",
+      },
       scenarios: {
         label: "Tools",
         badge: "Scenarios",
@@ -379,6 +425,52 @@ const T = {
         body: "يوزع إجماليات التوطين الأسبوعية على قائمة مزارعك بترتيب التناوب، مع مراعاة حد طاقة كل مزرعة. المخرج يطابق صيغة SAP MEQ1.",
         farmMaster: "سجل المزارع قابل للتعديل الكامل هنا — رمز المزرعة (VERID في SAP)، ترتيب التسلسل، حد الطاقة، مدة الدورة، وعلامة «تخطي هذه الدورة». المزارع غير النشطة وقيد الصيانة تُستبعد تلقائيًا.",
         exports: "خيارات التصدير: SAP MEQ1 Excel، TXT، وسجل المزارع Excel — جميعها من داخل الخطوة 7.",
+      },
+      pp: {
+        label: "خطة التصنيع",
+        badge: "PP",
+        title: "PP · متطلبات الذبائح",
+        subtitle: "الطلب على الذبائح حسب المجموعة والمصنع والأسبوع من خطة الطلب",
+        body: "تترجم خطة الطلب إلى متطلبات كيلوجرامات الذبائح لكل مجموعة (930 درجة A طازج كامل، 931 درجة A مجمد كامل، 932 درجة B/قطع، 933 FPP) مقسمةً حسب المصنع وأسبوع ISO. جميع البيانات تأتي من كتالوج خطة الطلب.",
+        items: [
+          "<strong>المجموعات</strong> — 930: دجاج كامل طازج درجة A وقطع طازجة؛ 931: دجاج كامل مجمد درجة A؛ 932: دجاج كامل درجة B وقطع مجمدة؛ 933: منتجات FPP.",
+          "<strong>أعمدة المصانع</strong> — P1، P2، P3. يُوزع الطلب باستخدام نسبة حصة المصنع في الافتراضات.",
+          "<strong>تفاصيل النافذة المنبثقة</strong> — انقر أي خلية لرؤية مساهمة كل منتج: الاسم، الطلب (طن)، كيلوجرامات الذبيحة، الطيور المطلوبة، والحصة %.",
+          "<strong>التصدير</strong> — تحتوي النافذة المنبثقة على زر ↓ تصدير لتنزيل التفاصيل كملف Excel.",
+          "<strong>تعديل خطة الطلب</strong> — زر البانر يوجه مباشرةً إلى M1 لتعديل الكميات.",
+        ],
+        tip: "تقرأ خطة التصنيع دائمًا من كتالوج خطة الطلب. خطة مبيعات SAP (إن تم استيرادها) تُستخدم فقط للمطابقة في M3 ولا تؤثر على متطلبات الذبائح المعروضة هنا.",
+      },
+      bi: {
+        label: "خطة التصنيع",
+        badge: "BI",
+        title: "BI · خطة استقبال الدواجن",
+        subtitle: "توريد خط الإنتاج مقابل الطلب التصنيعي — حسب المصنع والأسبوع",
+        body: "عرض المطابقة المركزي بين العرض والطلب. يُظهر كيلوجرامات الذبائح والطيور المطلوبة (من خطة الطلب) مقابل الكيلوجرامات والطيور المتاحة (من خط إنتاج خطة التوطين) لكل مصنع في كل أسبوع، مع صف الفجوة وشارة نسبة التغطية.",
+        items: [
+          "<strong>المطلوب (كجم / طيور)</strong> — من خطة التصنيع، موزعة حسب حصة المصنع. انقر أي خلية لرؤية تفاصيل كل مجموعة.",
+          "<strong>توريد خط الإنتاج (كجم / طيور)</strong> — من خط إنتاج الإنتاج (توطين ← تربية ← ذبح). طيور خط الإنتاج معدَّلة حسب الحجم باستخدام توزيع أحجام الذبائح في الافتراضات.",
+          "<strong>الفجوة (كجم)</strong> — توريد خط الإنتاج ناقص الطلب. أخضر = فائض، أحمر = عجز.",
+          "<strong>شارة التغطية</strong> — ✓ أخضر ≥100%، كهرماني 80–99%، أحمر <80%.",
+          "<strong>بطاقات المؤشرات</strong> — إجمالي الذبائح المطلوبة، إجمالي توريد خط الإنتاج، الفجوة الكلية، وعدد أسابيع العجز.",
+          "<strong>تصدير Excel</strong> — تنزيل جدول كامل بالمصنع والأسبوع يشمل الكجم/الطيور المطلوبة والمتاحة والفجوة ونسبة التغطية.",
+        ],
+        tip: "عند ظهور تغطية حمراء، انتقل إلى الخطوة 1 (خطة التوطين) وزد عدد البيوت/اليوم لأسابيع التوطين المقابلة — يُعاد حساب خط الإنتاج فورًا. استخدم M4 (التوطين القائم على الطلب) للقيام بذلك تلقائيًا.",
+      },
+      bom: {
+        label: "خطة التصنيع",
+        badge: "BOM",
+        title: "BOM · قائمة مواد المنتج",
+        subtitle: "قائمة مواد على مستوى SKU للحساب العكسي للذبائح",
+        body: "تُعرّف قائمة مواد المنتج بيانات الوزن والتعبئة التي تستخدمها خطة استقبال الدواجن لتحويل طلبيات الكراتين إلى طيور مطلوبة. كل سجل BOM يربط SKU واحدًا بمجموعة الدرجة الخاصة به.",
+        items: [
+          "<strong>الحقول لكل SKU</strong>: كود SKU، الوصف، وزن العبوة (كجم)، وحدات الكرتون، مجموعة الدرجة (930/931/932/933)، المصنع (1100/1200/1300/ALL).",
+          "<strong>كجم الذبيحة لكل كرتون</strong> يُحسب كـ (وزن العبوة × وحدات الكرتون) ÷ ناتج الدرجة ويظهر كعمود مشتق في الجدول.",
+          "<strong>إضافة / تعديل / حذف</strong> الصفوف بشكل مباشر — تسري التغييرات فورًا.",
+          "<strong>استيراد BOM من SAP Excel</strong> — رفع ملف تصدير BOM من SAP. يقرأ المحلل: المادة، الوصف، وزن المكون الصافي، الكمية، المصنع، ومجموعة الدرجة.",
+          "<strong>تصدير BOM</strong> — تنزيل BOM الحالي كملف Excel للأرشفة أو المشاركة.",
+        ],
+        note: "BOM مطلوب فقط عند استخدام بيانات خطة مبيعات SAP في نافذة خطة استقبال الدواجن المنبثقة لتفاصيل الطيور لـ SKUs الدجاج الكامل. متطلبات الذبائح في خطة التصنيع تأتي دائمًا من خطة الطلب بغض النظر عن وجود BOM.",
       },
       scenarios: {
         label: "الأدوات",
@@ -662,6 +754,30 @@ export function UserGuideModal({ onClose }: Props) {
             <p>{s.step7.body}</p>
             <p>{s.step7.farmMaster}</p>
             <p>{s.step7.exports}</p>
+          </Card>
+
+          {/* PP */}
+          <SectionHeader label={s.pp.label} title={s.pp.title} />
+          <Card badge={s.pp.badge} title={s.pp.title} subtitle={s.pp.subtitle}>
+            <p>{s.pp.body}</p>
+            <BulletList items={s.pp.items} />
+            <Note tip>{s.pp.tip}</Note>
+          </Card>
+
+          {/* BI */}
+          <SectionHeader label={s.bi.label} title={s.bi.title} />
+          <Card badge={s.bi.badge} title={s.bi.title} subtitle={s.bi.subtitle}>
+            <p>{s.bi.body}</p>
+            <BulletList items={s.bi.items} />
+            <Note tip>{s.bi.tip}</Note>
+          </Card>
+
+          {/* BOM */}
+          <SectionHeader label={s.bom.label} title={s.bom.title} />
+          <Card badge={s.bom.badge} title={s.bom.title} subtitle={s.bom.subtitle}>
+            <p>{s.bom.body}</p>
+            <BulletList items={s.bom.items} />
+            <Note>{s.bom.note}</Note>
           </Card>
 
           {/* Scenarios */}
