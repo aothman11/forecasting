@@ -491,9 +491,9 @@ export function ProcessingPlanDemand() {
 
   const forecastCells = useMemo(
     () =>
-      forecastToProcessingCells(demandProducts, demandQty, params, horizonWeeks, planWeekToIsoWeek),
+      forecastToProcessingCells(demandProducts, demandQty, params, horizonWeeks, fullPlanWeekToIsoWeek),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [demandProducts, JSON.stringify(demandQty), params, horizonWeeks, planWeekToIsoWeek]
+    [demandProducts, JSON.stringify(demandQty), params, horizonWeeks, fullPlanWeekToIsoWeek]
   );
 
   const hasForecast = forecastCells.length > 0;
@@ -924,8 +924,8 @@ export function ProcessingPlanDemand() {
                         {weeks.map((w) => {
                           const wTotal = poolCells.filter((c) => c.week === w).reduce((s, c) => s + c.requiredCarcassKg, 0);
                           return (
-                            <td key={w} className="px-3 py-2 text-right tabular-nums" style={{ color: POOL_BAR_COLORS[pool] }}>
-                              {fmtKg(wTotal)}
+                            <td key={w} className="px-3 py-2 text-right tabular-nums" style={{ color: wTotal > 0 ? POOL_BAR_COLORS[pool] : undefined }}>
+                              {wTotal > 0 ? fmtKg(wTotal) : <span className="text-neutral-300">—</span>}
                             </td>
                           );
                         })}
