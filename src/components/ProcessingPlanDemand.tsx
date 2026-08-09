@@ -854,7 +854,6 @@ export function ProcessingPlanDemand() {
           {(expandedPool ? [expandedPool] : GRADE_POOLS).map((pool) => {
             const poolCells   = cells.filter((c) => c.gradePool === pool);
             if (poolCells.length === 0) return null;
-            const poolWeeks  = weeksInPlan(poolCells);
             const poolPlants = plantsInPlan(poolCells);
 
             return (
@@ -875,7 +874,7 @@ export function ProcessingPlanDemand() {
                     <thead>
                       <tr className="bg-brand-green-tint text-brand-green-dark text-[11px] uppercase tracking-wide">
                         <th className="px-3 py-2.5 text-left font-semibold sticky left-0 bg-brand-green-tint z-10">Plant</th>
-                        {poolWeeks.map((w) => (
+                        {weeks.map((w) => (
                           <th key={w} className="px-3 py-2.5 text-right font-semibold whitespace-nowrap">
                             {wkLabel(w)}
                           </th>
@@ -891,7 +890,7 @@ export function ProcessingPlanDemand() {
                             <td className="px-3 py-2 font-semibold text-neutral-700 sticky left-0 bg-inherit z-10 whitespace-nowrap">
                               Plant {plant}
                             </td>
-                            {poolWeeks.map((w) => {
+                            {weeks.map((w) => {
                               const cell = cellIndex.get(`${plant}::${w}::${pool}`);
                               return (
                                 <td key={w} className="px-3 py-2 text-right tabular-nums">
@@ -922,7 +921,7 @@ export function ProcessingPlanDemand() {
                       {/* Weekly total row */}
                       <tr className="border-t-2 border-neutral-200 bg-neutral-50 font-semibold">
                         <td className="px-3 py-2 text-neutral-600 sticky left-0 bg-neutral-50 z-10">Total</td>
-                        {poolWeeks.map((w) => {
+                        {weeks.map((w) => {
                           const wTotal = poolCells.filter((c) => c.week === w).reduce((s, c) => s + c.requiredCarcassKg, 0);
                           return (
                             <td key={w} className="px-3 py-2 text-right tabular-nums" style={{ color: POOL_BAR_COLORS[pool] }}>
