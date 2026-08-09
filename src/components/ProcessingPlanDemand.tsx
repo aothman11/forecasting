@@ -151,8 +151,7 @@ function BreakdownPopover({
             {cell.skuBreakdown.map((s, i) => (
               <tr key={s.skuCode} className={`border-t border-[var(--border-subtle)] ${i % 2 === 0 ? "bg-white" : "bg-neutral-50/50"}`}>
                 <td className="px-4 py-2">
-                  <div className="font-mono font-semibold text-neutral-700">{isForecast ? "" : s.skuCode}</div>
-                  <div className="text-[11px] text-neutral-600 truncate max-w-[200px]">{s.skuDescription}</div>
+                  <div className="text-[11px] text-neutral-600 truncate max-w-[220px]">{s.skuDescription}</div>
                 </td>
                 <td className="px-4 py-2 text-right tabular-nums">
                   {isForecast ? s.cartons.toFixed(1) : fmtNum(s.cartons)}
