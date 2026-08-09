@@ -15,7 +15,7 @@ import {
 } from "@/lib/processingPlanCalc";
 import type { SalesPlanCartonRow, ProcessingPlanCell } from "@/lib/processingPlanTypes";
 import { GRADE_POOL_LABELS } from "@/lib/bomTypes";
-import type { GradePool } from "@/lib/bomTypes";
+import type { BomRecord, GradePool } from "@/lib/bomTypes";
 
 // ─── constants ────────────────────────────────────────────────────────────────
 
@@ -209,11 +209,18 @@ export function ProcessingPlanDemand() {
   );
 
   // Year-aware plan boundaries (for the precise filter path).
-  const planStartObj = useMemo(() => new Date(params.planStartDate), [params.planStartDate]);
-  const planEndObj   = useMemo(() => {
-    const d = new Date(params.planStartDate);
-    d.setDate(d.getDate() + params.planningHorizonWeeks * 7);
-    return d;
+  // IMPORTANT: parse as local midnight (year, month-1, day) NOT new Date(isoString)
+  // which parses as UTC and would be ahead of local midnight in UTC+ timezones,
+  // causing the first ISO week to be incorrectly excluded when the plan starts on a Monday.
+  const planStartObj = useMemo(() => {
+    const [y, m, d] = params.planStartDate.split("-").map(Number);
+    return new Date(y, m - 1, d);
+  }, [params.planStartDate]);
+  const planEndObj = useMemo(() => {
+    const [y, m, d] = params.planStartDate.split("-").map(Number);
+    const end = new Date(y, m - 1, d);
+    end.setDate(end.getDate() + params.planningHorizonWeeks * 7);
+    return end;
   }, [params.planStartDate, params.planningHorizonWeeks]);
 
   // ── SAP-driven cells ──
@@ -275,14 +282,79 @@ export function ProcessingPlanDemand() {
     [hasSap, salesPlanCartonRows, planHorizonIsoWeeks, planStartObj, planEndObj, planIsoWeekYear]
   );
 
-  const { cells: sapCells, unmatched } = useMemo(
-    () =>
-      inHorizonRows.length > 0
-        ? explodeSalesPlan(inHorizonRows, bomRecords, gradeYields)
-        : { cells: [], unmatched: [] },
+  /**
+   * Infer packageWeightKg, gradePool, and unitsPerCarton from a SAP SKU description.
+   * Used both for auto-inference (transient) and the "Save to Product BOM" button.
+   */
+  function inferBomFields(desc: string): { packageWeightKg: number; gradePool: GradePool; unitsPerCarton: number } {
+    const d = desc.toLowerCase();
+
+    // Weight: "500g", "1.2 kg", "1200 g"
+    let packageWeightKg = 1.0;
+    const gMatch = desc.match(/(\d{3,4})\s*g\b/i);
+    const kgMatch = desc.match(/(\d+(?:\.\d+)?)\s*kg\b/i);
+    if (gMatch)       packageWeightKg = parseInt(gMatch[1]) / 1000;
+    else if (kgMatch) packageWeightKg = parseFloat(kgMatch[1]);
+
+    // Units per carton: "10EA/CAR", "8 EA", "12EA"
+    let unitsPerCarton = 10;
+    const eaMatch = desc.match(/(\d+)\s*ea/i);
+    if (eaMatch) unitsPerCarton = parseInt(eaMatch[1]);
+
+    // Grade pool
+    let gradePool: GradePool = "930"; // default: A-Grade Fresh WC
+    const isFpp = /nugget|burger|patti|strip|tender|shawarma|marinat|mince|trim/i.test(d);
+    const isCut = /breast|thigh|drumstick|drum|wing|whole.?leg|back|neck|giblet|liver|heart|gizzard|portion|cut/i.test(d);
+    const isFrozen = /frzn|frozen/i.test(d);
+    const isBGrade = /\bb\.?g\b|grade[\s-]?b|b[\s-]?grade/i.test(d);
+
+    if (isFpp)         gradePool = "933";
+    else if (isCut)    gradePool = "932";
+    else if (isBGrade) gradePool = "932";
+    else if (isFrozen) gradePool = "931";
+    // else stays 930 (A-Grade Fresh WC)
+
+    return { packageWeightKg, gradePool, unitsPerCarton };
+  }
+
+  /**
+   * For any SAP row not matched by a saved BOM, build a transient (in-memory only)
+   * BOM entry using inferBomFields so the SKU still contributes to the calculation.
+   * Returns the full merged cell list + a Map of the inferred BOM entries (so the
+   * user can save them to Product BOM if they want).
+   */
+  const { cells: sapCells, unmatched, inferredBoms } = useMemo(() => {
+    const empty = { cells: [] as typeof sapCells, unmatched: [] as SalesPlanCartonRow[], inferredBoms: new Map<string, BomRecord>() };
+    if (inHorizonRows.length === 0) return empty;
+
+    // First pass — match against saved BOMs only
+    const { cells, unmatched: stillUnmatched } = explodeSalesPlan(inHorizonRows, bomRecords, gradeYields);
+    if (stillUnmatched.length === 0) return { cells, unmatched: [], inferredBoms: new Map() };
+
+    // Build transient inferred BOMs for each distinct unmatched SKU
+    const inferredBomMap = new Map<string, BomRecord>();
+    for (const row of stillUnmatched) {
+      if (!inferredBomMap.has(row.skuCode)) {
+        const { packageWeightKg, gradePool, unitsPerCarton } = inferBomFields(row.skuDescription);
+        inferredBomMap.set(row.skuCode, {
+          id: `inferred-${row.skuCode}`,
+          skuCode: row.skuCode,
+          skuDescription: row.skuDescription,
+          packageWeightKg,
+          unitsPerCarton,
+          gradePool,
+          plant: "ALL",
+        });
+      }
+    }
+
+    // Second pass — re-explode with saved + inferred BOMs combined
+    const allBoms = [...bomRecords, ...inferredBomMap.values()];
+    const { cells: allCells, unmatched: finalUnmatched } = explodeSalesPlan(inHorizonRows, allBoms, gradeYields);
+
+    return { cells: allCells, unmatched: finalUnmatched, inferredBoms: inferredBomMap };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [inHorizonRows, bomRecords, JSON.stringify(gradeYields)]
-  );
+  }, [inHorizonRows, bomRecords, JSON.stringify(gradeYields)]);
 
   const horizonWeeks = useMemo(
     () => Array.from({ length: params.planningHorizonWeeks }, (_, i) => i + 1),
@@ -332,66 +404,13 @@ export function ProcessingPlanDemand() {
     setDemandOpen(true);
   };
 
-  // ── placeholder BOMs for unmatched SAP SKUs ──
-
-  /**
-   * Infer packageWeightKg, gradePool, and unitsPerCarton from a SAP SKU description.
-   *
-   * Examples handled:
-   *   "fresh chkn 500g ,10EA/CAR"  → 0.5 kg, 930 (A Fresh), 10
-   *   "frzn chkn 800g ,10EA/CAR"   → 0.8 kg, 931 (A Frozen), 10
-   *   "fresh chkn B.G 900g ,10EA"  → 0.9 kg, 932 (B-Grade), 10
-   *   "nuggets 500g ,20EA/CAR"      → 0.5 kg, 933 (FPP), 20
-   *   "Breast B/L ,10EA/CAR"        → 1.0 kg fallback, 932 (Cuts), 10
-   */
-  function inferBomFields(desc: string): { packageWeightKg: number; gradePool: GradePool; unitsPerCarton: number } {
-    const d = desc.toLowerCase();
-
-    // Weight: "500g", "1.2 kg", "1200 g"
-    let packageWeightKg = 1.0;
-    const gMatch = desc.match(/(\d{3,4})\s*g\b/i);
-    const kgMatch = desc.match(/(\d+(?:\.\d+)?)\s*kg\b/i);
-    if (gMatch)       packageWeightKg = parseInt(gMatch[1]) / 1000;
-    else if (kgMatch) packageWeightKg = parseFloat(kgMatch[1]);
-
-    // Units per carton: "10EA/CAR", "8 EA", "12EA"
-    let unitsPerCarton = 10;
-    const eaMatch = desc.match(/(\d+)\s*ea/i);
-    if (eaMatch) unitsPerCarton = parseInt(eaMatch[1]);
-
-    // Grade pool
-    let gradePool: GradePool = "930"; // default: A-Grade Fresh WC
-    const isFpp = /nugget|burger|patti|strip|tender|shawarma|marinat|mince|trim/i.test(d);
-    const isCut = /breast|thigh|drumstick|drum|wing|whole.?leg|back|neck|giblet|liver|heart|gizzard|portion|cut/i.test(d);
-    const isFrozen = /frzn|frozen/i.test(d);
-    const isBGrade = /\bb\.?g\b|grade[\s-]?b|b[\s-]?grade/i.test(d);
-
-    if (isFpp)          gradePool = "933";
-    else if (isCut)     gradePool = isBGrade ? "932" : "932";
-    else if (isBGrade)  gradePool = "932";
-    else if (isFrozen)  gradePool = "931";
-    // else stays 930 (A-Grade Fresh WC)
-
-    return { packageWeightKg, gradePool, unitsPerCarton };
-  }
-
+  // ── save inferred BOMs permanently to Product BOM ──
   const addDummyBoms = () => {
     const seen = new Set(bomRecords.map((b) => b.skuCode));
-    const byCode = new Map<string, { skuCode: string; skuDescription: string }>();
-    unmatched.forEach((r) => {
-      if (!seen.has(r.skuCode) && !byCode.has(r.skuCode))
-        byCode.set(r.skuCode, { skuCode: r.skuCode, skuDescription: r.skuDescription });
-    });
-    byCode.forEach(({ skuCode, skuDescription }) => {
-      const { packageWeightKg, gradePool, unitsPerCarton } = inferBomFields(skuDescription);
-      addBomRecord({
-        id: crypto.randomUUID(),
-        skuCode, skuDescription,
-        packageWeightKg,
-        unitsPerCarton,
-        gradePool,
-        plant: "ALL",
-      });
+    inferredBoms.forEach((bom) => {
+      if (!seen.has(bom.skuCode)) {
+        addBomRecord({ ...bom, id: crypto.randomUUID() });
+      }
     });
   };
 
@@ -463,8 +482,11 @@ export function ProcessingPlanDemand() {
                 · ⚠ {outOfHorizonRows.length} row(s) outside plan horizon hidden
               </span>
             )}
+            {inferredBoms.size > 0 && (
+              <span className="ml-2 text-blue-700 font-semibold">· ℹ {inferredBoms.size} SKU(s) auto-inferred</span>
+            )}
             {unmatched.length > 0 && (
-              <span className="ml-2 text-amber-700 font-semibold">· ⚠ {unmatched.length} SKU(s) not in BOM</span>
+              <span className="ml-2 text-amber-700 font-semibold">· ⚠ {unmatched.length} SKU(s) unresolved</span>
             )}
           </span>
           <div className="ml-auto flex items-center gap-2">
@@ -554,18 +576,49 @@ export function ProcessingPlanDemand() {
         </div>
       )}
 
-      {/* Unmatched SKUs (SAP mode only) */}
+      {/* Auto-inferred BOMs (SAP mode only) — blue info, not a warning */}
+      {hasSap && inferredBoms.size > 0 && (
+        <div className="rounded-xl border border-blue-200 bg-blue-50/50 overflow-hidden">
+          <div className="px-4 py-2.5 text-xs font-semibold text-blue-900 flex items-center gap-2 flex-wrap">
+            <span>ℹ {inferredBoms.size} SKU{inferredBoms.size !== 1 ? "s" : ""} included via auto-inferred BOM — weight &amp; grade estimated from description</span>
+            <button
+              onClick={addDummyBoms}
+              title="Save these inferred entries to Product BOM so you can edit the exact values."
+              className="ml-auto text-xs font-semibold px-2.5 py-1 rounded-lg bg-blue-700 text-white hover:bg-blue-800 transition-colors"
+            >
+              Save to Product BOM
+            </button>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs border-collapse">
+              <thead>
+                <tr className="bg-blue-100/70 text-blue-900 text-[11px] uppercase tracking-wide">
+                  <th className="px-3 py-2 text-left">SKU Code</th>
+                  <th className="px-3 py-2 text-left">Description</th>
+                  <th className="px-3 py-2 text-right">Inferred Wt</th>
+                  <th className="px-3 py-2 text-left">Grade Pool</th>
+                </tr>
+              </thead>
+              <tbody>
+                {[...inferredBoms.values()].map((b, i) => (
+                  <tr key={b.skuCode} className={`border-t border-blue-100 ${i % 2 === 0 ? "bg-white" : "bg-blue-50/30"}`}>
+                    <td className="px-3 py-1.5 font-mono font-semibold text-blue-900">{b.skuCode}</td>
+                    <td className="px-3 py-1.5 text-neutral-600">{b.skuDescription || "—"}</td>
+                    <td className="px-3 py-1.5 text-right tabular-nums">{Math.round(b.packageWeightKg * 1000)}g</td>
+                    <td className="px-3 py-1.5 text-neutral-500">{b.gradePool} · {GRADE_POOL_LABELS[b.gradePool]}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* Truly unresolved SKUs — description could not be parsed at all (rare) */}
       {hasSap && unmatched.length > 0 && (
         <div className="rounded-xl border border-amber-200 bg-amber-50/60 overflow-hidden">
           <div className="px-4 py-2.5 text-xs font-semibold text-amber-900 flex items-center gap-2 flex-wrap">
-            <span>⚠ {unmatched.length} SKU{unmatched.length !== 1 ? "s" : ""} not found in Product BOM — excluded from calculation</span>
-            <button
-              onClick={addDummyBoms}
-              title="Create placeholder BOM entries for all unmatched SKUs. Edit real values in Product BOM."
-              className="ml-auto text-xs font-semibold px-2.5 py-1 rounded-lg bg-amber-700 text-white hover:bg-amber-800 transition-colors"
-            >
-              + Add dummy BOMs
-            </button>
+            <span>⚠ {unmatched.length} SKU{unmatched.length !== 1 ? "s" : ""} could not be resolved — excluded from calculation</span>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-xs border-collapse">
