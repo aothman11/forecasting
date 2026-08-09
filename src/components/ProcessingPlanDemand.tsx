@@ -597,7 +597,11 @@ export function ProcessingPlanDemand() {
     return horizonIsoWeeks.length > 0 ? horizonIsoWeeks : weeksInPlan(cells);
   }, [horizonWeeks, fullPlanWeekToIsoWeek, cells]);
   const plants = plantsInPlan(cells);
-  const planYear = new Date(params.planStartDate).getFullYear();
+  // Safe year extraction: parseInt avoids UTC-midnight timezone skew and handles
+  // undefined planStartDate from very old persisted store data (pre-planStartDate era).
+  const planYear = params.planStartDate
+    ? parseInt(params.planStartDate.split("-")[0], 10)
+    : new Date().getFullYear();
 
   // Column labels derived from plan week start dates (not ISO week Mondays).
   // Prevents "Jul.W4" appearing for a plan starting Aug 1 (ISO week 31 starts July 27).
