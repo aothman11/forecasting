@@ -329,7 +329,7 @@ export function ProcessingPlanDemand() {
 
     // First pass — match against saved BOMs only
     const { cells, unmatched: stillUnmatched } = explodeSalesPlan(inHorizonRows, bomRecords, gradeYields);
-    if (stillUnmatched.length === 0) return { cells, unmatched: [], inferredBoms: new Map() };
+    if (stillUnmatched.length === 0) return { cells, unmatched: [], inferredBoms: new Map<string, BomRecord>() };
 
     // Build transient inferred BOMs for each distinct unmatched SKU
     const inferredBomMap = new Map<string, BomRecord>();
