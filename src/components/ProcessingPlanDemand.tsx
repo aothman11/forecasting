@@ -284,10 +284,13 @@ export function ProcessingPlanDemand() {
 
   /**
    * Infer packageWeightKg, gradePool, and unitsPerCarton from a SAP SKU description.
-   * Used both for auto-inference (transient) and the "Save to Product BOM" button.
+   * Returns null for non-carcass items (eggs) — callers must skip those rows.
    */
-  function inferBomFields(desc: string): { packageWeightKg: number; gradePool: GradePool; unitsPerCarton: number } {
+  function inferBomFields(desc: string): { packageWeightKg: number; gradePool: GradePool; unitsPerCarton: number } | null {
     const d = desc.toLowerCase();
+
+    // Non-carcass — no carcass KG requirement, exclude from calculation
+    if (/\beggs?\b|بيض/i.test(d)) return null;
 
     // Weight: "500g", "1.2 kg", "1200 g"
     let packageWeightKg = 1.0;
@@ -301,58 +304,65 @@ export function ProcessingPlanDemand() {
     const eaMatch = desc.match(/(\d+)\s*ea/i);
     if (eaMatch) unitsPerCarton = parseInt(eaMatch[1]);
 
-    // Grade pool
+    // Grade pool: inferred from keywords in the description
     let gradePool: GradePool = "930"; // default: A-Grade Fresh WC
-    const isFpp = /nugget|burger|patti|strip|tender|shawarma|marinat|mince|trim/i.test(d);
-    const isCut = /breast|thigh|drumstick|drum|wing|whole.?leg|back|neck|giblet|liver|heart|gizzard|portion|cut/i.test(d);
-    const isFrozen = /frzn|frozen/i.test(d);
+    const isFpp    = /nugget|burger|patti|strip|tender|shawarma|marinat|mince|trim/i.test(d);
+    const isCut    = /breast|thigh|drumstick|drum|wing|whole.?leg|back|neck|giblet|liver|heart|gizzard|portion|cut/i.test(d);
     const isBGrade = /\bb\.?g\b|grade[\s-]?b|b[\s-]?grade/i.test(d);
+    const isFrozen = /frzn|frozen/i.test(d);
 
-    if (isFpp)         gradePool = "933";
+    if      (isFpp)    gradePool = "933";
     else if (isCut)    gradePool = "932";
     else if (isBGrade) gradePool = "932";
     else if (isFrozen) gradePool = "931";
-    // else stays 930 (A-Grade Fresh WC)
 
     return { packageWeightKg, gradePool, unitsPerCarton };
   }
 
   /**
-   * For any SAP row not matched by a saved BOM, build a transient (in-memory only)
-   * BOM entry using inferBomFields so the SKU still contributes to the calculation.
-   * Returns the full merged cell list + a Map of the inferred BOM entries (so the
-   * user can save them to Product BOM if they want).
+   * Build one effective BOM per unique SKU code:
+   *  - Saved BOM found  → keep its weight/units; correct gradePool from description
+   *    when description implies a non-default grade (frozen→931, B-grade→932, etc.)
+   *  - No saved BOM     → fully inferred from description (transient, not persisted)
+   *  - Non-carcass SKU  → excluded silently (eggs, etc.)
    */
-  const { cells: sapCells, unmatched, inferredBoms } = useMemo(() => {
-    const empty = { cells: [] as ProcessingPlanCell[], unmatched: [] as SalesPlanCartonRow[], inferredBoms: new Map<string, BomRecord>() };
+  const { cells: sapCells, unmatched, inferredBoms, excludedSkuCount } = useMemo(() => {
+    const empty = { cells: [] as ProcessingPlanCell[], unmatched: [] as SalesPlanCartonRow[], inferredBoms: new Map<string, BomRecord>(), excludedSkuCount: 0 };
     if (inHorizonRows.length === 0) return empty;
 
-    // First pass — match against saved BOMs only
-    const { cells, unmatched: stillUnmatched } = explodeSalesPlan(inHorizonRows, bomRecords, gradeYields);
-    if (stillUnmatched.length === 0) return { cells, unmatched: [], inferredBoms: new Map<string, BomRecord>() };
+    const savedBomMap    = new Map(bomRecords.map((b) => [b.skuCode, b]));
+    const effectiveBomMap = new Map<string, BomRecord>(); // one per skuCode
+    const inferredBomMap  = new Map<string, BomRecord>(); // transient-only (no saved BOM)
+    const excludedSkus    = new Set<string>();            // non-carcass (eggs, etc.)
 
-    // Build transient inferred BOMs for each distinct unmatched SKU
-    const inferredBomMap = new Map<string, BomRecord>();
-    for (const row of stillUnmatched) {
-      if (!inferredBomMap.has(row.skuCode)) {
-        const { packageWeightKg, gradePool, unitsPerCarton } = inferBomFields(row.skuDescription);
-        inferredBomMap.set(row.skuCode, {
+    for (const row of inHorizonRows) {
+      if (effectiveBomMap.has(row.skuCode) || excludedSkus.has(row.skuCode)) continue;
+      const fields = inferBomFields(row.skuDescription);
+      if (fields === null) { excludedSkus.add(row.skuCode); continue; }
+
+      const saved = savedBomMap.get(row.skuCode);
+      if (saved) {
+        // Keep saved weight/units; correct grade when description implies non-default pool
+        effectiveBomMap.set(row.skuCode, {
+          ...saved,
+          gradePool: fields.gradePool !== "930" ? fields.gradePool : saved.gradePool,
+        });
+      } else {
+        const bom: BomRecord = {
           id: `inferred-${row.skuCode}`,
           skuCode: row.skuCode,
           skuDescription: row.skuDescription,
-          packageWeightKg,
-          unitsPerCarton,
-          gradePool,
+          ...fields,
           plant: "ALL",
-        });
+        };
+        effectiveBomMap.set(row.skuCode, bom);
+        inferredBomMap.set(row.skuCode, bom);
       }
     }
 
-    // Second pass — re-explode with saved + inferred BOMs combined
-    const allBoms = [...bomRecords, ...inferredBomMap.values()];
-    const { cells: allCells, unmatched: finalUnmatched } = explodeSalesPlan(inHorizonRows, allBoms, gradeYields);
-
-    return { cells: allCells, unmatched: finalUnmatched, inferredBoms: inferredBomMap };
+    const filteredRows = inHorizonRows.filter((r) => !excludedSkus.has(r.skuCode));
+    const { cells, unmatched } = explodeSalesPlan(filteredRows, [...effectiveBomMap.values()], gradeYields);
+    return { cells, unmatched, inferredBoms: inferredBomMap, excludedSkuCount: excludedSkus.size };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [inHorizonRows, bomRecords, JSON.stringify(gradeYields)]);
 
@@ -484,6 +494,9 @@ export function ProcessingPlanDemand() {
             )}
             {inferredBoms.size > 0 && (
               <span className="ml-2 text-blue-700 font-semibold">· ℹ {inferredBoms.size} SKU(s) auto-inferred</span>
+            )}
+            {excludedSkuCount > 0 && (
+              <span className="ml-2 text-neutral-500 font-semibold">· {excludedSkuCount} non-carcass SKU(s) excluded</span>
             )}
             {unmatched.length > 0 && (
               <span className="ml-2 text-amber-700 font-semibold">· ⚠ {unmatched.length} SKU(s) unresolved</span>
