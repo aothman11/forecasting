@@ -154,6 +154,28 @@ function BreakdownPopover({
   onClose: () => void;
 }) {
   const isForecast = !!cell.isForecast;
+
+  // Group rows by their display label (summing cartons + carcassKg), then sort by weight asc.
+  const displayRows = (() => {
+    const grouped = new Map<string, { label: string; cartons: number; carcassKg: number }>();
+    for (const s of cell.skuBreakdown) {
+      const label = isForecast ? s.skuDescription : skuShortLabel(s.skuDescription, cell.gradePool);
+      const existing = grouped.get(label);
+      if (existing) {
+        existing.cartons   += s.cartons;
+        existing.carcassKg += s.carcassKg;
+      } else {
+        grouped.set(label, { label, cartons: s.cartons, carcassKg: s.carcassKg });
+      }
+    }
+    return [...grouped.values()].sort((a, b) => {
+      // Sort by the first number found in the label (weight in g or kg)
+      const wa = parseInt(a.label.match(/(\d+)/)?.[1] ?? "0");
+      const wb = parseInt(b.label.match(/(\d+)/)?.[1] ?? "0");
+      return wa - wb;
+    });
+  })();
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30" onClick={onClose}>
       <div
@@ -194,19 +216,17 @@ function BreakdownPopover({
             </tr>
           </thead>
           <tbody>
-            {cell.skuBreakdown.map((s, i) => (
-              <tr key={s.skuCode} className={`border-t border-[var(--border-subtle)] ${i % 2 === 0 ? "bg-white" : "bg-neutral-50/50"}`}>
+            {displayRows.map((row, i) => (
+              <tr key={row.label} className={`border-t border-[var(--border-subtle)] ${i % 2 === 0 ? "bg-white" : "bg-neutral-50/50"}`}>
                 <td className="px-4 py-2">
-                  <div className="text-sm font-medium text-neutral-800">
-                    {isForecast ? s.skuDescription : skuShortLabel(s.skuDescription, cell.gradePool)}
-                  </div>
+                  <div className="text-sm font-medium text-neutral-800">{row.label}</div>
                 </td>
                 <td className="px-4 py-2 text-right tabular-nums">
-                  {isForecast ? s.cartons.toFixed(1) : fmtNum(s.cartons)}
+                  {isForecast ? row.cartons.toFixed(1) : fmtNum(row.cartons)}
                 </td>
-                <td className="px-4 py-2 text-right tabular-nums font-semibold text-blue-700">{fmtKg(s.carcassKg)}</td>
+                <td className="px-4 py-2 text-right tabular-nums font-semibold text-blue-700">{fmtKg(row.carcassKg)}</td>
                 <td className="px-4 py-2 text-right tabular-nums text-neutral-500">
-                  {cell.requiredCarcassKg > 0 ? ((s.carcassKg / cell.requiredCarcassKg) * 100).toFixed(1) + "%" : "—"}
+                  {cell.requiredCarcassKg > 0 ? ((row.carcassKg / cell.requiredCarcassKg) * 100).toFixed(1) + "%" : "—"}
                 </td>
               </tr>
             ))}
