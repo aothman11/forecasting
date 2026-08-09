@@ -204,7 +204,12 @@ function productToGradePool(p: DemandProduct): GradePool | null {
     if (p.grade === "B") return "932";
     return p.freshFrozen === "frozen" ? "931" : "930";
   }
-  if (p.category === "cuts") return "932";
+  if (p.category === "cuts") {
+    if (p.grade === "B") return "932";
+    // Frozen cuts (by flag or by "frozen" in name) → 932; fresh A-grade cuts → 930
+    const isFrozen = p.freshFrozen === "frozen" || /frzn|frozen/i.test(p.name);
+    return isFrozen ? "932" : "930";
+  }
   if (p.category === "fpp")  return "933";
   return null;
 }
