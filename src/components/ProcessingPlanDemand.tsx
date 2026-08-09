@@ -443,10 +443,15 @@ export function ProcessingPlanDemand() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [inHorizonRows, bomRecords, JSON.stringify(gradeYields)]);
 
-  const horizonWeeks = useMemo(
-    () => Array.from({ length: params.planningHorizonWeeks }, (_, i) => i + 1),
-    [params.planningHorizonWeeks]
-  );
+  const horizonWeeks = useMemo(() => {
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    const [py, pm, pd] = params.planStartDate.split("-").map(Number);
+    return Array.from({ length: params.planningHorizonWeeks }, (_, i) => i + 1).filter((w) => {
+      const weekEnd = new Date(py, pm - 1, pd);
+      weekEnd.setDate(weekEnd.getDate() + (w - 1) * 7 + 6);
+      return weekEnd >= today;
+    });
+  }, [params.planningHorizonWeeks, params.planStartDate]);
 
   const forecastCells = useMemo(
     () =>
@@ -462,7 +467,12 @@ export function ProcessingPlanDemand() {
   const cells      = hasSap ? sapCells      : forecastCells;
   const isForecast = !hasSap;
 
-  const weeks  = weeksInPlan(cells);
+  const weeks = useMemo(() => {
+    const horizonIsoWeeks = horizonWeeks
+      .map(pw => planWeekToIsoWeek.get(pw))
+      .filter((w): w is number => w !== undefined);
+    return horizonIsoWeeks.length > 0 ? horizonIsoWeeks : weeksInPlan(cells);
+  }, [horizonWeeks, planWeekToIsoWeek, cells]);
   const plants = plantsInPlan(cells);
   const planYear = new Date(params.planStartDate).getFullYear();
 

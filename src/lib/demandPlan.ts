@@ -211,14 +211,16 @@ export function alignDemandToSupply(
 
 /** Returns "YYYY-MM" for the calendar month that contains week W's start date. */
 export function weekToMonthKey(week: number, planStartDate: string): string {
-  const d = new Date(planStartDate);
+  const [y, mo, day] = planStartDate.split("-").map(Number);
+  const d = new Date(y, mo - 1, day);
   d.setDate(d.getDate() + (week - 1) * 7);
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
 }
 
 /** Returns a human-readable label e.g. "Aug 2026". */
 export function weekToMonthLabel(week: number, planStartDate: string): string {
-  const d = new Date(planStartDate);
+  const [y, mo, day] = planStartDate.split("-").map(Number);
+  const d = new Date(y, mo - 1, day);
   d.setDate(d.getDate() + (week - 1) * 7);
   return d.toLocaleDateString("en-US", { month: "short", year: "numeric" });
 }
@@ -235,7 +237,8 @@ export function weekLabel(week: number, planStartDate: string): string {
   for (let w = 1; w <= week; w++) {
     if (weekToMonthKey(w, planStartDate) === monthKey) wom++;
   }
-  const d = new Date(planStartDate);
+  const [y, mo, day] = planStartDate.split("-").map(Number);
+  const d = new Date(y, mo - 1, day);
   d.setDate(d.getDate() + (week - 1) * 7);
   const mmm = d.toLocaleDateString("en-US", { month: "short" });
   return `${d.getFullYear()}.${mmm}.W${wom}`;

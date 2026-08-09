@@ -164,7 +164,8 @@ export function buildPlanWeekLabels(
   // isoWeek → plan-week start date
   const startDateByIsoWeek = new Map<number, Date>();
   for (const [planWeek, isoWeek] of planWeekToIsoWeek) {
-    const base = new Date(planStartDate);
+    const [y, mo, day] = planStartDate.split("-").map(Number);
+    const base = new Date(y, mo - 1, day);
     base.setDate(base.getDate() + (planWeek - 1) * 7);
     startDateByIsoWeek.set(isoWeek, base);
   }

@@ -60,7 +60,13 @@ export function DemandForecast() {
   const [copyFrom, setCopyFrom] = useState(1);
   const [copyTo, setCopyTo] = useState(2);
 
-  const weeks = Array.from({ length: params.planningHorizonWeeks }, (_, i) => i + 1);
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const [py, pm, pd] = params.planStartDate.split("-").map(Number);
+  const weeks = Array.from({ length: params.planningHorizonWeeks }, (_, i) => i + 1).filter((w) => {
+    const weekEnd = new Date(py, pm - 1, pd);
+    weekEnd.setDate(weekEnd.getDate() + (w - 1) * 7 + 6);
+    return weekEnd >= today;
+  });
   const monthGroups = groupWeeksByMonth(weeks, params.planStartDate);
 
   const CARTON_KG: Partial<Record<ProductCategory, number>> = { wholeChicken: 15, cuts: 15, fpp: 10 };
