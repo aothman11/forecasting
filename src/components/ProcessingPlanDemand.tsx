@@ -545,7 +545,26 @@ export function ProcessingPlanDemand() {
     }
 
     const filteredRows = inHorizonRows.filter((r) => !excludedSkus.has(r.skuCode));
-    const { cells, unmatched } = explodeSalesPlan(filteredRows, [...effectiveBomMap.values()], gradeYields);
+
+    // Expand rows with plant "ALL" (SAP rows imported without a plant column) into
+    // per-plant rows using the current plantShares — so Oct/Nov behave the same as
+    // Sep rows that have explicit P2/P3 values in the SAP file.
+    const plantSplit: [string, number][] = [
+      ["P1", params.plantShares.plant1],
+      ["P2", params.plantShares.plant2],
+      ["P3", params.plantShares.plant3],
+    ].filter(([, share]) => (share as number) > 0) as [string, number][];
+    const expandedRows = filteredRows.flatMap((r) => {
+      if (r.plant !== "ALL") return [r];
+      if (plantSplit.length === 0) return [r]; // no shares defined — keep as-is
+      return plantSplit.map(([plantCode, share]) => ({
+        ...r,
+        plant: plantCode,
+        cartons: Math.round(r.cartons * (share as number)),
+      }));
+    });
+
+    const { cells, unmatched } = explodeSalesPlan(expandedRows, [...effectiveBomMap.values()], gradeYields);
     return { cells, unmatched, inferredBoms: inferredBomMap, excludedSkuCount: excludedSkus.size };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [inHorizonRows, bomRecords, JSON.stringify(gradeYields)]);
