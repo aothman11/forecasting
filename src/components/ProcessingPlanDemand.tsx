@@ -100,9 +100,11 @@ function parseSapSalesPlan(buffer: ArrayBuffer): ParseResult {
 
 function BreakdownPopover({
   cell,
+  weekLabel,
   onClose,
 }: {
   cell: ProcessingPlanCell;
+  weekLabel: string;
   onClose: () => void;
 }) {
   const isForecast = !!cell.isForecast;
@@ -115,7 +117,7 @@ function BreakdownPopover({
         <div className="px-4 py-3 border-b border-[var(--border-subtle)] flex items-center justify-between sticky top-0 bg-white">
           <div>
             <div className="text-sm font-semibold text-neutral-800 flex items-center gap-2">
-              Plant {cell.plant} · Week {cell.week}
+              Plant {cell.plant} · {weekLabel}
               {isForecast && (
                 <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200">
                   Forecast
@@ -753,7 +755,7 @@ export function ProcessingPlanDemand() {
       )}
 
       {/* SKU / product breakdown popover */}
-      {activeCell && <BreakdownPopover cell={activeCell} onClose={() => setActiveCell(null)} />}
+      {activeCell && <BreakdownPopover cell={activeCell} weekLabel={wkLabel(activeCell.week)} onClose={() => setActiveCell(null)} />}
     </div>
   );
 }
