@@ -66,7 +66,22 @@ function skuShortLabel(desc: string, gradePool: GradePool): string {
   const kgMatch = desc.match(/(\d+(?:\.\d+)?)\s*kg\b/i);
   const w = gMatch ? `${parseInt(gMatch[1])}g` : kgMatch ? `${parseFloat(kgMatch[1])}kg` : "";
 
-  if (gradePool === "930") return `WC ${w}`.trim();
+  if (gradePool === "930") {
+    // May be whole chicken (WC) or fresh A-grade portions — detect cut type
+    if (/breast/i.test(d))          return `Breast ${w}`.trim();
+    if (/thigh/i.test(d))           return `Thigh ${w}`.trim();
+    if (/drumstick|drum/i.test(d))  return `Drum ${w}`.trim();
+    if (/wing/i.test(d))            return `Wing ${w}`.trim();
+    if (/whole.?leg/i.test(d))      return `Whole Leg ${w}`.trim();
+    if (/portion|\bptn\b/i.test(d)) return `Portion ${w}`.trim();
+    if (/liver/i.test(d))           return `Liver ${w}`.trim();
+    if (/gizzard/i.test(d))         return `Gizzard ${w}`.trim();
+    if (/neck/i.test(d))            return `Neck ${w}`.trim();
+    if (/back/i.test(d))            return `Back ${w}`.trim();
+    if (/mixed|parts/i.test(d))     return `Mixed Parts ${w}`.trim();
+    if (/canteen/i.test(d))         return `Canteen ${w}`.trim();
+    return `WC ${w}`.trim(); // default: whole chicken
+  }
   if (gradePool === "931") return `WC Frozen ${w}`.trim();
 
   if (gradePool === "933") {
@@ -153,7 +168,13 @@ function parseSapSalesPlan(buffer: ArrayBuffer): ParseResult {
     if (!["P1", "P2", "P3"].includes(plantRaw)) { errors.push(`Row ${i + 2}: unknown plant "${plantRaw}" for SKU ${skuCode} (expected P1/P2/P3)`); continue; }
     if (isNaN(cartons) || cartons < 0) { errors.push(`Row ${i + 2}: invalid cartons "${cartonRaw}" for SKU ${skuCode}`); continue; }
     if (cartons === 0) continue;
-    rows.push({ week, year: detectedYear, plant: plantRaw, skuCode, skuDescription, cartons });
+
+    const division        = String(r["Division"] ?? r["Material Division"] ?? "").trim();
+    const materialCategory = String(r["Material Category"] ?? r["Material Category "] ?? "").trim();
+    const grading         = String(r["Grading"] ?? r["WH Grading"] ?? r["WHGrading"] ?? "").trim();
+
+    rows.push({ week, year: detectedYear, plant: plantRaw, skuCode, skuDescription, cartons,
+      division, materialCategory, grading });
   }
 
   return { rows, errors };
@@ -389,47 +410,97 @@ export function ProcessingPlanDemand() {
   );
 
   /**
-   * Infer packageWeightKg, gradePool, and unitsPerCarton from a SAP SKU description.
+   * Infer packageWeightKg, gradePool, and unitsPerCarton from a SAP row.
+   * Uses structured SAP fields (division, materialCategory, grading) when present;
+   * falls back to description-based regex for rows without those fields.
    * Returns null for non-carcass items (eggs) — callers must skip those rows.
+   *
+   * Grade pool assignment:
+   *   930 — A-Grade Fresh   : Whole Chicken or Portions/Cuts, Fresh, AG (or no-grade + Fresh)
+   *   931 — A-Grade Frozen  : Whole Chicken, Frozen, AG (or no-grade + Frozen)
+   *   932 — B-Grade         : any BG product, frozen portions, giblets, cold cured
+   *   933 — FPP             : further-processed products
    */
-  function inferBomFields(desc: string): { packageWeightKg: number; gradePool: GradePool; unitsPerCarton: number } | null {
-    const d = desc.toLowerCase();
+  function inferBomFields(row: SalesPlanCartonRow): { packageWeightKg: number; gradePool: GradePool; unitsPerCarton: number } | null {
+    const desc = row.skuDescription;
+    const d    = desc.toLowerCase();
+    const cat  = (row.materialCategory ?? "").toLowerCase();
+    const div  = (row.division        ?? "").toLowerCase();
+    const gradingRaw = (row.grading   ?? "").toUpperCase().trim();
 
-    // Non-carcass — no carcass KG requirement, exclude from calculation
+    // ── Exclude eggs ──────────────────────────────────────────────────────────
     if (/\beggs?\b|بيض/i.test(d)) return null;
+    if (cat.includes("egg") || div === "eggs") return null;
 
-    // Weight: "500g", "1.2 kg", "1200 g"
+    // ── Weight from size column or description ─────────────────────────────
     let packageWeightKg = 1.0;
-    const gMatch = desc.match(/(\d{3,4})\s*g\b/i);
+    const gMatch  = desc.match(/(\d{3,4})\s*g\b/i);
     const kgMatch = desc.match(/(\d+(?:\.\d+)?)\s*kg\b/i);
     if (gMatch)       packageWeightKg = parseInt(gMatch[1]) / 1000;
     else if (kgMatch) packageWeightKg = parseFloat(kgMatch[1]);
 
-    // Units per carton: "10EA/CAR", "8 EA", "12EA"
+    // ── Units per carton ───────────────────────────────────────────────────
     let unitsPerCarton = 10;
     const eaMatch = desc.match(/(\d+)\s*ea/i);
     if (eaMatch) unitsPerCarton = parseInt(eaMatch[1]);
 
-    // Grade pool: inferred from keywords in the description
-    const isFpp    = /nugget|burger|patti|strip|tender|shawarma|marinat|mince|trim/i.test(d);
-    const isCut    = /breast|thigh|drumstick|drum|wing|whole.?leg|back|neck|giblet|liver|heart|gizzard|portion|\bptn\b|cut/i.test(d);
-    const isBGrade = /\bb\.?g\b|grade[\s-]?b|b[\s-]?grade/i.test(d);
-    const isFrozen = /frzn|frozen/i.test(d);
-
+    // ── Grade pool ─────────────────────────────────────────────────────────
     let gradePool: GradePool;
-    if      (isFpp)    gradePool = "933";
-    else if (isCut)    gradePool = "932";
-    else if (isBGrade) gradePool = "932";
-    else if (isFrozen) gradePool = "931";
-    else {
-      // Default to WC (930) only when the weight is in a plausible whole-chicken
-      // range (500 g – 2 000 g). Smaller or larger weights with no explicit keyword
-      // are unrecognised products — exclude them from the carcass calculation.
-      if (packageWeightKg < 0.5 || packageWeightKg > 2.0) return null;
-      gradePool = "930";
+
+    if (cat || div || gradingRaw) {
+      // ── Structured-field path (reliable) ──────────────────────────────────
+      const isFresh  = div === "fresh" || div === "chiller" || div === "chilled";
+      const isFrozen = div === "frozen";
+
+      const isAGrade = ["AG", "A", "GRADE A", "A GRADE", "GRADE-A"].includes(gradingRaw);
+      const isBGrade = ["BG", "B", "GRADE B", "B GRADE", "GRADE-B"].includes(gradingRaw);
+      const noGrade  = !isAGrade && !isBGrade;
+
+      // No explicit grade → infer from division (Fresh = AG, Frozen = BG)
+      const effectiveA = isAGrade || (noGrade && isFresh);
+      const effectiveB = isBGrade || (noGrade && isFrozen);
+
+      const isFppCat     = cat.includes("fpp") || cat.includes("further processed");
+      const isWcCat      = cat.includes("whole chicken") || cat.includes("whole bird");
+      const isPortionCat = cat.includes("portion") || cat.includes("cut") ||
+                           cat.includes("cold cured") || cat.includes("giblet") ||
+                           cat.includes("liver") || cat.includes("gizzard") || cat.includes("marinated");
+
+      if (isFppCat) {
+        gradePool = "933";
+      } else if (isWcCat) {
+        if (effectiveA && isFrozen)      gradePool = "931"; // A-grade frozen WC
+        else if (effectiveA)             gradePool = "930"; // A-grade fresh WC
+        else                             gradePool = "932"; // B-grade WC
+      } else if (isPortionCat) {
+        // KEY RULE: fresh A-grade portions → 930 (show alongside WC Fresh)
+        if (effectiveA && isFresh)       gradePool = "930";
+        else if (effectiveA && isFrozen) gradePool = "931";
+        else                             gradePool = "932"; // B-grade or unclassified
+      } else {
+        // Unknown category — fall through to description-based inference below
+        const fallback = inferGradePoolFromDesc(d, packageWeightKg);
+        if (fallback === null) return null;
+        gradePool = fallback;
+      }
+    } else {
+      // ── Description-only fallback (old files without structured columns) ──
+      const pool = inferGradePoolFromDesc(d, packageWeightKg);
+      if (pool === null) return null;
+      gradePool = pool;
     }
 
     return { packageWeightKg, gradePool, unitsPerCarton };
+  }
+
+  /** Description-based grade pool inference — used when structured SAP columns are absent. */
+  function inferGradePoolFromDesc(d: string, weightKg: number): GradePool | null {
+    if (/nugget|burger|patti|strip|tender|shawarma|marinat|mince|trim/i.test(d)) return "933";
+    if (/breast|thigh|drumstick|drum|wing|whole.?leg|back|neck|giblet|liver|heart|gizzard|portion|\bptn\b|cut/i.test(d)) return "932";
+    if (/\bb\.?g\b|grade[\s-]?b|b[\s-]?grade/i.test(d)) return "932";
+    if (/frzn|frozen/i.test(d)) return "931";
+    if (weightKg < 0.5 || weightKg > 2.0) return null;
+    return "930";
   }
 
   /**
@@ -450,7 +521,7 @@ export function ProcessingPlanDemand() {
 
     for (const row of inHorizonRows) {
       if (effectiveBomMap.has(row.skuCode) || excludedSkus.has(row.skuCode)) continue;
-      const fields = inferBomFields(row.skuDescription);
+      const fields = inferBomFields(row);
       if (fields === null) { excludedSkus.add(row.skuCode); continue; }
 
       const saved = savedBomMap.get(row.skuCode);

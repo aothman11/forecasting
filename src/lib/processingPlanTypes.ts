@@ -13,6 +13,12 @@ export interface SalesPlanCartonRow {
   skuCode: string;        // SAP material code — must match a BomRecord.skuCode
   skuDescription: string;
   cartons: number;
+  /** SAP "Division" column — "Fresh" | "Frozen" | "Eggs" | ... */
+  division?: string;
+  /** SAP "Material Category" column — "Whole Chicken" | "Portions" | "FPP" | "Giblets" | ... */
+  materialCategory?: string;
+  /** SAP "Grading" or "WH Grading" column — "AG" | "BG" | "" */
+  grading?: string;
 }
 
 export interface SkuContribution {
