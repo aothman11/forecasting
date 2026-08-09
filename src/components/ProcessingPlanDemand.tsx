@@ -17,6 +17,20 @@ import type { SalesPlanCartonRow, ProcessingPlanCell } from "@/lib/processingPla
 import { GRADE_POOL_LABELS } from "@/lib/bomTypes";
 import type { BomRecord, GradePool } from "@/lib/bomTypes";
 
+// ─── helpers ──────────────────────────────────────────────────────────────────
+
+/**
+ * Returns the ISO week number of a local Date.
+ * ISO weeks are defined by their Thursday: the week containing Jan 4 is always week 1.
+ */
+function isoWeekOfDate(d: Date): number {
+  const thu = new Date(d);
+  thu.setDate(d.getDate() - ((d.getDay() + 6) % 7) + 3);
+  const firstThu = new Date(thu.getFullYear(), 0, 4);
+  firstThu.setDate(firstThu.getDate() - ((firstThu.getDay() + 6) % 7) + 3);
+  return Math.round((thu.getTime() - firstThu.getTime()) / (7 * 24 * 36e5)) + 1;
+}
+
 // ─── constants ────────────────────────────────────────────────────────────────
 
 const GRADE_POOLS: GradePool[] = ["930", "931", "932", "933"];
@@ -77,7 +91,7 @@ function skuShortLabel(desc: string, gradePool: GradePool): string {
     if (/neck/i.test(d))            return `Neck ${w}`.trim();
     if (/back/i.test(d))            return `Back ${w}`.trim();
     if (/mixed|parts/i.test(d))     return `Mixed Parts ${w}`.trim();
-    if (/portion/i.test(d))         return `Portion ${w}`.trim();
+    if (/portion|\bptn\b/i.test(d))  return `Portion ${w}`.trim();
     if (/whole.?leg/i.test(d))      return `Whole Leg ${w}`.trim();
     if (/canteen/i.test(d))         return `Canteen ${w}`.trim();
     return `Cuts ${w}`.trim();
@@ -271,11 +285,31 @@ export function ProcessingPlanDemand() {
     [result.plants]
   );
 
+  // Extended map covering ALL horizon plan weeks (1..N) — the pipeline only populates
+  // weeks with actual harvest data (typically week 5+ when first birds are slaughtered).
+  // Pre-harvest weeks (e.g. Aug when plan starts Aug 1) have no entry in planWeekToIsoWeek,
+  // so SAP rows for those weeks were silently dropped and no column appeared.
+  // We fill the gaps by computing the ISO week directly from planStartDate + weekly offset.
+  // NOTE: this covers the full config horizon (all N weeks), not the past-filtered subset —
+  // past-week filtering is a display concern applied later in the `weeks` useMemo.
+  const fullPlanWeekToIsoWeek = useMemo(() => {
+    const full = new Map(planWeekToIsoWeek);
+    const [py, pm, pd] = params.planStartDate.split("-").map(Number);
+    for (let pw = 1; pw <= params.planningHorizonWeeks; pw++) {
+      if (!full.has(pw)) {
+        const d = new Date(py, pm - 1, pd);
+        d.setDate(d.getDate() + (pw - 1) * 7);
+        full.set(pw, isoWeekOfDate(d));
+      }
+    }
+    return full;
+  }, [planWeekToIsoWeek, params.planStartDate, params.planningHorizonWeeks]);
+
   // Fallback: set of all ISO week numbers in the horizon (imprecise for 52-week plans
   // where every ISO week number 1-52 appears — used only when the SAP year is unknown).
   const planHorizonIsoWeeks = useMemo(
-    () => new Set(planWeekToIsoWeek.values()),
-    [planWeekToIsoWeek]
+    () => new Set(fullPlanWeekToIsoWeek.values()),
+    [fullPlanWeekToIsoWeek]
   );
 
   // Year-aware plan boundaries (for the precise filter path).
@@ -317,12 +351,14 @@ export function ProcessingPlanDemand() {
    */
   const planIsoWeekYear = useMemo(() => {
     const map = new Map<number, number>();
-    for (const [planWeek, isoWeek] of planWeekToIsoWeek) {
-      const d = addDays(new Date(params.planStartDate), (planWeek - 1) * 7);
+    const [py, pm, pd] = params.planStartDate.split("-").map(Number);
+    for (const [planWeek, isoWeek] of fullPlanWeekToIsoWeek) {
+      const d = new Date(py, pm - 1, pd);
+      d.setDate(d.getDate() + (planWeek - 1) * 7);
       map.set(isoWeek, d.getFullYear());
     }
     return map;
-  }, [planWeekToIsoWeek, params.planStartDate]);
+  }, [fullPlanWeekToIsoWeek, params.planStartDate]);
 
   const isInHorizon = (r: { week: number; year?: number }): boolean => {
     // Prefer the year stored on the row (extracted from SAP column header).
@@ -376,7 +412,7 @@ export function ProcessingPlanDemand() {
 
     // Grade pool: inferred from keywords in the description
     const isFpp    = /nugget|burger|patti|strip|tender|shawarma|marinat|mince|trim/i.test(d);
-    const isCut    = /breast|thigh|drumstick|drum|wing|whole.?leg|back|neck|giblet|liver|heart|gizzard|portion|cut/i.test(d);
+    const isCut    = /breast|thigh|drumstick|drum|wing|whole.?leg|back|neck|giblet|liver|heart|gizzard|portion|\bptn\b|cut/i.test(d);
     const isBGrade = /\bb\.?g\b|grade[\s-]?b|b[\s-]?grade/i.test(d);
     const isFrozen = /frzn|frozen/i.test(d);
 
@@ -469,18 +505,18 @@ export function ProcessingPlanDemand() {
 
   const weeks = useMemo(() => {
     const horizonIsoWeeks = horizonWeeks
-      .map(pw => planWeekToIsoWeek.get(pw))
+      .map(pw => fullPlanWeekToIsoWeek.get(pw))
       .filter((w): w is number => w !== undefined);
     return horizonIsoWeeks.length > 0 ? horizonIsoWeeks : weeksInPlan(cells);
-  }, [horizonWeeks, planWeekToIsoWeek, cells]);
+  }, [horizonWeeks, fullPlanWeekToIsoWeek, cells]);
   const plants = plantsInPlan(cells);
   const planYear = new Date(params.planStartDate).getFullYear();
 
   // Column labels derived from plan week start dates (not ISO week Mondays).
   // Prevents "Jul.W4" appearing for a plan starting Aug 1 (ISO week 31 starts July 27).
   const planWeekLabels = useMemo(
-    () => buildPlanWeekLabels(planWeekToIsoWeek, params.planStartDate),
-    [planWeekToIsoWeek, params.planStartDate]
+    () => buildPlanWeekLabels(fullPlanWeekToIsoWeek, params.planStartDate),
+    [fullPlanWeekToIsoWeek, params.planStartDate]
   );
   const wkLabel = (isoWeek: number) => planWeekLabels.get(isoWeek) ?? isoWeekLabel(isoWeek, planYear);
 
