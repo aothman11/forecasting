@@ -77,6 +77,9 @@ function skuShortLabel(desc: string, gradePool: GradePool): string {
     if (/neck/i.test(d))            return `Neck ${w}`.trim();
     if (/back/i.test(d))            return `Back ${w}`.trim();
     if (/mixed|parts/i.test(d))     return `Mixed Parts ${w}`.trim();
+    if (/portion/i.test(d))         return `Portion ${w}`.trim();
+    if (/whole.?leg/i.test(d))      return `Whole Leg ${w}`.trim();
+    if (/canteen/i.test(d))         return `Canteen ${w}`.trim();
     return `Cuts ${w}`.trim();
   }
 
