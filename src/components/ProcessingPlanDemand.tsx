@@ -324,7 +324,7 @@ export function ProcessingPlanDemand() {
    * user can save them to Product BOM if they want).
    */
   const { cells: sapCells, unmatched, inferredBoms } = useMemo(() => {
-    const empty = { cells: [] as typeof sapCells, unmatched: [] as SalesPlanCartonRow[], inferredBoms: new Map<string, BomRecord>() };
+    const empty = { cells: [] as ProcessingPlanCell[], unmatched: [] as SalesPlanCartonRow[], inferredBoms: new Map<string, BomRecord>() };
     if (inHorizonRows.length === 0) return empty;
 
     // First pass — match against saved BOMs only
