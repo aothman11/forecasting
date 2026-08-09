@@ -37,6 +37,52 @@ const POOL_BAR_COLORS: Record<GradePool, string> = {
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
 
+/**
+ * Convert a raw SAP SKU description + its grade pool into a short human label.
+ * e.g.  "fresh chkn 800g ,10EA/CAR"  + 930  →  "WC 800g"
+ *        "frozen grade B chkn 700g"  + 932  →  "WC-B 700g"
+ *        "fresh mixed parts 900g"    + 932  →  "Cuts 900g"
+ *        "chicken nuggets 400g"      + 933  →  "Nuggets 400g"
+ */
+function skuShortLabel(desc: string, gradePool: GradePool): string {
+  const d = desc.toLowerCase();
+
+  // Extract weight
+  const gMatch  = desc.match(/(\d{3,4})\s*g\b/i);
+  const kgMatch = desc.match(/(\d+(?:\.\d+)?)\s*kg\b/i);
+  const w = gMatch ? `${parseInt(gMatch[1])}g` : kgMatch ? `${parseFloat(kgMatch[1])}kg` : "";
+
+  if (gradePool === "930") return `WC ${w}`.trim();
+  if (gradePool === "931") return `WC Frozen ${w}`.trim();
+
+  if (gradePool === "933") {
+    if (/nugget/i.test(d))          return `Nuggets ${w}`.trim();
+    if (/shawarma/i.test(d))        return `Shawarma ${w}`.trim();
+    if (/burger|patti/i.test(d))    return `Burger ${w}`.trim();
+    if (/strip|tender/i.test(d))    return `Strips ${w}`.trim();
+    if (/marinat/i.test(d))         return `Marinated ${w}`.trim();
+    if (/mince|trim/i.test(d))      return `Mince ${w}`.trim();
+    return `FPP ${w}`.trim();
+  }
+
+  if (gradePool === "932") {
+    const isBGrade = /\bb\.?g\b|grade[\s-]?b|b[\s-]?grade/i.test(d);
+    if (isBGrade)                   return `WC-B ${w}`.trim();
+    if (/breast/i.test(d))          return `Breast ${w}`.trim();
+    if (/thigh/i.test(d))           return `Thigh ${w}`.trim();
+    if (/drumstick|drum/i.test(d))  return `Drum ${w}`.trim();
+    if (/wing/i.test(d))            return `Wing ${w}`.trim();
+    if (/liver/i.test(d))           return `Liver ${w}`.trim();
+    if (/gizzard/i.test(d))         return `Gizzard ${w}`.trim();
+    if (/neck/i.test(d))            return `Neck ${w}`.trim();
+    if (/back/i.test(d))            return `Back ${w}`.trim();
+    if (/mixed|parts/i.test(d))     return `Mixed Parts ${w}`.trim();
+    return `Cuts ${w}`.trim();
+  }
+
+  return w || desc; // fallback
+}
+
 function fmtKg(n: number) {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(2)}M`;
   if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
@@ -141,7 +187,7 @@ function BreakdownPopover({
         <table className="w-full text-xs border-collapse">
           <thead>
             <tr className="bg-neutral-50 text-neutral-500 text-[11px] uppercase tracking-wide">
-              <th className="px-4 py-2 text-left">{isForecast ? "Product" : "SKU"}</th>
+              <th className="px-4 py-2 text-left">{isForecast ? "Product" : "Product"}</th>
               <th className="px-4 py-2 text-right">{isForecast ? "Demand (t)" : "Cartons"}</th>
               <th className="px-4 py-2 text-right">Carcass KG</th>
               <th className="px-4 py-2 text-right">Share</th>
@@ -151,7 +197,9 @@ function BreakdownPopover({
             {cell.skuBreakdown.map((s, i) => (
               <tr key={s.skuCode} className={`border-t border-[var(--border-subtle)] ${i % 2 === 0 ? "bg-white" : "bg-neutral-50/50"}`}>
                 <td className="px-4 py-2">
-                  <div className="text-[11px] text-neutral-600 truncate max-w-[220px]">{s.skuDescription}</div>
+                  <div className="text-sm font-medium text-neutral-800">
+                    {isForecast ? s.skuDescription : skuShortLabel(s.skuDescription, cell.gradePool)}
+                  </div>
                 </td>
                 <td className="px-4 py-2 text-right tabular-nums">
                   {isForecast ? s.cartons.toFixed(1) : fmtNum(s.cartons)}
