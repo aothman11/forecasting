@@ -197,7 +197,7 @@ function BreakdownPopover({
   const displayRows = (() => {
     const grouped = new Map<string, { label: string; cartons: number; carcassKg: number }>();
     for (const s of cell.skuBreakdown) {
-      const label = isForecast ? s.skuDescription : skuShortLabel(s.skuDescription, cell.gradePool);
+      const label = skuShortLabel(s.skuDescription, cell.gradePool);
       const existing = grouped.get(label);
       if (existing) {
         existing.cartons   += s.cartons;
