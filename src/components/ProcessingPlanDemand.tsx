@@ -372,16 +372,23 @@ export function ProcessingPlanDemand() {
     if (eaMatch) unitsPerCarton = parseInt(eaMatch[1]);
 
     // Grade pool: inferred from keywords in the description
-    let gradePool: GradePool = "930"; // default: A-Grade Fresh WC
     const isFpp    = /nugget|burger|patti|strip|tender|shawarma|marinat|mince|trim/i.test(d);
     const isCut    = /breast|thigh|drumstick|drum|wing|whole.?leg|back|neck|giblet|liver|heart|gizzard|portion|cut/i.test(d);
     const isBGrade = /\bb\.?g\b|grade[\s-]?b|b[\s-]?grade/i.test(d);
     const isFrozen = /frzn|frozen/i.test(d);
 
+    let gradePool: GradePool;
     if      (isFpp)    gradePool = "933";
     else if (isCut)    gradePool = "932";
     else if (isBGrade) gradePool = "932";
     else if (isFrozen) gradePool = "931";
+    else {
+      // Default to WC (930) only when the weight is in a plausible whole-chicken
+      // range (500 g – 2 000 g). Smaller or larger weights with no explicit keyword
+      // are unrecognised products — exclude them from the carcass calculation.
+      if (packageWeightKg < 0.5 || packageWeightKg > 2.0) return null;
+      gradePool = "930";
+    }
 
     return { packageWeightKg, gradePool, unitsPerCarton };
   }
