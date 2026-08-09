@@ -588,26 +588,11 @@ export function ProcessingPlanDemand() {
 
   const hasForecast = forecastCells.length > 0;
 
-  // ISO weeks covered by the SAP file
-  const sapIsoWeeks = useMemo(
-    () => new Set(sapCells.map((c) => c.week)),
-    [sapCells]
-  );
-
-  // Forecast cells for weeks the SAP file does NOT cover (e.g. Aug when SAP starts Sep).
-  // Used to fill gap weeks so they show demand-derived data rather than "—".
-  const forecastFillCells = useMemo(
-    () => (hasSap && hasForecast) ? forecastCells.filter((c) => !sapIsoWeeks.has(c.week)) : [],
-    [hasSap, hasForecast, forecastCells, sapIsoWeeks]
-  );
-
-  // True when SAP is loaded AND forecast is filling in weeks the SAP file doesn't cover.
-  const isHybrid = hasSap && forecastFillCells.length > 0;
-
-  // ── Active data source ──
-  // SAP + forecast fill for gap weeks (hybrid), pure SAP, or pure forecast.
-  const cells      = hasSap ? [...sapCells, ...forecastFillCells] : forecastCells;
-  const isForecast = !hasSap;
+  // ── Active data source: always Demand Plan forecast ──
+  // The SAP sales plan is used for Sales Plan reconciliation only;
+  // the Processing Plan is always driven by the Demand Plan catalog.
+  const cells      = forecastCells;
+  const isForecast = true;
 
   const weeks = useMemo(() => {
     const horizonIsoWeeks = horizonWeeks
@@ -634,8 +619,7 @@ export function ProcessingPlanDemand() {
   const cellIndex = new Map(cells.map((c) => [`${c.plant}::${c.week}::${c.gradePool}`, c]));
 
   // totals
-  const totalCartons   = hasSap ? salesPlanCartonRows.reduce((s, r) => s + r.cartons, 0) : 0;
-  const totalDemandTons = isForecast ? cells.reduce((s, c) => s + c.cartons, 0) : 0;
+  const totalDemandTons = cells.reduce((s, c) => s + c.cartons, 0);
   const totalCarcassKg  = cells.reduce((s, c) => s + c.requiredCarcassKg, 0);
   const poolTotals = Object.fromEntries(
     GRADE_POOLS.map((p) => [p, cells.filter((c) => c.gradePool === p).reduce((s, c) => s + c.requiredCarcassKg, 0)])
@@ -698,213 +682,48 @@ export function ProcessingPlanDemand() {
       <div>
         <h1 className="text-xl font-bold text-brand-green-dark">Processing Plan</h1>
         <p className="text-sm text-neutral-500 mt-0.5">
-          Carcass requirement by plant · grade pool · week — derived from{" "}
-          {hasSap ? "the imported SAP sales plan via Product BOM" : "the Demand Plan forecast via pipeline yields"}.
+          Carcass requirement by plant · grade pool · week — derived from the Demand Plan forecast via pipeline yields.
         </p>
       </div>
 
-      {/* BOM warning (SAP mode only — forecast uses pipeline yields, not BOM) */}
-      {hasSap && !hasBom && (
-        <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 font-medium">
-          ⚠ No BOM records found. Go to <strong>Product BOM</strong> and add your SKU master before uploading a sales plan.
-        </div>
-      )}
-
-      {/* ── Data source banner ── */}
-      {hasSap ? (
-        /* SAP loaded — green banner */
-        <div className="rounded-xl border border-green-200 bg-green-50/60 px-4 py-3 flex items-center gap-4 flex-wrap">
-          <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full border font-semibold bg-green-100 text-green-800 border-green-200 text-xs shrink-0">
-            ✓ SAP Sales Plan loaded
-          </span>
-          <span className="text-xs text-neutral-600">
-            <span className="font-semibold tabular-nums">{fmtNum(inHorizonRows.length)}</span> rows in horizon ·{" "}
-            <span className="font-semibold tabular-nums">{fmtNum(totalCartons)}</span> cartons
-            {isHybrid && (
-              <span className="ml-2 text-blue-700 font-semibold">
-                · 📊 {new Set(forecastFillCells.map((c) => c.week)).size} pre-SAP week(s) filled from Demand Plan forecast
-              </span>
-            )}
-            {outOfHorizonRows.length > 0 && (
-              <span className="ml-2 text-amber-700 font-semibold">
-                · ⚠ {outOfHorizonRows.length} row(s) outside plan horizon hidden
-              </span>
-            )}
-            {inferredBoms.size > 0 && (
-              <span className="ml-2 text-blue-700 font-semibold">· ℹ {inferredBoms.size} SKU(s) auto-inferred</span>
-            )}
-            {excludedSkuCount > 0 && (
-              <span className="ml-2 text-neutral-500 font-semibold">· {excludedSkuCount} non-carcass SKU(s) excluded</span>
-            )}
-            {unmatched.length > 0 && (
-              <span className="ml-2 text-amber-700 font-semibold">· ⚠ {unmatched.length} SKU(s) unresolved</span>
-            )}
-          </span>
-          <div className="ml-auto flex items-center gap-2">
-            <input ref={fileRef} type="file" accept=".xlsx,.xls" className="hidden" onChange={handleFile} />
-            <button
-              onClick={() => fileRef.current?.click()}
-              title="Replace the current SAP file"
-              className="text-xs font-medium px-2.5 py-1 rounded-lg border border-[var(--border-subtle)] text-neutral-600 hover:border-brand-green hover:text-brand-green-dark transition-colors"
-            >
-              ↑ Replace file
-            </button>
-            <button
-              onClick={clearSalesPlan}
-              className="text-xs text-neutral-400 hover:text-red-600 transition-colors"
-            >
-              Clear
-            </button>
-          </div>
-        </div>
-      ) : hasForecast ? (
-        /* Forecast mode — blue informational banner */
+      {/* ── Data source banner: always Demand Plan ── */}
+      {hasForecast ? (
         <div className="rounded-xl border border-blue-200 bg-blue-50/60 px-4 py-3 flex items-center gap-4 flex-wrap">
           <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full border font-semibold bg-blue-100 text-blue-800 border-blue-200 text-xs shrink-0">
-            📊 Forecast mode
+            📊 Demand Plan
           </span>
           <span className="text-xs text-neutral-600">
-            Showing carcass requirements derived from your <strong>Demand Plan</strong> using pipeline yields.
-            Import a SAP Sales Plan to switch to confirmed order data.
+            Carcass requirements derived from your <strong>Demand Plan</strong> using pipeline yields ·{" "}
+            <span className="font-semibold tabular-nums">{totalDemandTons.toFixed(1)}</span> t total demand
           </span>
-          <div className="ml-auto flex items-center gap-2">
+          <div className="ml-auto">
             <button
               onClick={goToDemandPlan}
               className="text-xs font-medium px-2.5 py-1 rounded-lg border border-blue-300 text-blue-700 hover:bg-blue-100 transition-colors whitespace-nowrap"
             >
               Edit Demand Plan
             </button>
-            <input ref={fileRef} type="file" accept=".xlsx,.xls" className="hidden" onChange={handleFile} />
-            <button
-              onClick={() => fileRef.current?.click()}
-              className="text-xs font-semibold px-2.5 py-1 rounded-lg border border-brand-green/50 text-brand-green-dark hover:bg-brand-green hover:text-white transition-colors whitespace-nowrap"
-            >
-              ⬆ Import SAP Sales Plan
-            </button>
           </div>
         </div>
       ) : (
-        /* No SAP, no demand — guide user to Demand Plan */
+        /* No demand data yet */
         <div className="rounded-xl border border-amber-200 bg-amber-50 px-5 py-4 flex items-start gap-4">
           <div className="text-2xl mt-0.5">📋</div>
           <div className="flex-1 min-w-0">
             <div className="text-sm font-semibold text-amber-900">No demand data yet</div>
             <div className="text-xs text-amber-800 mt-1 leading-relaxed">
-              This view needs demand quantities to calculate carcass requirements.
-              Enter weekly demand in the <strong>Demand Plan</strong> — the Processing Plan will populate
-              automatically from your forecast without any file upload.
-              Alternatively, upload a SAP Sales Plan for confirmed orders.
+              Enter weekly demand in the <strong>Demand Plan</strong> — the Processing Plan will populate automatically.
             </div>
-            <div className="flex items-center gap-2 mt-3 flex-wrap">
-              <button
-                onClick={goToDemandPlan}
-                className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-brand-green text-white hover:bg-brand-green-dark transition-colors"
-              >
-                Go to Demand Plan
-              </button>
-              <span className="text-xs text-amber-700">or</span>
-              <input ref={fileRef} type="file" accept=".xlsx,.xls" className="hidden" onChange={handleFile} />
-              <button
-                onClick={() => fileRef.current?.click()}
-                className="text-xs font-medium px-3 py-1.5 rounded-lg border border-amber-300 text-amber-800 hover:border-brand-green hover:text-brand-green-dark transition-colors"
-              >
-                ⬆ Upload SAP file directly
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Parse errors from direct upload */}
-      {parseErrors.length > 0 && (
-        <div className="space-y-1">
-          {parseErrors.slice(0, 5).map((e, i) => (
-            <div key={i} className="text-xs text-red-700 bg-red-50 border border-red-200 rounded px-2 py-1">⚠ {e}</div>
-          ))}
-          {parseErrors.length > 5 && (
-            <div className="text-xs text-red-500">…and {parseErrors.length - 5} more errors</div>
-          )}
-        </div>
-      )}
-
-      {/* Auto-inferred BOMs (SAP mode only) — blue info, not a warning */}
-      {hasSap && inferredBoms.size > 0 && (
-        <div className="rounded-xl border border-blue-200 bg-blue-50/50 overflow-hidden">
-          <div className="px-4 py-2.5 text-xs font-semibold text-blue-900 flex items-center gap-2 flex-wrap">
-            <span>ℹ {inferredBoms.size} SKU{inferredBoms.size !== 1 ? "s" : ""} included via auto-inferred BOM — weight &amp; grade estimated from description</span>
             <button
-              onClick={addDummyBoms}
-              title="Save these inferred entries to Product BOM so you can edit the exact values."
-              className="ml-auto text-xs font-semibold px-2.5 py-1 rounded-lg bg-blue-700 text-white hover:bg-blue-800 transition-colors"
+              onClick={goToDemandPlan}
+              className="mt-3 text-xs font-semibold px-3 py-1.5 rounded-lg bg-brand-green text-white hover:bg-brand-green-dark transition-colors"
             >
-              Save to Product BOM
+              Go to Demand Plan
             </button>
           </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-xs border-collapse">
-              <thead>
-                <tr className="bg-blue-100/70 text-blue-900 text-[11px] uppercase tracking-wide">
-                  <th className="px-3 py-2 text-left">SKU Code</th>
-                  <th className="px-3 py-2 text-left">Description</th>
-                  <th className="px-3 py-2 text-right">Inferred Wt</th>
-                  <th className="px-3 py-2 text-left">Grade Pool</th>
-                </tr>
-              </thead>
-              <tbody>
-                {[...inferredBoms.values()].map((b, i) => (
-                  <tr key={b.skuCode} className={`border-t border-blue-100 ${i % 2 === 0 ? "bg-white" : "bg-blue-50/30"}`}>
-                    <td className="px-3 py-1.5 font-mono font-semibold text-blue-900">{b.skuCode}</td>
-                    <td className="px-3 py-1.5 text-neutral-600">{b.skuDescription || "—"}</td>
-                    <td className="px-3 py-1.5 text-right tabular-nums">{Math.round(b.packageWeightKg * 1000)}g</td>
-                    <td className="px-3 py-1.5 text-neutral-500">{b.gradePool} · {GRADE_POOL_LABELS[b.gradePool]}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
         </div>
       )}
 
-      {/* Truly unresolved SKUs — description could not be parsed at all (rare) */}
-      {hasSap && unmatched.length > 0 && (
-        <div className="rounded-xl border border-amber-200 bg-amber-50/60 overflow-hidden">
-          <div className="px-4 py-2.5 text-xs font-semibold text-amber-900 flex items-center gap-2 flex-wrap">
-            <span>⚠ {unmatched.length} SKU{unmatched.length !== 1 ? "s" : ""} could not be resolved — excluded from calculation</span>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-xs border-collapse">
-              <thead>
-                <tr className="bg-amber-100/70 text-amber-900 text-[11px] uppercase tracking-wide">
-                  <th className="px-3 py-2 text-left">SKU Code</th>
-                  <th className="px-3 py-2 text-left">Description</th>
-                  <th className="px-3 py-2 text-right">Total Cartons</th>
-                  <th className="px-3 py-2 text-left">Plants</th>
-                </tr>
-              </thead>
-              <tbody>
-                {Object.values(
-                  unmatched.reduce<Record<string, { skuCode: string; skuDescription: string; cartons: number; plants: Set<string> }>>(
-                    (acc, r) => {
-                      if (!acc[r.skuCode]) acc[r.skuCode] = { skuCode: r.skuCode, skuDescription: r.skuDescription, cartons: 0, plants: new Set() };
-                      acc[r.skuCode].cartons += r.cartons;
-                      acc[r.skuCode].plants.add(r.plant);
-                      return acc;
-                    },
-                    {}
-                  )
-                ).map((u, i) => (
-                  <tr key={u.skuCode} className={`border-t border-amber-100 ${i % 2 === 0 ? "bg-white" : "bg-amber-50/30"}`}>
-                    <td className="px-3 py-1.5 font-mono font-semibold text-amber-900">{u.skuCode}</td>
-                    <td className="px-3 py-1.5 text-neutral-600">{u.skuDescription || "—"}</td>
-                    <td className="px-3 py-1.5 text-right tabular-nums">{fmtNum(u.cartons)}</td>
-                    <td className="px-3 py-1.5 text-neutral-500">{[...u.plants].join(", ")}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
 
       {/* Results */}
       {cells.length > 0 && (
@@ -912,12 +731,8 @@ export function ProcessingPlanDemand() {
           {/* KPI summary */}
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
             <div className="rounded-xl border border-[var(--border-subtle)] bg-white shadow-sm p-3 col-span-2 md:col-span-1">
-              <div className="text-[11px] uppercase tracking-wide text-neutral-500 font-semibold">
-                {isForecast ? "Total Demand" : "Total Cartons"}
-              </div>
-              <div className="text-xl font-bold text-neutral-800 tabular-nums mt-1">
-                {isForecast ? `${totalDemandTons.toFixed(1)} t` : fmtNum(totalCartons)}
-              </div>
+              <div className="text-[11px] uppercase tracking-wide text-neutral-500 font-semibold">Total Demand</div>
+              <div className="text-xl font-bold text-neutral-800 tabular-nums mt-1">{totalDemandTons.toFixed(1)} t</div>
             </div>
             <div className="rounded-xl border border-[var(--border-subtle)] bg-white shadow-sm p-3 col-span-2 md:col-span-1">
               <div className="text-[11px] uppercase tracking-wide text-neutral-500 font-semibold">Total Carcass Req.</div>
