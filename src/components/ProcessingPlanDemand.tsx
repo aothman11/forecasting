@@ -498,9 +498,25 @@ export function ProcessingPlanDemand() {
 
   const hasForecast = forecastCells.length > 0;
 
+  // ISO weeks covered by the SAP file
+  const sapIsoWeeks = useMemo(
+    () => new Set(sapCells.map((c) => c.week)),
+    [sapCells]
+  );
+
+  // Forecast cells for weeks the SAP file does NOT cover (e.g. Aug when SAP starts Sep).
+  // Used to fill gap weeks so they show demand-derived data rather than "—".
+  const forecastFillCells = useMemo(
+    () => (hasSap && hasForecast) ? forecastCells.filter((c) => !sapIsoWeeks.has(c.week)) : [],
+    [hasSap, hasForecast, forecastCells, sapIsoWeeks]
+  );
+
+  // True when SAP is loaded AND forecast is filling in weeks the SAP file doesn't cover.
+  const isHybrid = hasSap && forecastFillCells.length > 0;
+
   // ── Active data source ──
-  // SAP takes priority when loaded; otherwise fall back to forecast.
-  const cells      = hasSap ? sapCells      : forecastCells;
+  // SAP + forecast fill for gap weeks (hybrid), pure SAP, or pure forecast.
+  const cells      = hasSap ? [...sapCells, ...forecastFillCells] : forecastCells;
   const isForecast = !hasSap;
 
   const weeks = useMemo(() => {
@@ -610,6 +626,11 @@ export function ProcessingPlanDemand() {
           <span className="text-xs text-neutral-600">
             <span className="font-semibold tabular-nums">{fmtNum(inHorizonRows.length)}</span> rows in horizon ·{" "}
             <span className="font-semibold tabular-nums">{fmtNum(totalCartons)}</span> cartons
+            {isHybrid && (
+              <span className="ml-2 text-blue-700 font-semibold">
+                · 📊 {new Set(forecastFillCells.map((c) => c.week)).size} pre-SAP week(s) filled from Demand Plan forecast
+              </span>
+            )}
             {outOfHorizonRows.length > 0 && (
               <span className="ml-2 text-amber-700 font-semibold">
                 · ⚠ {outOfHorizonRows.length} row(s) outside plan horizon hidden
