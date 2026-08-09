@@ -429,7 +429,7 @@ export const usePlanStore = create<PlanState>()(
     }),
     {
       name: "awp-broiler-forecast-store",
-      version: 16,
+      version: 17,
       // v2  switched Step 1 from weekly to daily placement rows (PlacementRow -> PlacementDayRow).
       // v3  replaced the farm-based model with the house-based processing chain — discarded wholesale.
       // v4  added housesPerFarm (additive).
@@ -453,6 +453,17 @@ export const usePlanStore = create<PlanState>()(
       // v16 Plant capacities updated: Plant 1 off (0), Plant 2 → 250k/day, Plant 3 → 500k/day.
       //     Plant shares updated: Plant 1 → 0, Plant 2 → 33.3%, Plant 3 → 66.7%.
       migrate: (persisted, version) => {
+        if (version >= 17) return persisted;
+        // v16 → v17: persist salesPlanCartonRows + salesPlanCartonConfirmed.
+        // The aggregated form (unique week × plant × SKU) is compact (~300 KB for a
+        // typical 20-week plan) so the 40k-row serialisation concern no longer applies.
+        if (version === 16) {
+          return {
+            ...(persisted as Record<string, unknown>),
+            salesPlanCartonRows: [],
+            salesPlanCartonConfirmed: false,
+          };
+        }
         if (version >= 16) return persisted;
         // v15 → v16: update plant capacities and shares to reflect Plant 1 offline.
         if (version === 15) {
@@ -607,9 +618,11 @@ export const usePlanStore = create<PlanState>()(
         monthlyPlanConfig: s.monthlyPlanConfig,
         dailyPlannedQtyOverrides: s.dailyPlannedQtyOverrides,
         bomRecords: s.bomRecords,
-        // salesPlanCartonRows intentionally NOT persisted — re-populated on
-        // every file upload. Keeping 40k+ rows out of localStorage prevents
-        // the main-thread serialisation freeze on Zustand state changes.
+        // Aggregated form (unique week × plant × SKU) is compact — ~300 KB for a
+        // typical plan — so it is safe to persist. The 40k-row concern was about
+        // the raw parsed rows, which are never stored in state.
+        salesPlanCartonRows: s.salesPlanCartonRows,
+        salesPlanCartonConfirmed: s.salesPlanCartonConfirmed,
         broilerCapacity: s.broilerCapacity,
         scenarios: s.scenarios,
         harvestDeferrals: s.harvestDeferrals,
