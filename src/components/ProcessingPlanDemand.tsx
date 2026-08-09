@@ -331,6 +331,48 @@ export function ProcessingPlanDemand() {
   };
 
   // ── placeholder BOMs for unmatched SAP SKUs ──
+
+  /**
+   * Infer packageWeightKg, gradePool, and unitsPerCarton from a SAP SKU description.
+   *
+   * Examples handled:
+   *   "fresh chkn 500g ,10EA/CAR"  → 0.5 kg, 930 (A Fresh), 10
+   *   "frzn chkn 800g ,10EA/CAR"   → 0.8 kg, 931 (A Frozen), 10
+   *   "fresh chkn B.G 900g ,10EA"  → 0.9 kg, 932 (B-Grade), 10
+   *   "nuggets 500g ,20EA/CAR"      → 0.5 kg, 933 (FPP), 20
+   *   "Breast B/L ,10EA/CAR"        → 1.0 kg fallback, 932 (Cuts), 10
+   */
+  function inferBomFields(desc: string): { packageWeightKg: number; gradePool: GradePool; unitsPerCarton: number } {
+    const d = desc.toLowerCase();
+
+    // Weight: "500g", "1.2 kg", "1200 g"
+    let packageWeightKg = 1.0;
+    const gMatch = desc.match(/(\d{3,4})\s*g\b/i);
+    const kgMatch = desc.match(/(\d+(?:\.\d+)?)\s*kg\b/i);
+    if (gMatch)       packageWeightKg = parseInt(gMatch[1]) / 1000;
+    else if (kgMatch) packageWeightKg = parseFloat(kgMatch[1]);
+
+    // Units per carton: "10EA/CAR", "8 EA", "12EA"
+    let unitsPerCarton = 10;
+    const eaMatch = desc.match(/(\d+)\s*ea/i);
+    if (eaMatch) unitsPerCarton = parseInt(eaMatch[1]);
+
+    // Grade pool
+    let gradePool: GradePool = "930"; // default: A-Grade Fresh WC
+    const isFpp = /nugget|burger|patti|strip|tender|shawarma|marinat|mince|trim/i.test(d);
+    const isCut = /breast|thigh|drumstick|drum|wing|whole.?leg|back|neck|giblet|liver|heart|gizzard|portion|cut/i.test(d);
+    const isFrozen = /frzn|frozen/i.test(d);
+    const isBGrade = /\bb\.?g\b|grade[\s-]?b|b[\s-]?grade/i.test(d);
+
+    if (isFpp)          gradePool = "933";
+    else if (isCut)     gradePool = isBGrade ? "932" : "932";
+    else if (isBGrade)  gradePool = "932";
+    else if (isFrozen)  gradePool = "931";
+    // else stays 930 (A-Grade Fresh WC)
+
+    return { packageWeightKg, gradePool, unitsPerCarton };
+  }
+
   const addDummyBoms = () => {
     const seen = new Set(bomRecords.map((b) => b.skuCode));
     const byCode = new Map<string, { skuCode: string; skuDescription: string }>();
@@ -338,16 +380,17 @@ export function ProcessingPlanDemand() {
       if (!seen.has(r.skuCode) && !byCode.has(r.skuCode))
         byCode.set(r.skuCode, { skuCode: r.skuCode, skuDescription: r.skuDescription });
     });
-    byCode.forEach(({ skuCode, skuDescription }) =>
+    byCode.forEach(({ skuCode, skuDescription }) => {
+      const { packageWeightKg, gradePool, unitsPerCarton } = inferBomFields(skuDescription);
       addBomRecord({
         id: crypto.randomUUID(),
         skuCode, skuDescription,
-        packageWeightKg: 1.0,
-        unitsPerCarton: 10,
-        gradePool: "930",
+        packageWeightKg,
+        unitsPerCarton,
+        gradePool,
         plant: "ALL",
-      })
-    );
+      });
+    });
   };
 
   // ── file upload (direct fallback) ──
