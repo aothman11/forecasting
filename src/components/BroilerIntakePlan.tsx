@@ -501,9 +501,9 @@ export function BroilerIntakePlan() {
           <div className="flex-1">
             <div className="text-sm font-semibold text-amber-900">No demand data yet</div>
             <div className="text-xs text-amber-800 mt-1 leading-relaxed">
-              Enter weekly demand in the <strong>Demand Plan</strong> — this view will populate
-              automatically from your forecast. Alternatively, upload a SAP Sales Plan in the{" "}
-              <strong>Processing Plan</strong> for confirmed order data.
+              Enter weekly demand in the <strong>Demand Plan (M1)</strong> — this view will
+              populate automatically once demand is saved. You can also review per-grade-pool
+              carcass requirements in the <strong>Processing Plan</strong>.
             </div>
             <div className="flex items-center gap-2 mt-3 flex-wrap">
               <button
