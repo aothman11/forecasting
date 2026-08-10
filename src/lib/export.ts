@@ -323,7 +323,7 @@ export function exportSOPReportToExcel(
 
   const ws = XLSX.utils.json_to_sheet(sheet);
   ws["!cols"] = Object.keys(sheet[0] ?? {}).map(() => ({ wch: 16 }));
-  XLSX.utils.book_append_sheet(wb, ws, "S&OP Report");
+  XLSX.utils.book_append_sheet(wb, ws, "COP Report");
 
   // Summary tab
   const totals = rows.reduce(

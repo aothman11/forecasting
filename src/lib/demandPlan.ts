@@ -165,7 +165,7 @@ export function computeFrozenStock(
   return rows;
 }
 
-// ─── Align sales plan to production (supply-first S&OP) ──────────────────────
+// ─── Align sales plan to production (supply-first COP) ───────────────────────
 
 /**
  * Adjusts the sales plan to what production can actually deliver: for every

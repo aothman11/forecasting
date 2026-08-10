@@ -1,4 +1,4 @@
-// Domain types for the AWP Production Forecast pipeline.
+// Domain types for the AWP COP (Central Operations Planning) pipeline.
 // PlacementPlan -> LiveBirdForecast -> CarcassYield -> ProductFamilyAllocation -> CutPlan -> PlantDistribution
 
 /** Step 1 manual input — one row per calendar day. Friday rows are forced to 0 when fridayOff is on. */

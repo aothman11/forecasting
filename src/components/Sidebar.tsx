@@ -82,8 +82,8 @@ export function Sidebar() {
         {!collapsed && (
           <div>
             <Image src="/alwatania-logo-white.png" alt="Al-Watania Poultry" width={140} height={70} className="h-10 w-auto mb-2" priority />
-            <div className="text-lg font-bold text-brand-green section-title leading-tight">AWP Production Forecast</div>
-            <div className="text-[11px] text-neutral-500 mt-0.5">Demand → Supply · S&amp;OP</div>
+            <div className="text-lg font-bold text-brand-green section-title leading-tight">AWP COP</div>
+            <div className="text-[11px] text-neutral-500 mt-0.5">Central Operations Planning</div>
           </div>
         )}
         {collapsed && (
@@ -104,9 +104,9 @@ export function Sidebar() {
           />
         </div>
 
-        {/* S&OP Modules header */}
+        {/* COP Modules header */}
         {!collapsed && (
-          <div className="px-4 text-[11px] uppercase tracking-wide text-neutral-400 font-semibold mb-1">S&amp;OP Modules</div>
+          <div className="px-4 text-[11px] uppercase tracking-wide text-neutral-400 font-semibold mb-1">COP Modules</div>
         )}
         {collapsed && <div className="border-t border-neutral-100 my-1 mx-2" />}
 
@@ -114,7 +114,7 @@ export function Sidebar() {
         <NavBtn active={supplyOpen} onClick={() => { closeAll(); setHomeOpen(false); setSupplyOpen(true); }} badge="M2" label="Supply Requirements" title="M2 · Supply Requirements" />
         <NavBtn active={reconcileOpen} onClick={() => { closeAll(); setHomeOpen(false); setReconcileOpen(true); }} badge="M3" label="Reconciliation" title="M3 · Reconciliation" />
         <NavBtn active={ddpOpen} onClick={() => { closeAll(); setHomeOpen(false); setDdpOpen(true); }} badge="M4" label="Demand-Driven Placement" title="M4 · Demand-Driven Placement" />
-        <NavBtn active={reportOpen} onClick={() => { closeAll(); setHomeOpen(false); setReportOpen(true); }} badge="M5" label="S&OP Report" title="M5 · S&OP Report" />
+        <NavBtn active={reportOpen} onClick={() => { closeAll(); setHomeOpen(false); setReportOpen(true); }} badge="M5" label="COP Report" title="M5 · COP Report" />
 
         {/* Processing Plan header */}
         {!collapsed && (

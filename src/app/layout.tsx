@@ -8,8 +8,8 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "AWP Production Forecast",
-  description: "Al-Watania Poultry broiler placement to processing plan workbench",
+  title: "AWP COP",
+  description: "Al-Watania Poultry Central Operations Planning workbench",
 };
 
 export default function RootLayout({

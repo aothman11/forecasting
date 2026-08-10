@@ -71,7 +71,7 @@ export function DemandDrivenPlacement() {
       <div>
         <h1 className="text-xl font-bold section-title">Demand-Driven Placement</h1>
         <p className="text-sm text-neutral-500 mt-0.5">
-          Translates demand-derived chick requirements into a day-by-day placement calendar — closing the S&amp;OP loop.
+          Translates demand-derived chick requirements into a day-by-day placement calendar — closing the COP loop.
         </p>
       </div>
 

@@ -77,7 +77,7 @@ export default function Home() {
         <div className="flex-1 flex flex-col min-w-0">
           <header className="h-14 border-b border-[var(--border-subtle)] bg-white flex items-center justify-between px-6 shrink-0">
             <div className="text-sm font-semibold text-neutral-700">
-              {homeOpen ? "Home" : compareOpen ? "Scenario Comparison" : demandOpen ? "Demand Plan" : supplyOpen ? "Supply Requirements" : reconcileOpen ? "Reconciliation" : ddpOpen ? "Demand-Driven Placement" : reportOpen ? "S&OP Report" : bomOpen ? "Product BOM" : processingPlanOpen ? "Processing Plan" : broilerIntakeOpen ? "Broiler Intake Plan" : currentLabel}
+              {homeOpen ? "Home" : compareOpen ? "Scenario Comparison" : demandOpen ? "Demand Plan" : supplyOpen ? "Supply Requirements" : reconcileOpen ? "Reconciliation" : ddpOpen ? "Demand-Driven Placement" : reportOpen ? "COP Report" : bomOpen ? "Product BOM" : processingPlanOpen ? "Processing Plan" : broilerIntakeOpen ? "Broiler Intake Plan" : currentLabel}
             </div>
             <div className="flex items-center gap-3">
               <ExportButtons />
@@ -128,7 +128,7 @@ export default function Home() {
 
       {/* Mobile fallback */}
       <div className="md:hidden min-h-screen bg-[var(--background)] p-4">
-        <div className="text-lg font-bold text-brand-green mb-1">AWP Production Forecast</div>
+        <div className="text-lg font-bold text-brand-green mb-1">AWP COP</div>
         <div className="text-xs text-neutral-500 mb-4">
           This planning workbench is built for wide, spreadsheet-style tables. Use a desktop or tablet
           (768px+) for the full 6-step workflow. Here&apos;s a read-only summary of the current plan.

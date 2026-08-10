@@ -282,7 +282,7 @@ export function HomeDashboard() {
               letterSpacing: "-0.01em",
             }}
           >
-            Sales and Operations Planning
+            Central Operations Planning
           </div>
           <div
             className="mt-1 text-[11px] font-medium tracking-widest uppercase"
@@ -398,10 +398,10 @@ export function HomeDashboard() {
         </div>
       </div>
 
-      {/* ── S&OP Modules ── */}
+      {/* ── COP Modules ── */}
       <div>
         <div className="flex items-center gap-3 mb-3">
-          <h2 className="text-sm font-bold uppercase tracking-widest text-brand-green-dark">S&amp;OP Modules</h2>
+          <h2 className="text-sm font-bold uppercase tracking-widest text-brand-green-dark">COP Modules</h2>
           <div className="flex-1 h-px bg-brand-green/20" />
         </div>
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -610,7 +610,7 @@ export function HomeDashboard() {
             </div>
           </DashCard>
 
-          <DashCard icon="📋" title="M5 · S&OP Report" description="Plan health for executive review" onOpen={openReport}>
+          <DashCard icon="📋" title="M5 · COP Report" description="Plan health for executive review" onOpen={openReport}>
             <div className="mt-2 mb-2.5">
               <span className={`inline-flex items-center gap-1.5 text-[11px] font-semibold px-2.5 py-0.5 rounded-full ${
                 sopStatus === "on-track" ? "bg-green-100 text-green-800" : sopStatus === "review" ? "bg-amber-100 text-amber-800" : "bg-red-100 text-red-800"

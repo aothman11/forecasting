@@ -94,7 +94,7 @@ export function SOPReport() {
   const weeks = Array.from({ length: params.planningHorizonWeeks }, (_, i) => i + 1);
   const supplyRows = computeSupplyRequirements(demandProducts, demandQty, params, result, weeks);
 
-  // Build per-week S&OP rows
+  // Build per-week COP rows
   const sopRows: SOPReportRow[] = weeks.map((w) => {
     const fam = result.family.find((r) => r.week === w);
     const cuts = result.cuts.find((r) => r.week === w);
@@ -147,7 +147,7 @@ export function SOPReport() {
       {/* Header */}
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-xl font-bold section-title">S&amp;OP Executive Report</h1>
+          <h1 className="text-xl font-bold section-title">COP Executive Report</h1>
           <p className="text-sm text-neutral-500 mt-0.5">
             Weekly review — {horizonRange(params.planStartDate, params.planningHorizonWeeks)} ({params.planningHorizonWeeks / 4} months)
             <span className="ml-2 text-neutral-400 text-xs">Generated {generatedDate}</span>
@@ -250,10 +250,10 @@ export function SOPReport() {
         </div>
       </div>
 
-      {/* Week-by-week S&OP table */}
+      {/* Week-by-week COP table */}
       <div className="rounded-xl border border-[var(--border-subtle)] bg-white shadow-sm overflow-hidden">
         <div className="px-4 py-2.5 border-b border-[var(--border-subtle)] bg-neutral-50 flex items-center justify-between">
-          <span className="text-xs font-semibold text-neutral-600 uppercase tracking-wide">Weekly S&amp;OP Review</span>
+          <span className="text-xs font-semibold text-neutral-600 uppercase tracking-wide">Weekly COP Review</span>
           <div className="flex items-center gap-3 text-[11px] text-neutral-400">
             <span className="flex items-center gap-1"><RagDot status="green" /> OK ≥105%</span>
             <span className="flex items-center gap-1"><RagDot status="amber" /> Tight 98–105%</span>

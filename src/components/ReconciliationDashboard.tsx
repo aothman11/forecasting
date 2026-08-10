@@ -194,7 +194,7 @@ export function ReconciliationDashboard() {
   const endingFrozenStock = frozenStock.length > 0 ? frozenStock[frozenStock.length - 1].closingKg : params.openingFrozenStockKg;
   const negativeStockWeeks = frozenStock.filter((r) => r.closingKg < 0).length;
 
-  // Supply-first S&OP: adjust the sales plan down to what production delivers.
+  // Supply-first COP: adjust the sales plan down to what production delivers.
   const handleAlignToProduction = () => {
     const supplyMap: Record<string, number> = {};
     for (const r of rows) {

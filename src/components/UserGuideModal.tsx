@@ -12,8 +12,8 @@ interface Props {
 
 const T = {
   en: {
-    eyebrow: "Al-Watania Poultry · S&OP Tool",
-    title: "AWP Production Forecast — User Guide",
+    eyebrow: "Al-Watania Poultry · Central Operations Planning",
+    title: "AWP COP — Planning Guide",
     langLabel: "EN",
     altLangLabel: "AR",
 
@@ -22,14 +22,14 @@ const T = {
         label: "Introduction",
         title: "What this tool does",
         body: [
-          "AWP Production Forecast is a demand-first S&OP planning tool. Start from what the market needs — by product, channel, and week — and the system works backward to tell you how many chicks to place, then forward to show exactly what comes out of the plant.",
-          "The tool has two parallel tracks: <strong>S&OP Modules (M1–M5)</strong> for the demand side — capture demand, reverse-engineer supply needs, identify gaps, and write placements into the calendar — and the <strong>Production Pipeline (Steps 1–7)</strong> for the supply side — build a placement calendar and follow the bird from chick-in to carcass, grades, cuts, and plant allocations. All calculations update live; there is no recalculate button.",
+          "AWP COP (Central Operations Planning) is a demand-first planning tool. Start from what the market needs — by product, channel, and week — and the system works backward to tell you how many chicks to place, then forward to show exactly what comes out of the plant.",
+          "The tool has two parallel tracks: <strong>COP Modules (M1–M5)</strong> for the demand side — capture demand, reverse-engineer supply needs, identify gaps, and write placements into the calendar — and the <strong>Production Pipeline (Steps 1–7)</strong> for the supply side — build a placement calendar and follow the bird from chick-in to carcass, grades, cuts, and plant allocations. All calculations update live; there is no recalculate button.",
         ],
       },
       workflow: {
         label: "Getting Started",
         title: "Recommended workflow",
-        intro: "Follow this sequence for a complete S&OP cycle.",
+        intro: "Follow this sequence for a complete COP cycle.",
         steps: [
           { label: "Assumptions", sub: "Set parameters" },
           { label: "M1 Demand Plan", sub: "Enter demand" },
@@ -37,7 +37,7 @@ const T = {
           { label: "M2 Supply Req.", sub: "Review gaps" },
           { label: "M3 Reconcile", sub: "Confirm balance" },
           { label: "M4 Apply DDP", sub: "Write to calendar" },
-          { label: "M5 S&OP Report", sub: "Review & export" },
+          { label: "M5 COP Report", sub: "Review & export" },
           { label: "Step 7 Quotas", sub: "SAP MEQ1 export" },
         ],
         note: "You can use the Production Pipeline independently without entering demand — to model a placement scenario and see its plant-level output.",
@@ -63,11 +63,11 @@ const T = {
         ] as [string, string][],
       },
       m1: {
-        label: "S&OP Modules",
+        label: "COP Modules",
         badge: "M1",
         title: "M1 · Demand Plan",
         subtitle: "Weekly demand by product × sales channel",
-        body: "Enter how much of each product each channel will sell, week by week. This drives all downstream S&OP modules.",
+        body: "Enter how much of each product each channel will sell, week by week. This drives all downstream COP modules.",
         products: "Products: Whole Chicken (by weight bucket, Grade A/B, Fresh/Frozen), Cuts, FPP (with yield %), and Eggs (in trays).",
         channels: "Channels: DIST, EXPO, FOOD, MODT, SIST, TRAD, WHOL, ECOM — select the tab or use All for a combined view.",
         steps: [
@@ -82,7 +82,7 @@ const T = {
         tip: "<strong>Import from SAP:</strong> click Import Sales Plan to upload a SAP export (.xlsx / .csv). The panel shows each row's Material Code, description, Weight of Carton, GSV CAR, and GSV UoM so you can verify before applying. Map each row type to a catalog product and each Channels value to a channel key. The week alignment table shows calendar labels (e.g. Aug W1) for both plan weeks and file weeks. Mappings are saved for future imports. On Apply, product selling prices are derived automatically from the file's <strong>Gross Sales Value (SAR)</strong> column (Σ value ÷ Σ quantity per product) and written into the Prices panel.",
       },
       m2: {
-        label: "S&OP Modules",
+        label: "COP Modules",
         badge: "M2",
         title: "M2 · Supply Requirements",
         subtitle: "Reverse BOM: demand → carcass → chicks to place",
@@ -92,18 +92,18 @@ const T = {
         deferralBody: "When deficit weeks are detected, a <strong>✦ Suggest Deferrals</strong> button appears automatically — click it to let the system calculate the optimal birds to shift from each surplus week into its adjacent deficit week using a greedy algorithm. Review and fine-tune the suggested values manually if needed. Use the amber <strong>Defer → (birds)</strong> column to enter or adjust the number of birds to shift from Week N to Week N+1; the <strong>Adj. Carcass</strong> and <strong>Adj. Gap</strong> columns update immediately to show the impact. This is a simulation overlay — the base plan and pipeline are not modified. When deferrals are active, an amber banner shows the total birds shifted with a <strong>↻ Re-suggest</strong> button (recalculates from scratch) and a <strong>Clear All</strong> button. Typical use: a catching day has birds at 25.5 weeks age but demand is low that week — defer to the following week rather than harvesting early.",
       },
       m3: {
-        label: "S&OP Modules",
+        label: "COP Modules",
         badge: "M3",
         title: "M3 · Reconciliation",
         subtitle: "Demand vs supply gap · align the sales plan to production",
         body: "Side-by-side weekly view of total demand (M1) against total planned supply (pipeline). Gaps shown in kg and %. Week labels use YYYY.MMM.Wk format to immediately show which calendar month each week belongs to. Production is the anchor: the <strong>⚖️ Align Sales Plan to Production</strong> button scales demand cells down pro-rata (per category × week) wherever demand exceeds what the plants deliver — channel shares are preserved, and surplus weeks are left untouched. The page also shows a <strong>Frozen Stock Balance</strong> table (opening + frozen production − frozen WC demand = closing, per week, red when negative) plus KPI cards for opening/ending frozen stock, stock-out weeks, and the average Fresh/Frozen production split.",
       },
       m4: {
-        label: "S&OP Modules",
+        label: "COP Modules",
         badge: "M4",
         title: "M4 · Demand-Driven Placement",
         subtitle: "Translate demand requirements into a placement calendar",
-        body: "Closes the S&OP loop. Calculates required houses per day per placement week to fulfil M1 demand, then writes those numbers directly into the Step 1 Placement Plan.",
+        body: "Closes the COP loop. Calculates required houses per day per placement week to fulfil M1 demand, then writes those numbers directly into the Step 1 Placement Plan.",
         steps: [
           "Review the <strong>Placement Week Preview</strong> table — current vs required houses/day, flagging over-capacity weeks.",
           "If over-capacity: raise house count in Assumptions or reduce demand in M1.",
@@ -112,10 +112,10 @@ const T = {
         tip: "Placement weeks with <strong>no demand</strong> are set to zero on apply — not carried over from prior quick-fill values. Only weeks with actual demand get populated.",
       },
       m5: {
-        label: "S&OP Modules",
+        label: "COP Modules",
         badge: "M5",
-        title: "M5 · S&OP Report",
-        subtitle: "Traffic-light weekly review for S&OP meetings",
+        title: "M5 · COP Report",
+        subtitle: "Traffic-light weekly review for COP meetings",
         body: "Board-ready summary: deficit and tight weeks highlighted in red and amber, supply vs demand totals, capacity utilization, and a placement action list. Export directly as PDF via Export Summary PDF in the top toolbar.",
       },
       step1: {
@@ -247,7 +247,7 @@ const T = {
         subtitle: "Excel workbook and PDF summary",
         items: [
           "<strong>Export Excel</strong> — full multi-sheet workbook: placement, live bird, carcass, size distribution, product allocation, cut plan, plant breakdown, and demand plan.",
-          "<strong>Export Summary PDF</strong> — print-ready S&OP summary for management review.",
+          "<strong>Export Summary PDF</strong> — print-ready COP summary for management review.",
           "<strong>Step 7 exports</strong> — SAP MEQ1 Excel, TXT, and Farm Master Excel, from within Step 7.",
         ],
       },
@@ -258,8 +258,8 @@ const T = {
   },
 
   ar: {
-    eyebrow: "الوطنية للدواجن · أداة التخطيط التشغيلي",
-    title: "AWP Production Forecast — دليل المستخدم",
+    eyebrow: "الوطنية للدواجن · التخطيط المركزي للعمليات",
+    title: "AWP COP — دليل التخطيط",
     langLabel: "AR",
     altLangLabel: "EN",
 
@@ -268,7 +268,7 @@ const T = {
         label: "مقدمة",
         title: "ماذا تفعل هذه الأداة",
         body: [
-          "AWP Production Forecast هي أداة تخطيط تشغيلي (S&OP) تبدأ من الطلب. ابدأ بما يحتاجه السوق — حسب المنتج والقناة والأسبوع — وسيعمل النظام عكسيًا ليخبرك بعدد الكتاكيت التي يجب تربيتها، ثم للأمام ليُظهر ما سيُنتج في المصنع.",
+          "AWP COP (التخطيط المركزي للعمليات) هي أداة تخطيط تبدأ من الطلب. ابدأ بما يحتاجه السوق — حسب المنتج والقناة والأسبوع — وسيعمل النظام عكسيًا ليخبرك بعدد الكتاكيت التي يجب تربيتها، ثم للأمام ليُظهر ما سيُنتج في المصنع.",
           "تتكون الأداة من مسارين متوازيين: <strong>وحدات التخطيط التشغيلي (M1–M5)</strong> لجانب الطلب — التقاط الطلب، وهندسة متطلبات التوريد عكسيًا، وتحديد الفجوات، وكتابة خطط التوطين — و<strong>خط الإنتاج (الخطوات 1–7)</strong> لجانب التوريد — بناء تقويم التوطين ومتابعة الطيور من التوطين إلى الذبح والتصنيف والتقطيع وتوزيع المصنع. جميع الحسابات تتحدث لحظيًا.",
         ],
       },
@@ -361,7 +361,7 @@ const T = {
         label: "وحدات التخطيط التشغيلي",
         badge: "M5",
         title: "M5 · تقرير التخطيط التشغيلي",
-        subtitle: "مراجعة إشارات المرور الأسبوعية لاجتماعات S&OP",
+        subtitle: "مراجعة إشارات المرور الأسبوعية لاجتماعات COP",
         body: "ملخص جاهز للمجلس: أسابيع العجز والمنطقة الضيقة بالأحمر والكهرماني، إجماليات التوريد مقابل الطلب، معدلات استغلال الطاقة، وقائمة إجراءات التوطين. يمكن تصديره مباشرة كـ PDF من خلال زر «تصدير PDF» في شريط الأدوات.",
       },
       step1: {
@@ -493,7 +493,7 @@ const T = {
         subtitle: "مصنف Excel وملخص PDF",
         items: [
           "<strong>تصدير Excel</strong> — مصنف متعدد الأوراق: التوطين، الطيور الحية، الذبائح، توزيع الأحجام، تخصيص المنتجات، خطة القطع، توزيع المصنع، وخطة الطلب.",
-          "<strong>تصدير PDF</strong> — ملخص S&OP جاهز للطباعة للمراجعة الإدارية.",
+          "<strong>تصدير PDF</strong> — ملخص COP جاهز للطباعة للمراجعة الإدارية.",
           "<strong>تصديرات الخطوة 7</strong> — SAP MEQ1 Excel، TXT، وسجل المزارع Excel، من داخل الخطوة 7.",
         ],
       },
