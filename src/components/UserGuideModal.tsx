@@ -224,7 +224,7 @@ const T = {
           "<strong>Import BOM from SAP Excel</strong> — upload a SAP BOM export. The parser reads Material, Material Description, Component net weight (kg), Quantity, Plnt, and grade pool from the file.",
           "<strong>Export BOM</strong> — download the current BOM as Excel for archiving or sharing.",
         ],
-        note: "The BOM is only needed when using SAP sales-plan data in the Broiler Intake popup for per-bird breakdowns on whole-chicken SKUs. The Processing Plan carcass requirement always comes from the Demand Plan regardless of whether a BOM is loaded.",
+        note: "Load the BOM to enable the Req. Birds column and per-bird KPI cards in the Broiler Intake Plan — the system looks up each SKU's package weight and units-per-carton to convert carcass KG into bird counts. Without a BOM those columns are blank. The Processing Plan carcass requirement always comes from the Demand Plan regardless of whether a BOM is loaded.",
       },
       scenarios: {
         label: "Tools",
@@ -470,7 +470,7 @@ const T = {
           "<strong>استيراد BOM من SAP Excel</strong> — رفع ملف تصدير BOM من SAP. يقرأ المحلل: المادة، الوصف، وزن المكون الصافي، الكمية، المصنع، ومجموعة الدرجة.",
           "<strong>تصدير BOM</strong> — تنزيل BOM الحالي كملف Excel للأرشفة أو المشاركة.",
         ],
-        note: "BOM مطلوب فقط عند استخدام بيانات خطة مبيعات SAP في نافذة خطة استقبال الدواجن المنبثقة لتفاصيل الطيور لـ SKUs الدجاج الكامل. متطلبات الذبائح في خطة التصنيع تأتي دائمًا من خطة الطلب بغض النظر عن وجود BOM.",
+        note: "قم بتحميل BOM لتفعيل عمود 'الطيور المطلوبة' وبطاقات مؤشرات الطيور في خطة استقبال الدواجن — يبحث النظام عن وزن عبوة كل SKU وعدد الوحدات في الكرتون لتحويل كيلوجرامات الذبيحة إلى أعداد الطيور. بدون BOM تبقى هذه الأعمدة فارغة. متطلبات الذبائح في خطة التصنيع تأتي دائمًا من خطة الطلب بغض النظر عن وجود BOM.",
       },
       scenarios: {
         label: "الأدوات",
