@@ -193,11 +193,22 @@ function BreakdownPopover({
 }) {
   const isForecast = !!cell.isForecast;
 
-  // Group rows by their display label (summing cartons + carcassKg), then sort by weight asc.
+  /**
+   * Collapse product name to its first two words — groups flavor/spice variants
+   * of the same base product (e.g. "Fresh Mrtdla Garlic" + "Fresh Mrtdla Lemon"
+   * → "Fresh Mrtdla") while keeping weight-differentiated WC products distinct
+   * ("WC 900g" vs "WC 1000g" each have a different second word).
+   */
+  const shortBaseLabel = (desc: string): string => {
+    const words = desc.trim().split(/\s+/);
+    return words.slice(0, 2).join(" ");
+  };
+
+  // Group rows by short base label (summing cartons + carcassKg), then sort by weight asc.
   const displayRows = (() => {
     const grouped = new Map<string, { label: string; cartons: number; carcassKg: number }>();
     for (const s of cell.skuBreakdown) {
-      const label = s.skuDescription;
+      const label = shortBaseLabel(s.skuDescription);
       const existing = grouped.get(label);
       if (existing) {
         existing.cartons   += s.cartons;
