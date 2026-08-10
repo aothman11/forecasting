@@ -756,7 +756,7 @@ export function UserGuideModal({ onClose }: Props) {
             <p>{s.step7.exports}</p>
           </Card>
 
-          {/* PP */}
+          {/* Processing Plan — PP / BI / BOM share one section header */}
           <SectionHeader label={s.pp.label} title={s.pp.title} />
           <Card badge={s.pp.badge} title={s.pp.title} subtitle={s.pp.subtitle}>
             <p>{s.pp.body}</p>
@@ -765,7 +765,6 @@ export function UserGuideModal({ onClose }: Props) {
           </Card>
 
           {/* BI */}
-          <SectionHeader label={s.bi.label} title={s.bi.title} />
           <Card badge={s.bi.badge} title={s.bi.title} subtitle={s.bi.subtitle}>
             <p>{s.bi.body}</p>
             <BulletList items={s.bi.items} />
@@ -773,7 +772,6 @@ export function UserGuideModal({ onClose }: Props) {
           </Card>
 
           {/* BOM */}
-          <SectionHeader label={s.bom.label} title={s.bom.title} />
           <Card badge={s.bom.badge} title={s.bom.title} subtitle={s.bom.subtitle}>
             <p>{s.bom.body}</p>
             <BulletList items={s.bom.items} />

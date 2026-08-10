@@ -158,7 +158,7 @@ function PipelineBirdsPopover({
 // ─── breakdown popover ────────────────────────────────────────────────────────
 
 function BroilerBreakdownPopover({
-  plant, week, isoWeekLbl, cells, bomRecords, params, isForecast, onClose,
+  plant, week, isoWeekLbl, cells, bomRecords, params, onClose,
 }: {
   plant: string;
   week: number;
@@ -166,7 +166,6 @@ function BroilerBreakdownPopover({
   cells: ProcessingPlanCell[];
   bomRecords: BomRecord[];
   params: Parameters;
-  isForecast: boolean;
   onClose: () => void;
 }) {
   const bomMap = useMemo(() => new Map(bomRecords.map((r) => [r.skuCode, r])), [bomRecords]);
@@ -187,9 +186,7 @@ function BroilerBreakdownPopover({
           <div>
             <div className="text-sm font-semibold text-neutral-800 flex items-center gap-2">
               Plant {plant} · {isoWeekLbl}
-              {isForecast && (
-                <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200">Forecast</span>
-              )}
+              <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200">Forecast</span>
             </div>
             <div className="text-xs text-neutral-500 mt-0.5">
               {fmtKg(totalCarcassKg)} KG carcass · {fmtNum(Math.round(totalBirds))} birds required
@@ -206,9 +203,8 @@ function BroilerBreakdownPopover({
                       Plant: plant,
                       Week: isoWeekLbl,
                       "Grade Pool": `${cell.gradePool} · ${GRADE_POOL_LABELS[cell.gradePool as keyof typeof GRADE_POOL_LABELS] ?? cell.gradePool}`,
-                      ...(isForecast ? {} : { "SKU Code": s.skuCode }),
                       Product: s.skuDescription,
-                      [isForecast ? "Demand (t)" : "Cartons"]: isForecast ? parseFloat(s.cartons.toFixed(2)) : s.cartons,
+                      "Demand (t)": parseFloat(s.cartons.toFixed(2)),
                       "Carcass KG": parseFloat(s.carcassKg.toFixed(2)),
                       "Req. Birds": Math.round(birds),
                       "Share %": cell.requiredCarcassKg > 0 ? parseFloat(((s.carcassKg / cell.requiredCarcassKg) * 100).toFixed(1)) : 0,
@@ -246,8 +242,8 @@ function BroilerBreakdownPopover({
               <table className="w-full text-xs border-collapse">
                 <thead>
                   <tr className="bg-neutral-50 text-neutral-500 text-[11px] uppercase tracking-wide">
-                    <th className="px-4 py-2 text-left">{isForecast ? "Product" : "SKU"}</th>
-                    <th className="px-4 py-2 text-right">{isForecast ? "Demand (t)" : "Cartons"}</th>
+                    <th className="px-4 py-2 text-left">Product</th>
+                    <th className="px-4 py-2 text-right">Demand (t)</th>
                     <th className="px-4 py-2 text-right">Carcass KG</th>
                     <th className="px-4 py-2 text-right">Req. Birds</th>
                     <th className="px-4 py-2 text-right">Share</th>
@@ -259,11 +255,10 @@ function BroilerBreakdownPopover({
                     return (
                       <tr key={s.skuCode} className={`border-t border-[var(--border-subtle)] ${i % 2 === 0 ? "bg-white" : "bg-neutral-50/50"}`}>
                         <td className="px-4 py-2">
-                          {!isForecast && <div className="font-mono font-semibold text-neutral-700">{s.skuCode}</div>}
                           <div className="text-[11px] text-neutral-600 truncate max-w-[200px]">{s.skuDescription}</div>
                         </td>
                         <td className="px-4 py-2 text-right tabular-nums">
-                          {isForecast ? s.cartons.toFixed(1) : fmtNum(s.cartons)}
+                          {s.cartons.toFixed(1)}
                         </td>
                         <td className="px-4 py-2 text-right tabular-nums font-semibold text-blue-700">{fmtKg(s.carcassKg)}</td>
                         <td className="px-4 py-2 text-right tabular-nums font-semibold text-brand-green-dark">{fmtNum(Math.round(birds))}</td>
@@ -334,8 +329,6 @@ export function BroilerIntakePlan() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [demandProducts, JSON.stringify(demandQty), params, horizonWeeks, planWeekToIsoWeek]
   );
-  const isForecast = true;
-
   // Aggregate demand to plant × week (sum all grade pools)
   const demandMap = useMemo(() => {
     const m = new Map<string, { carcassKg: number; cartons: number }>();
@@ -420,8 +413,8 @@ export function BroilerIntakePlan() {
   // Always show all three plants so supply data is never hidden.
   const plants = ALL_PLANTS as readonly string[];
 
-  const hasData     = cells.length > 0;
-  const planYear    = params.planStartDate
+  const hasData  = cells.length > 0;
+  const planYear = params.planStartDate
     ? parseInt(params.planStartDate.split("-")[0], 10)
     : new Date().getFullYear();
 
@@ -790,7 +783,6 @@ export function BroilerIntakePlan() {
           cells={cells}
           bomRecords={bomRecords}
           params={params}
-          isForecast={isForecast}
           onClose={() => setActiveBreakdown(null)}
         />
       )}
