@@ -374,7 +374,7 @@ export interface SummaryMetrics {
   totalCutsKg: number;
   /** FPP produced from cuts. */
   totalFppKg: number;
-  /** WC Fresh + WC Frozen + net cuts + FPP. */
+  /** WC Fresh + WC Frozen + cuts allocation input (pre-yield). Equals Total Carcass when family allocation sums to 100%. Used for the Home KPI display — NOT for supply/demand coverage ratios (use totalWcFreshKg + totalWcFrozenKg + totalCutsKg + totalFppKg for those). */
   totalProductionKg: number;
   /** Fresh share of whole-chicken production (0..1). */
   avgFreshSharePct: number;

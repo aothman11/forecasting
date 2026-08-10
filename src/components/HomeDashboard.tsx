@@ -131,7 +131,9 @@ export function HomeDashboard() {
   const totalFppDemandTons = categoryTotal(demandProducts, demandQty, "fpp", "ALL", horizonWeeks);
   const totalCutsDemandTons = categoryTotal(demandProducts, demandQty, "cuts", "ALL", horizonWeeks);
   const totalDemandTons = totalWcDemandTons + totalFppDemandTons + totalCutsDemandTons;
-  const totalSupplyTons = m.totalProductionKg / 1000;
+  // Use saleable output (WC + net cuts + FPP) for coverage ratio — NOT totalProductionKg
+  // which uses pre-yield cutsInputKg and would overstate supply vs finished-product demand.
+  const totalSupplyTons = (m.totalWcFreshKg + m.totalWcFrozenKg + m.totalCutsKg + m.totalFppKg) / 1000;
   const reconcileDeficitWeekList = horizonWeeks.filter((w) => {
     const fam = result.family.find((r) => r.week === w);
     const cuts = result.cuts.find((r) => r.week === w);
