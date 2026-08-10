@@ -194,12 +194,31 @@ function BreakdownPopover({
   const isForecast = !!cell.isForecast;
 
   /**
-   * Collapse product name to its first two words — groups flavor/spice variants
-   * of the same base product (e.g. "Fresh Mrtdla Garlic" + "Fresh Mrtdla Lemon"
-   * → "Fresh Mrtdla") while keeping weight-differentiated WC products distinct
-   * ("WC 900g" vs "WC 1000g" each have a different second word).
+   * Collapse product name to a short base label for grouping:
+   *
+   * • Whole-chicken products (WC / Whole Chicken / Chkn anywhere in the name):
+   *   extract only the weight and return "WC Xg" — discards grade, temp, and
+   *   any flavor variant (Kapsa, Shawarma, …).
+   *
+   * • Everything else: first two words — groups flavor/spice variants of the
+   *   same base product ("Fresh Mrtdla Garlic" + "Fresh Mrtdla Lemon" → "Fresh Mrtdla")
+   *   while still keeping distinct cuts separate.
    */
   const shortBaseLabel = (desc: string): string => {
+    const isWC = /\b(?:WC|WHOLE\s*CHICKEN|CHKN)\b/i.test(desc);
+    if (isWC) {
+      // Pull the weight from anywhere in the string (e.g. "900g", "1.2kg")
+      const m = desc.match(/(\d+(?:\.\d+)?)\s*(kg|g)\b/i);
+      if (m) {
+        const num  = parseFloat(m[1]);
+        const unit = m[2].toLowerCase();
+        // Normalise kg → g so "1kg" and "1000g" collapse to the same key
+        const grams = unit === "kg" ? Math.round(num * 1000) : Math.round(num);
+        return `WC ${grams}g`;
+      }
+      return "WC";
+    }
+    // Non-WC: first two words
     const words = desc.trim().split(/\s+/);
     return words.slice(0, 2).join(" ");
   };
