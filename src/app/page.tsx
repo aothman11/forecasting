@@ -27,6 +27,8 @@ import { ProductFamily } from "@/components/steps/ProductFamily";
 import { CutPlan } from "@/components/steps/CutPlan";
 import { ProcessingPlan } from "@/components/steps/ProcessingPlan";
 import { FarmQuotaDistribution } from "@/components/steps/FarmQuotaDistribution";
+import { PlanningAssistant } from "@/components/PlanningAssistant";
+import { buildPlanContext } from "@/lib/buildPlanContext";
 
 function StepContent({ step }: { step: number }) {
   switch (step) {
@@ -146,6 +148,9 @@ export default function Home() {
           />
         </div>
       </div>
+
+      {/* AI planning assistant — floating bottom-right */}
+      <PlanningAssistant planContext={buildPlanContext(m, result)} />
 
       {/* Off-screen render target used for PDF export */}
       <div style={{ position: "fixed", top: 0, left: -10000 }}>
