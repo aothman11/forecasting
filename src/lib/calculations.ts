@@ -391,6 +391,10 @@ export function computeSummaryMetrics(result: PipelineResult): SummaryMetrics {
   const totalWcFrozenKg = result.family.reduce((s, r) => s + r.wcFrozenKg, 0);
   const totalCutsKg = result.cuts.reduce((s, r) => s + r.netCutsKg, 0);
   const totalFppKg = result.cuts.reduce((s, r) => s + r.fppInputKg, 0);
+  // Use cutsKg from the family-allocation step (before cut yields are applied) so that
+  // Total Production = WC Fresh + WC Frozen + Cuts Input = Total Carcass when family
+  // allocation sums to 100% — consistent with the Monthly Overview formula.
+  const totalCutsInputKg = result.family.reduce((s, r) => s + r.cutsKg, 0);
   const totalWc = totalWcFreshKg + totalWcFrozenKg;
   const avgUtilizationPct =
     result.liveBird.length > 0
@@ -406,7 +410,7 @@ export function computeSummaryMetrics(result: PipelineResult): SummaryMetrics {
     totalWcFrozenKg,
     totalCutsKg,
     totalFppKg,
-    totalProductionKg: totalWcFreshKg + totalWcFrozenKg + totalCutsKg + totalFppKg,
+    totalProductionKg: totalWcFreshKg + totalWcFrozenKg + totalCutsInputKg,
     avgFreshSharePct: totalWc > 0 ? (totalWcFreshKg / totalWc) * 100 : 0,
     avgFrozenSharePct: totalWc > 0 ? (totalWcFrozenKg / totalWc) * 100 : 0,
     avgUtilizationPct,
