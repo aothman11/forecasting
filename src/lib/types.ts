@@ -202,6 +202,16 @@ export interface DemandProduct {
 /** Sparse quantity map keyed by `${productId}::${channel}::${week}`. */
 export type DemandPlanQty = Record<string, number>;
 
+/** A snapshot of the demand plan saved to the archive. */
+export interface ArchivedPlan {
+  id: string;
+  label: string;
+  savedAt: string; // ISO date string
+  demandQty: DemandPlanQty;
+  /** Sum of all qty values across all cells — used for quick display. */
+  totalQty: number;
+}
+
 /** Module 2: one row per harvest week — demand requirements vs planned supply. */
 export interface SupplyRequirementsWeek {
   week: number;

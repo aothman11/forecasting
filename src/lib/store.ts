@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import type {
+  ArchivedPlan,
   ChannelKey,
   DemandPlanQty,
   DemandProduct,
@@ -65,6 +66,7 @@ interface PlanState {
   homeOpen: boolean;
   bomOpen: boolean;
   scenarios: ScenarioSnapshot[];
+  archivedPlans: ArchivedPlan[];
 
   setParam: (patch: Partial<Parameters>) => void;
   setNestedParam: <K extends keyof Parameters>(key: K, value: Parameters[K]) => void;
@@ -121,6 +123,8 @@ interface PlanState {
   setBomOpen: (open: boolean) => void;
   saveScenario: (name: string) => void;
   deleteScenario: (id: string) => void;
+  saveCurrentPlanToArchive: (label: string) => void;
+  deleteArchivedPlan: (id: string) => void;
 }
 
 export const usePlanStore = create<PlanState>()(
@@ -160,6 +164,7 @@ export const usePlanStore = create<PlanState>()(
       homeOpen: true,
       bomOpen: false,
       scenarios: [],
+      archivedPlans: [],
       harvestDeferrals: {},
 
       setParam: (patch) =>
@@ -426,10 +431,27 @@ export const usePlanStore = create<PlanState>()(
 
       deleteScenario: (id) =>
         set((s) => ({ scenarios: s.scenarios.filter((sc) => sc.id !== id) })),
+
+      saveCurrentPlanToArchive: (label) =>
+        set((s) => ({
+          archivedPlans: [
+            ...s.archivedPlans,
+            {
+              id: `archive-${Date.now()}`,
+              label,
+              savedAt: new Date().toISOString(),
+              demandQty: { ...s.demandQty },
+              totalQty: Object.values(s.demandQty).reduce((a, b) => a + b, 0),
+            },
+          ],
+        })),
+
+      deleteArchivedPlan: (id) =>
+        set((s) => ({ archivedPlans: s.archivedPlans.filter((p) => p.id !== id) })),
     }),
     {
       name: "awp-broiler-forecast-store",
-      version: 17,
+      version: 18,
       // v2  switched Step 1 from weekly to daily placement rows (PlacementRow -> PlacementDayRow).
       // v3  replaced the farm-based model with the house-based processing chain — discarded wholesale.
       // v4  added housesPerFarm (additive).
@@ -453,6 +475,11 @@ export const usePlanStore = create<PlanState>()(
       // v16 Plant capacities updated: Plant 1 off (0), Plant 2 → 250k/day, Plant 3 → 500k/day.
       //     Plant shares updated: Plant 1 → 0, Plant 2 → 33.3%, Plant 3 → 66.7%.
       migrate: (persisted, version) => {
+        if (version >= 18) return persisted;
+        // v17 → v18: add archivedPlans (additive).
+        if (version === 17) {
+          return { ...(persisted as Record<string, unknown>), archivedPlans: [] };
+        }
         if (version >= 17) return persisted;
         // v16 → v17: persist salesPlanCartonRows + salesPlanCartonConfirmed.
         // The aggregated form (unique week × plant × SKU) is compact (~300 KB for a
