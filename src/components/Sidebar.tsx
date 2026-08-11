@@ -25,6 +25,8 @@ export function Sidebar() {
   const setHomeOpen = usePlanStore((s) => s.setHomeOpen);
   const bomOpen = usePlanStore((s) => s.bomOpen);
   const setBomOpen = usePlanStore((s) => s.setBomOpen);
+  const cutBalanceOpen = usePlanStore((s) => s.cutBalanceOpen);
+  const setCutBalanceOpen = usePlanStore((s) => s.setCutBalanceOpen);
   const processingPlanOpen = usePlanStore((s) => s.processingPlanOpen);
   const setProcessingPlanOpen = usePlanStore((s) => s.setProcessingPlanOpen);
   const broilerIntakeOpen = usePlanStore((s) => s.broilerIntakeOpen);
@@ -34,6 +36,7 @@ export function Sidebar() {
     setCompareOpen(false); setDemandOpen(false); setSupplyOpen(false);
     setReconcileOpen(false); setDdpOpen(false); setReportOpen(false);
     setBomOpen(false); setProcessingPlanOpen(false); setBroilerIntakeOpen(false);
+    setCutBalanceOpen(false);
   };
 
   const btnBase = "w-full text-left flex items-center transition-colors text-sm";
@@ -115,6 +118,7 @@ export function Sidebar() {
         <NavBtn active={reconcileOpen} onClick={() => { closeAll(); setHomeOpen(false); setReconcileOpen(true); }} badge="M3" label="Reconciliation" title="M3 · Reconciliation" />
         <NavBtn active={ddpOpen} onClick={() => { closeAll(); setHomeOpen(false); setDdpOpen(true); }} badge="M4" label="Demand-Driven Placement" title="M4 · Demand-Driven Placement" />
         <NavBtn active={reportOpen} onClick={() => { closeAll(); setHomeOpen(false); setReportOpen(true); }} badge="M5" label="COP Report" title="M5 · COP Report" />
+        <NavBtn active={cutBalanceOpen} onClick={() => { closeAll(); setHomeOpen(false); setCutBalanceOpen(true); }} badge="🥩" label="Co-Product Balance" title="Co-Product Balance · Cut Surplus Planning" />
 
         {/* Processing Plan header */}
         {!collapsed && (

@@ -3,6 +3,7 @@ import { persist } from "zustand/middleware";
 import type {
   ArchivedPlan,
   ChannelKey,
+  CutKey,
   DemandPlanQty,
   DemandProduct,
   Farm,
@@ -65,6 +66,8 @@ interface PlanState {
   reportOpen: boolean;
   homeOpen: boolean;
   bomOpen: boolean;
+  cutBalanceOpen: boolean;
+  cutProductMapping: Record<string, CutKey | "ignore">;
   scenarios: ScenarioSnapshot[];
   archivedPlans: ArchivedPlan[];
 
@@ -121,6 +124,8 @@ interface PlanState {
   setReportOpen: (open: boolean) => void;
   setHomeOpen: (open: boolean) => void;
   setBomOpen: (open: boolean) => void;
+  setCutBalanceOpen: (open: boolean) => void;
+  setCutProductMapping: (mapping: Record<string, CutKey | "ignore">) => void;
   saveScenario: (name: string) => void;
   deleteScenario: (id: string) => void;
   saveCurrentPlanToArchive: (label: string) => void;
@@ -163,6 +168,8 @@ export const usePlanStore = create<PlanState>()(
       reportOpen: false,
       homeOpen: true,
       bomOpen: false,
+      cutBalanceOpen: false,
+      cutProductMapping: {},
       scenarios: [],
       archivedPlans: [],
       harvestDeferrals: {},
@@ -403,6 +410,8 @@ export const usePlanStore = create<PlanState>()(
       setBomRecords: (records) => set({ bomRecords: records }),
 
       setCompareOpen: (open) => set({ compareOpen: open }),
+      setCutBalanceOpen: (open) => set({ cutBalanceOpen: open }),
+      setCutProductMapping: (mapping) => set({ cutProductMapping: mapping }),
       setDemandOpen: (open) => set({ demandOpen: open }),
       setSupplyOpen: (open) => set({ supplyOpen: open }),
       setReconcileOpen: (open) => set({ reconcileOpen: open }),
@@ -451,7 +460,7 @@ export const usePlanStore = create<PlanState>()(
     }),
     {
       name: "awp-broiler-forecast-store",
-      version: 18,
+      version: 19,
       // v2  switched Step 1 from weekly to daily placement rows (PlacementRow -> PlacementDayRow).
       // v3  replaced the farm-based model with the house-based processing chain — discarded wholesale.
       // v4  added housesPerFarm (additive).
@@ -475,10 +484,15 @@ export const usePlanStore = create<PlanState>()(
       // v16 Plant capacities updated: Plant 1 off (0), Plant 2 → 250k/day, Plant 3 → 500k/day.
       //     Plant shares updated: Plant 1 → 0, Plant 2 → 33.3%, Plant 3 → 66.7%.
       migrate: (persisted, version) => {
+        if (version >= 19) return persisted;
+        // v18 → v19: add cutProductMapping (additive).
+        if (version === 18) {
+          return { ...(persisted as Record<string, unknown>), cutProductMapping: {} };
+        }
         if (version >= 18) return persisted;
         // v17 → v18: add archivedPlans (additive).
         if (version === 17) {
-          return { ...(persisted as Record<string, unknown>), archivedPlans: [] };
+          return { ...(persisted as Record<string, unknown>), archivedPlans: [], cutProductMapping: {} };
         }
         if (version >= 17) return persisted;
         // v16 → v17: persist salesPlanCartonRows + salesPlanCartonConfirmed.
