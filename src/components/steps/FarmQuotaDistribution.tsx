@@ -490,13 +490,36 @@ function PlacementLogTab({ farms }: { farms: Farm[] }) {
   const setEntries = usePlanStore((s) => s.setPlacementEntries);
   const updateConfig = usePlanStore((s) => s.updateMonthlyPlanConfig);
   const setOverride = usePlanStore((s) => s.setDailyPlannedQtyOverride);
+  const params = usePlanStore((s) => s.params);
 
   const { result } = usePipeline();
 
+  /** The selected planning month = the CATCHING month (when birds reach the plant). */
   const monthPrefix = config.planningMonth.slice(0, 7);
+
+  /**
+   * Average grow-out cycle length across active farms.
+   * Farm placement date = catching date − avgCycleLengthDays.
+   */
+  const avgCycleLengthDays = useMemo(() => {
+    const active = farms.filter((f) => f.status === "Active");
+    if (active.length === 0) return params.cycleLengthDays;
+    return Math.round(active.reduce((s, f) => s + f.cycleLengthDays, 0) / active.length);
+  }, [farms, params.cycleLengthDays]);
+
+  /**
+   * The month in which chicks are actually placed on farms.
+   * = catching month start − avgCycleLengthDays days → take YYYY-MM.
+   */
+  const placementMonthPrefix = useMemo(() => {
+    const catchingMonthStart = new Date(monthPrefix + "-01");
+    const ms = catchingMonthStart.getTime() - avgCycleLengthDays * 24 * 60 * 60 * 1000;
+    return new Date(ms).toISOString().slice(0, 7);
+  }, [monthPrefix, avgCycleLengthDays]);
+
   const monthEntries = useMemo(
-    () => entries.filter((e) => e.date.startsWith(monthPrefix)),
-    [entries, monthPrefix]
+    () => entries.filter((e) => e.date.startsWith(placementMonthPrefix)),
+    [entries, placementMonthPrefix]
   );
 
   const farmMap = useMemo(() => new Map(farms.map((f) => [f.code, f])), [farms]);
@@ -505,17 +528,28 @@ function PlacementLogTab({ farms }: { farms: Farm[] }) {
     return result.placementDays
       .filter((d) => d.date.startsWith(monthPrefix) && d.farmsPlacing > 0)
       .map((d) => {
+        // d.date is the catching/slaughter date from Step 1.
+        // Derive the farm placement date by subtracting the grow-out cycle.
+        const ms = new Date(d.date).getTime() - avgCycleLengthDays * 24 * 60 * 60 * 1000;
+        const placementDate = new Date(ms).toISOString().slice(0, 10);
+
         const plannedQty = overrides[d.date] ?? d.farmsPlacing * d.chicksPerHouse;
         const allocatedQty = monthEntries
-          .filter((e) => e.date === d.date)
+          .filter((e) => e.date === placementDate)
           .reduce((s, e) => s + e.qtyPlaced, 0);
-        return { date: d.date, plannedQty, allocatedQty, gap: plannedQty - allocatedQty };
+        return {
+          date: placementDate,   // farm placement date (what to show)
+          catchingDate: d.date,  // slaughter/catching date (Step 1 source, override key)
+          plannedQty,
+          allocatedQty,
+          gap: plannedQty - allocatedQty,
+        };
       });
-  }, [result.placementDays, monthPrefix, overrides, monthEntries]);
+  }, [result.placementDays, monthPrefix, overrides, monthEntries, avgCycleLengthDays]);
 
   const [draft, setDraft] = useState<Omit<PlacementEntry, "id">>({
     farmCode: "",
-    date: config.planningMonth.slice(0, 10),
+    date: placementMonthPrefix + "-01",
     birdType: "Cobb",
     qtyPlaced: 0,
   });
@@ -530,7 +564,7 @@ function PlacementLogTab({ farms }: { farms: Farm[] }) {
 
   function handleSuggest() {
     setSuggesting(true);
-    const suggestions = generateSuggestions(calendarDays, farms, entries, monthPrefix);
+    const suggestions = generateSuggestions(calendarDays, farms, entries, placementMonthPrefix);
     for (const s of suggestions) {
       addEntry({ ...s, id: `sug-${Date.now()}-${Math.random().toString(36).slice(2, 7)}` });
     }
@@ -618,7 +652,8 @@ function PlacementLogTab({ farms }: { farms: Farm[] }) {
         <div className="flex-1 min-w-0 space-y-2">
           <div className="flex items-center justify-between">
             <span className="text-sm font-semibold text-neutral-700">
-              Placement Entries — {config.planningMonth.slice(0, 7)}
+              Placement Entries — {placementMonthPrefix}
+              <span className="ml-1 text-xs font-normal text-neutral-400">(for {monthPrefix} catching)</span>
             </span>
             <div className="flex items-center gap-2">
               <span className="text-xs text-neutral-400">{monthEntries.length} rows</span>
@@ -635,8 +670,8 @@ function PlacementLogTab({ farms }: { farms: Farm[] }) {
               {monthEntries.length > 0 && (
                 <button
                   onClick={() => {
-                    if (confirm(`Delete all ${monthEntries.length} placement entries for ${monthPrefix}? This cannot be undone.`)) {
-                      setEntries(entries.filter((e) => !e.date.startsWith(monthPrefix)));
+                    if (confirm(`Delete all ${monthEntries.length} placement entries for ${placementMonthPrefix}? This cannot be undone.`)) {
+                      setEntries(entries.filter((e) => !e.date.startsWith(placementMonthPrefix)));
                     }
                   }}
                   className="px-3 py-1.5 text-xs font-semibold rounded border border-red-300 text-red-600 hover:bg-red-50 transition-colors"
@@ -728,7 +763,7 @@ function PlacementLogTab({ farms }: { farms: Farm[] }) {
                 {monthEntries.length === 0 ? (
                   <tr>
                     <td colSpan={10} className="text-center py-6 text-neutral-400">
-                      No entries for {config.planningMonth.slice(0, 7)}. Use the form above to add placement
+                      No entries for {placementMonthPrefix}. Use the form above to add placement
                       events, or click <strong>Suggest farms</strong> to auto-distribute from the pipeline.
                     </td>
                   </tr>
@@ -818,7 +853,7 @@ function PlacementLogTab({ farms }: { farms: Farm[] }) {
         <div className="w-64 shrink-0">
           <div className="text-sm font-semibold text-neutral-700 mb-1">Daily Calendar</div>
           <div className="text-xs text-neutral-400 mb-2">
-            From Step 1 pipeline · amber = override
+            Placement dates · catches in {monthPrefix} · amber = override
           </div>
           <div className="rounded-lg border border-[var(--border-subtle)] overflow-hidden">
             <div className="overflow-y-auto max-h-[500px]">
@@ -840,10 +875,15 @@ function PlacementLogTab({ farms }: { farms: Farm[] }) {
                     </tr>
                   ) : (
                     calendarDays.map((d) => {
-                      const hasOverride = overrides[d.date] !== undefined;
+                      const hasOverride = overrides[d.catchingDate] !== undefined;
                       return (
-                        <tr key={d.date}>
-                          <td className="font-mono text-[10px]">{d.date.slice(5)}</td>
+                        <tr key={d.catchingDate}>
+                          <td className="font-mono text-[10px]">
+                            <div>{d.date.slice(5)}</div>
+                            <div className="text-neutral-300 text-[9px]" title={`Catches ${d.catchingDate}`}>
+                              ↗ {d.catchingDate.slice(5)}
+                            </div>
+                          </td>
                           <td className="text-right">
                             <div className="flex items-center justify-end gap-0.5">
                               <input
@@ -853,11 +893,11 @@ function PlacementLogTab({ farms }: { farms: Farm[] }) {
                                   hasOverride ? "bg-amber-50" : ""
                                 }`}
                                 value={d.plannedQty}
-                                onChange={(e) => setOverride(d.date, Number(e.target.value))}
+                                onChange={(e) => setOverride(d.catchingDate, Number(e.target.value))}
                               />
                               {hasOverride && (
                                 <button
-                                  onClick={() => setOverride(d.date, null)}
+                                  onClick={() => setOverride(d.catchingDate, null)}
                                   className="text-amber-500 hover:text-amber-700 text-[10px]"
                                   title="Reset to pipeline"
                                 >
