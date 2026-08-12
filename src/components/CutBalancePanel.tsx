@@ -195,7 +195,7 @@ export function CutBalancePanel() {
 
       {/* Header */}
       <div>
-        <h2 className="text-base font-semibold text-neutral-800">Co-Product Balance</h2>
+        <h2 className="text-base font-semibold text-neutral-800">Whole Carcass Balance</h2>
         <p className="text-xs text-neutral-500 mt-0.5">
           Demand for any cut (e.g. breast) determines how many birds are slaughtered.
           Those birds produce <em>all</em> other cuts regardless of demand — this view shows

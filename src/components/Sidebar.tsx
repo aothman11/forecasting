@@ -118,7 +118,6 @@ export function Sidebar() {
         <NavBtn active={reconcileOpen} onClick={() => { closeAll(); setHomeOpen(false); setReconcileOpen(true); }} badge="M3" label="Reconciliation" title="M3 · Reconciliation" />
         <NavBtn active={ddpOpen} onClick={() => { closeAll(); setHomeOpen(false); setDdpOpen(true); }} badge="M4" label="Demand-Driven Placement" title="M4 · Demand-Driven Placement" />
         <NavBtn active={reportOpen} onClick={() => { closeAll(); setHomeOpen(false); setReportOpen(true); }} badge="M5" label="COP Report" title="M5 · COP Report" />
-        <NavBtn active={cutBalanceOpen} onClick={() => { closeAll(); setHomeOpen(false); setCutBalanceOpen(true); }} badge="🥩" label="Co-Product Balance" title="Co-Product Balance · Cut Surplus Planning" />
 
         {/* Processing Plan header */}
         {!collapsed && (
@@ -140,6 +139,13 @@ export function Sidebar() {
           label="Broiler Intake"
           title="Broiler Intake Plan — Supply vs Demand"
         />
+        <NavBtn
+          active={cutBalanceOpen}
+          onClick={() => { closeAll(); setHomeOpen(false); setCutBalanceOpen(true); }}
+          badge="WC"
+          label="Whole Carcass Balance"
+          title="Whole Carcass Balance — Cut Surplus from Demand"
+        />
 
         {/* Production Pipeline header */}
         {!collapsed && (
@@ -148,7 +154,7 @@ export function Sidebar() {
         {collapsed && <div className="border-t border-neutral-100 my-1 mx-2" />}
 
         {STEPS.map((step) => {
-          const active = !compareOpen && !demandOpen && !supplyOpen && !reconcileOpen && !ddpOpen && !reportOpen && !homeOpen && !bomOpen && !processingPlanOpen && !broilerIntakeOpen && selectedStep === step.id;
+          const active = !compareOpen && !demandOpen && !supplyOpen && !reconcileOpen && !ddpOpen && !reportOpen && !homeOpen && !bomOpen && !processingPlanOpen && !broilerIntakeOpen && !cutBalanceOpen && selectedStep === step.id;
           return (
             <NavBtn
               key={step.id}
