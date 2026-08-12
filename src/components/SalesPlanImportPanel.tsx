@@ -40,12 +40,57 @@ function computeProductTotals(demandQty: DemandPlanQty): Map<string, number> {
   return totals;
 }
 
+function computeChannelTotals(demandQty: DemandPlanQty): Map<string, number> {
+  const totals = new Map<string, number>();
+  for (const [key, qty] of Object.entries(demandQty)) {
+    const ch = key.split("::")[1];
+    if (ch) totals.set(ch, (totals.get(ch) ?? 0) + qty);
+  }
+  return totals;
+}
+
+function computeWeekTotals(demandQty: DemandPlanQty): Map<number, number> {
+  const totals = new Map<number, number>();
+  for (const [key, qty] of Object.entries(demandQty)) {
+    const w = Number(key.split("::")[2]);
+    if (!isNaN(w)) totals.set(w, (totals.get(w) ?? 0) + qty);
+  }
+  return totals;
+}
+
+function computeCategoryTotals(
+  demandQty: DemandPlanQty,
+  products: { id: string; category: string }[],
+): Record<string, number> {
+  const catMap = new Map(products.map((p) => [p.id, p.category]));
+  const totals: Record<string, number> = {};
+  for (const [key, qty] of Object.entries(demandQty)) {
+    const cat = catMap.get(key.split("::")[0]);
+    if (cat) totals[cat] = (totals[cat] ?? 0) + qty;
+  }
+  return totals;
+}
+
 function formatDate(iso: string) {
   return new Date(iso).toLocaleString("en-GB", {
     day: "2-digit", month: "short", year: "numeric",
     hour: "2-digit", minute: "2-digit",
   });
 }
+
+const CAT_COLORS: Record<string, string> = {
+  wholeChicken: "bg-blue-50 text-blue-700 border-blue-200",
+  cuts: "bg-purple-50 text-purple-700 border-purple-200",
+  fpp: "bg-amber-50 text-amber-700 border-amber-200",
+  eggs: "bg-emerald-50 text-emerald-700 border-emerald-200",
+};
+const CAT_SHORT: Record<string, string> = {
+  wholeChicken: "WC", cuts: "Cuts", fpp: "FPP", eggs: "Eggs",
+};
+const CH_COLOR_MAP = [
+  "bg-blue-500", "bg-purple-500", "bg-amber-500", "bg-emerald-500",
+  "bg-rose-500", "bg-sky-500", "bg-orange-500", "bg-teal-500",
+];
 
 // ── Component ────────────────────────────────────────────────────────────────
 
@@ -87,9 +132,13 @@ export function SalesPlanImportPanel({ onClose }: { onClose: () => void }) {
   const [saveLabel, setSaveLabel] = useState("");
   const [savedConfirm, setSavedConfirm] = useState(false);
 
+  // ── archive / expand state ───────────────────────────────────────────────
+  const [expandedPlanId, setExpandedPlanId] = useState<string | null>(null);
+
   // ── compare state ────────────────────────────────────────────────────────
   const [compareIds, setCompareIds] = useState<string[]>([]);
   const [showCompare, setShowCompare] = useState(false);
+  const [compareTab, setCompareTab] = useState<"products" | "channels" | "weeks">("products");
 
   // ── derived import values ────────────────────────────────────────────────
   const productsById = useMemo(() => new Map(demandProducts.map((p) => [p.id, p])), [demandProducts]);
@@ -682,63 +731,208 @@ export function SalesPlanImportPanel({ onClose }: { onClose: () => void }) {
             </div>
           ) : (
             <>
-              {compareIds.length === 2 && !showCompare && (
-                <button
-                  onClick={() => setShowCompare(true)}
-                  className="w-full text-xs font-medium px-3 py-1.5 rounded-md bg-brand-green text-white hover:bg-brand-green-dark transition-colors"
-                >
-                  Compare Selected Plans
-                </button>
-              )}
-              {compareIds.length > 0 && (
-                <div className="text-[11px] text-neutral-400">
-                  {compareIds.length === 1 ? "Select one more plan to compare." : ""}
-                  {compareIds.length === 2 && !showCompare ? "" : ""}
-                  <button onClick={() => { setCompareIds([]); setShowCompare(false); }} className="ml-2 text-brand-alert hover:underline">
-                    Clear selection
+              {/* Compare toolbar */}
+              <div className="flex items-center gap-2 flex-wrap">
+                {compareIds.length === 2 && !showCompare && (
+                  <button
+                    onClick={() => { setShowCompare(true); setCompareTab("products"); }}
+                    className="text-xs font-medium px-3 py-1.5 rounded-md bg-brand-green text-white hover:bg-brand-green-dark transition-colors"
+                  >
+                    ⇄ Compare Selected Plans
                   </button>
-                </div>
-              )}
+                )}
+                {compareIds.length > 0 && (
+                  <span className="text-[11px] text-neutral-400">
+                    {compareIds.length === 1 && "Select one more plan to compare."}
+                    <button onClick={() => { setCompareIds([]); setShowCompare(false); }} className="ml-2 text-brand-alert hover:underline">
+                      Clear selection
+                    </button>
+                  </span>
+                )}
+              </div>
 
               {/* Plan list */}
-              <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
+              <div className="space-y-2 max-h-[420px] overflow-y-auto pr-1">
                 {[...archivedPlans].reverse().map((plan) => {
                   const isSelected = compareIds.includes(plan.id);
                   const isDisabled = compareIds.length === 2 && !isSelected;
+                  const isExpanded = expandedPlanId === plan.id;
+                  const catTotals = isExpanded ? computeCategoryTotals(plan.demandQty, demandProducts) : null;
+                  const chTotals  = isExpanded ? computeChannelTotals(plan.demandQty) : null;
+                  const wkTotals  = isExpanded ? computeWeekTotals(plan.demandQty) : null;
+                  const prodTotals = isExpanded ? computeProductTotals(plan.demandQty) : null;
+
+                  // Top products for detail view
+                  const topProducts = isExpanded && prodTotals
+                    ? [...prodTotals.entries()]
+                        .sort((a, b) => b[1] - a[1])
+                        .slice(0, 10)
+                        .map(([id, qty]) => ({ product: demandProducts.find((p) => p.id === id), qty }))
+                        .filter((r) => r.product)
+                    : [];
+
+                  // Quick category chips for the card header
+                  const quickCatTotals = computeCategoryTotals(plan.demandQty, demandProducts);
+
+                  // Channel bar chart max
+                  const chMax = chTotals ? Math.max(...chTotals.values(), 1) : 1;
+                  // Week bar chart max
+                  const wkMax = wkTotals ? Math.max(...wkTotals.values(), 1) : 1;
+
                   return (
                     <div
                       key={plan.id}
-                      className={`rounded-lg border p-3 flex items-center gap-3 ${
-                        isSelected ? "border-brand-green bg-brand-green-tint" : "border-[var(--border-subtle)] bg-white"
-                      }`}
+                      className={`rounded-lg border transition-colors ${
+                        isSelected ? "border-brand-green" : "border-[var(--border-subtle)]"
+                      } ${isExpanded ? "bg-neutral-50" : "bg-white"}`}
                     >
-                      <input
-                        type="checkbox"
-                        checked={isSelected}
-                        disabled={isDisabled}
-                        onChange={() => toggleCompare(plan.id)}
-                        className="accent-[var(--brand-green)] shrink-0"
-                        title="Select for comparison"
-                      />
-                      <div className="flex-1 min-w-0">
-                        <div className="text-xs font-semibold text-neutral-800 truncate">{plan.label}</div>
-                        <div className="text-[10px] text-neutral-400 mt-0.5">
-                          {formatDate(plan.savedAt)} · {plan.totalQty.toFixed(1)} total qty
+                      {/* Card header row */}
+                      <div className="flex items-start gap-3 p-3">
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          disabled={isDisabled}
+                          onChange={() => toggleCompare(plan.id)}
+                          className="accent-[var(--brand-green)] shrink-0 mt-0.5"
+                          title="Select for comparison"
+                        />
+                        <div className="flex-1 min-w-0">
+                          <div className="text-xs font-semibold text-neutral-800">{plan.label}</div>
+                          <div className="text-[10px] text-neutral-400 mt-0.5">{formatDate(plan.savedAt)}</div>
+                          {/* Category chips */}
+                          <div className="flex flex-wrap gap-1 mt-1.5">
+                            {(["wholeChicken", "cuts", "fpp", "eggs"] as const).map((cat) => {
+                              const qty = quickCatTotals[cat] ?? 0;
+                              if (qty === 0) return null;
+                              return (
+                                <span key={cat} className={`border rounded px-1.5 py-0.5 text-[10px] font-medium ${CAT_COLORS[cat]}`}>
+                                  {CAT_SHORT[cat]}: {qty.toFixed(0)} t
+                                </span>
+                              );
+                            })}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <button
+                            onClick={() => setExpandedPlanId(isExpanded ? null : plan.id)}
+                            className={`text-[11px] px-2 py-1 rounded border transition-colors ${
+                              isExpanded
+                                ? "border-brand-green text-brand-green-dark bg-brand-green-tint"
+                                : "border-[var(--border-subtle)] text-neutral-500 hover:border-brand-green hover:text-brand-green"
+                            }`}
+                            title={isExpanded ? "Collapse details" : "Expand details"}
+                          >
+                            {isExpanded ? "▲ Hide" : "↗ Details"}
+                          </button>
+                          <button
+                            onClick={() => {
+                              if (confirm(`Delete "${plan.label}" from archive?`)) {
+                                deleteArchivedPlan(plan.id);
+                                setCompareIds((prev) => prev.filter((x) => x !== plan.id));
+                                if (expandedPlanId === plan.id) setExpandedPlanId(null);
+                                setShowCompare(false);
+                              }
+                            }}
+                            className="text-neutral-300 hover:text-brand-alert text-sm transition-colors"
+                            title="Delete"
+                          >
+                            ✕
+                          </button>
                         </div>
                       </div>
-                      <button
-                        onClick={() => {
-                          if (confirm(`Delete "${plan.label}" from archive?`)) {
-                            deleteArchivedPlan(plan.id);
-                            setCompareIds((prev) => prev.filter((x) => x !== plan.id));
-                            setShowCompare(false);
-                          }
-                        }}
-                        className="text-neutral-300 hover:text-brand-alert text-sm shrink-0 transition-colors"
-                        title="Delete"
-                      >
-                        ✕
-                      </button>
+
+                      {/* Expanded detail panel */}
+                      {isExpanded && chTotals && wkTotals && (
+                        <div className="border-t border-[var(--border-subtle)] px-4 py-3 space-y-4">
+
+                          {/* Channels bar chart */}
+                          <div>
+                            <div className="text-[10px] font-semibold uppercase tracking-wide text-neutral-500 mb-2">By Channel (t)</div>
+                            <div className="space-y-1.5">
+                              {CHANNEL_KEYS.filter((ch) => (chTotals.get(ch) ?? 0) > 0)
+                                .sort((a, b) => (chTotals.get(b) ?? 0) - (chTotals.get(a) ?? 0))
+                                .map((ch, i) => {
+                                  const qty = chTotals.get(ch) ?? 0;
+                                  const pct = (qty / chMax) * 100;
+                                  return (
+                                    <div key={ch} className="flex items-center gap-2 text-[11px]">
+                                      <div className="w-20 text-neutral-500 truncate shrink-0">{CHANNEL_LABELS[ch]}</div>
+                                      <div className="flex-1 bg-neutral-100 rounded-full h-4 overflow-hidden">
+                                        <div
+                                          className={`h-full rounded-full ${CH_COLOR_MAP[i % CH_COLOR_MAP.length]} opacity-75`}
+                                          style={{ width: `${pct}%` }}
+                                        />
+                                      </div>
+                                      <div className="w-14 text-right tabular-nums text-neutral-600">{qty.toFixed(1)} t</div>
+                                    </div>
+                                  );
+                                })}
+                            </div>
+                          </div>
+
+                          {/* Weekly sparkline */}
+                          <div>
+                            <div className="text-[10px] font-semibold uppercase tracking-wide text-neutral-500 mb-2">By Week (t)</div>
+                            <div className="flex items-end gap-0.5 h-12 overflow-x-auto">
+                              {[...wkTotals.entries()]
+                                .sort((a, b) => a[0] - b[0])
+                                .map(([wk, qty]) => {
+                                  const h = Math.max((qty / wkMax) * 100, 4);
+                                  return (
+                                    <div
+                                      key={wk}
+                                      className="flex flex-col items-center gap-0.5 shrink-0"
+                                      title={`Wk ${wk}: ${qty.toFixed(1)} t`}
+                                    >
+                                      <div
+                                        className="w-4 bg-brand-green rounded-t-sm opacity-75"
+                                        style={{ height: `${h}%` }}
+                                      />
+                                      <div className="text-[8px] text-neutral-400 tabular-nums">{wk}</div>
+                                    </div>
+                                  );
+                                })}
+                            </div>
+                          </div>
+
+                          {/* Top products table */}
+                          {topProducts.length > 0 && (
+                            <div>
+                              <div className="text-[10px] font-semibold uppercase tracking-wide text-neutral-500 mb-1.5">Top Products (t)</div>
+                              <div className="border border-[var(--border-subtle)] rounded-lg overflow-hidden">
+                                <table className="w-full text-xs tabular-nums">
+                                  <thead>
+                                    <tr className="bg-[var(--brand-green-tint)] text-[10px] uppercase tracking-wide text-brand-green-dark">
+                                      <th className="text-left px-3 py-1.5">Product</th>
+                                      <th className="text-left px-3 py-1.5">Category</th>
+                                      <th className="text-right px-3 py-1.5">Total (t)</th>
+                                      <th className="text-right px-3 py-1.5">Share</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody>
+                                    {topProducts.map(({ product, qty }, idx) => {
+                                      if (!product) return null;
+                                      const share = plan.totalQty > 0 ? (qty / plan.totalQty) * 100 : 0;
+                                      return (
+                                        <tr key={idx} className="border-t border-[var(--border-subtle)] hover:bg-neutral-50">
+                                          <td className="px-3 py-1.5 text-neutral-700 truncate max-w-[160px]" title={product.name}>{product.name}</td>
+                                          <td className="px-3 py-1.5">
+                                            <span className={`border rounded px-1.5 py-0.5 text-[10px] font-medium ${CAT_COLORS[product.category]}`}>
+                                              {CAT_SHORT[product.category]}
+                                            </span>
+                                          </td>
+                                          <td className="px-3 py-1.5 text-right font-medium text-neutral-700">{qty.toFixed(1)}</td>
+                                          <td className="px-3 py-1.5 text-right text-neutral-400">{share.toFixed(1)}%</td>
+                                        </tr>
+                                      );
+                                    })}
+                                  </tbody>
+                                </table>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </div>
                   );
                 })}
@@ -746,57 +940,161 @@ export function SalesPlanImportPanel({ onClose }: { onClose: () => void }) {
 
               {/* Compare view */}
               {showCompare && comparePlans.length === 2 && planATotals && planBTotals && (
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <div className="text-xs font-semibold text-neutral-700">Side-by-side comparison</div>
+                <div className="space-y-2 border-t border-[var(--border-subtle)] pt-3">
+                  <div className="flex items-center justify-between flex-wrap gap-2">
+                    <div className="text-xs font-semibold text-neutral-700">
+                      ⇄ {comparePlans[0].label} <span className="text-neutral-400 font-normal">vs</span> {comparePlans[1].label}
+                    </div>
                     <button onClick={() => setShowCompare(false)} className="text-[11px] text-neutral-400 hover:text-neutral-700">
                       Hide
                     </button>
                   </div>
 
-                  {/* Column headers */}
-                  <div className="grid grid-cols-4 gap-1 text-[10px] font-semibold uppercase tracking-wide text-neutral-500 px-2">
-                    <div>Product</div>
-                    <div className="text-right truncate" title={comparePlans[0].label}>{comparePlans[0].label}</div>
-                    <div className="text-right truncate" title={comparePlans[1].label}>{comparePlans[1].label}</div>
-                    <div className="text-right">Diff</div>
+                  {/* Compare tabs */}
+                  <div className="flex rounded-md border border-[var(--border-subtle)] overflow-hidden text-[11px] w-fit">
+                    {(["products", "channels", "weeks"] as const).map((tab) => (
+                      <button
+                        key={tab}
+                        onClick={() => setCompareTab(tab)}
+                        className={`px-3 py-1 font-medium capitalize transition-colors ${
+                          compareTab === tab
+                            ? "bg-brand-green text-white"
+                            : "hover:bg-[var(--brand-green-tint)] text-neutral-600"
+                        }`}
+                      >
+                        {tab === "products" ? "Products" : tab === "channels" ? "Channels" : "Weeks"}
+                      </button>
+                    ))}
                   </div>
 
                   <div className="border border-[var(--border-subtle)] rounded-lg overflow-hidden">
-                    <div className="max-h-72 overflow-y-auto">
-                      {(["wholeChicken", "cuts", "fpp", "eggs"] as const).map((cat) => {
-                        const catProducts = demandProducts.filter((p) => p.category === cat);
-                        if (catProducts.length === 0) return null;
-                        const catRows = catProducts.map((p) => {
-                          const a = planATotals.get(p.id) ?? 0;
-                          const b = planBTotals.get(p.id) ?? 0;
-                          const diff = b - a;
-                          if (a === 0 && b === 0) return null;
-                          return { p, a, b, diff };
-                        }).filter(Boolean) as { p: typeof catProducts[0]; a: number; b: number; diff: number }[];
-                        if (catRows.length === 0) return null;
-                        return (
-                          <div key={cat}>
-                            <div className="bg-[var(--brand-green-tint)] px-3 py-1 text-[10px] font-semibold uppercase tracking-wide text-brand-green-dark">
-                              {PRODUCT_CATEGORY_LABELS[cat]}
+                    {/* Products tab */}
+                    {compareTab === "products" && (
+                      <div className="max-h-72 overflow-y-auto">
+                        <div className="grid grid-cols-4 gap-1 text-[10px] font-semibold uppercase tracking-wide text-neutral-500 px-3 py-1.5 bg-[var(--brand-green-tint)] sticky top-0">
+                          <div>Product</div>
+                          <div className="text-right truncate" title={comparePlans[0].label}>{comparePlans[0].label}</div>
+                          <div className="text-right truncate" title={comparePlans[1].label}>{comparePlans[1].label}</div>
+                          <div className="text-right">Δ</div>
+                        </div>
+                        {(["wholeChicken", "cuts", "fpp", "eggs"] as const).map((cat) => {
+                          const catProducts = demandProducts.filter((p) => p.category === cat);
+                          const catRows = catProducts.map((p) => {
+                            const a = planATotals.get(p.id) ?? 0;
+                            const b = planBTotals.get(p.id) ?? 0;
+                            if (a === 0 && b === 0) return null;
+                            return { p, a, b, diff: b - a };
+                          }).filter(Boolean) as { p: typeof catProducts[0]; a: number; b: number; diff: number }[];
+                          if (catRows.length === 0) return null;
+                          return (
+                            <div key={cat}>
+                              <div className="bg-neutral-50 px-3 py-1 text-[10px] font-semibold uppercase tracking-wide text-neutral-500 border-t border-[var(--border-subtle)]">
+                                {PRODUCT_CATEGORY_LABELS[cat]}
+                              </div>
+                              {catRows.map(({ p, a, b, diff }) => (
+                                <div key={p.id} className="grid grid-cols-4 gap-1 px-3 py-1.5 text-xs border-t border-[var(--border-subtle)] tabular-nums hover:bg-neutral-50">
+                                  <div className="truncate text-neutral-700" title={p.name}>{p.name}</div>
+                                  <div className="text-right text-neutral-600">{a.toFixed(1)}</div>
+                                  <div className="text-right text-neutral-600">{b.toFixed(1)}</div>
+                                  <div className={`text-right font-medium ${diff > 0 ? "text-brand-green-dark" : diff < 0 ? "text-brand-alert" : "text-neutral-400"}`}>
+                                    {diff > 0 ? "+" : ""}{diff.toFixed(1)}
+                                  </div>
+                                </div>
+                              ))}
                             </div>
-                            {catRows.map(({ p, a, b, diff }) => (
-                              <div
-                                key={p.id}
-                                className="grid grid-cols-4 gap-1 px-3 py-1.5 text-xs border-t border-[var(--border-subtle)] tabular-nums hover:bg-neutral-50"
-                              >
-                                <div className="truncate text-neutral-700" title={p.name}>{p.name}</div>
-                                <div className="text-right text-neutral-600">{a.toFixed(1)}</div>
-                                <div className="text-right text-neutral-600">{b.toFixed(1)}</div>
-                                <div className={`text-right font-medium ${diff > 0 ? "text-brand-green-dark" : diff < 0 ? "text-brand-alert" : "text-neutral-400"}`}>
+                          );
+                        })}
+                      </div>
+                    )}
+
+                    {/* Channels tab */}
+                    {compareTab === "channels" && (() => {
+                      const chA = computeChannelTotals(comparePlans[0].demandQty);
+                      const chB = computeChannelTotals(comparePlans[1].demandQty);
+                      const activeChannels = CHANNEL_KEYS.filter((ch) => (chA.get(ch) ?? 0) > 0 || (chB.get(ch) ?? 0) > 0);
+                      const chMax2 = Math.max(...activeChannels.flatMap((ch) => [chA.get(ch) ?? 0, chB.get(ch) ?? 0]), 1);
+                      return (
+                        <div className="p-3 space-y-2.5">
+                          <div className="grid grid-cols-[1fr_auto_auto_auto] gap-x-3 text-[10px] font-semibold uppercase tracking-wide text-neutral-500 px-1 mb-1">
+                            <div>Channel</div>
+                            <div className="text-right w-16 truncate" title={comparePlans[0].label}>{comparePlans[0].label}</div>
+                            <div className="text-right w-16 truncate" title={comparePlans[1].label}>{comparePlans[1].label}</div>
+                            <div className="text-right w-12">Δ</div>
+                          </div>
+                          {activeChannels.map((ch) => {
+                            const a = chA.get(ch) ?? 0;
+                            const b = chB.get(ch) ?? 0;
+                            const diff = b - a;
+                            return (
+                              <div key={ch} className="space-y-0.5">
+                                <div className="grid grid-cols-[1fr_auto_auto_auto] gap-x-3 text-xs items-center px-1">
+                                  <div className="text-neutral-600 font-medium">{CHANNEL_LABELS[ch]}</div>
+                                  <div className="text-right w-16 tabular-nums text-neutral-600">{a.toFixed(1)}</div>
+                                  <div className="text-right w-16 tabular-nums text-neutral-600">{b.toFixed(1)}</div>
+                                  <div className={`text-right w-12 tabular-nums font-medium ${diff > 0 ? "text-brand-green-dark" : diff < 0 ? "text-brand-alert" : "text-neutral-400"}`}>
+                                    {diff > 0 ? "+" : ""}{diff.toFixed(1)}
+                                  </div>
+                                </div>
+                                <div className="flex gap-0.5 h-2 px-1">
+                                  <div className="flex-1 bg-neutral-100 rounded-sm overflow-hidden">
+                                    <div className="h-full bg-blue-400 rounded-sm" style={{ width: `${(a / chMax2) * 100}%` }} />
+                                  </div>
+                                  <div className="flex-1 bg-neutral-100 rounded-sm overflow-hidden">
+                                    <div className="h-full bg-purple-400 rounded-sm" style={{ width: `${(b / chMax2) * 100}%` }} />
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          })}
+                          <div className="flex gap-3 text-[10px] text-neutral-400 pt-1 border-t border-[var(--border-subtle)]">
+                            <span><span className="inline-block w-3 h-2 rounded-sm bg-blue-400 mr-1" />{comparePlans[0].label}</span>
+                            <span><span className="inline-block w-3 h-2 rounded-sm bg-purple-400 mr-1" />{comparePlans[1].label}</span>
+                          </div>
+                        </div>
+                      );
+                    })()}
+
+                    {/* Weeks tab */}
+                    {compareTab === "weeks" && (() => {
+                      const wkA = computeWeekTotals(comparePlans[0].demandQty);
+                      const wkB = computeWeekTotals(comparePlans[1].demandQty);
+                      const allWeeks = [...new Set([...wkA.keys(), ...wkB.keys()])].sort((a, b) => a - b);
+                      const wkMax2 = Math.max(...allWeeks.flatMap((w) => [wkA.get(w) ?? 0, wkB.get(w) ?? 0]), 1);
+                      return (
+                        <div className="max-h-72 overflow-y-auto">
+                          <div className="grid grid-cols-[auto_1fr_auto_auto_auto] gap-x-2 text-[10px] font-semibold uppercase tracking-wide text-neutral-500 px-3 py-1.5 bg-[var(--brand-green-tint)] sticky top-0">
+                            <div>Wk</div>
+                            <div>Comparison</div>
+                            <div className="text-right w-14 truncate" title={comparePlans[0].label}>{comparePlans[0].label}</div>
+                            <div className="text-right w-14 truncate" title={comparePlans[1].label}>{comparePlans[1].label}</div>
+                            <div className="text-right w-12">Δ</div>
+                          </div>
+                          {allWeeks.map((wk) => {
+                            const a = wkA.get(wk) ?? 0;
+                            const b = wkB.get(wk) ?? 0;
+                            const diff = b - a;
+                            return (
+                              <div key={wk} className="grid grid-cols-[auto_1fr_auto_auto_auto] gap-x-2 items-center px-3 py-1.5 border-t border-[var(--border-subtle)] hover:bg-neutral-50 text-xs tabular-nums">
+                                <div className="text-neutral-500 w-6">W{wk}</div>
+                                <div className="flex gap-0.5 h-3">
+                                  <div className="flex-1 bg-neutral-100 rounded-sm overflow-hidden">
+                                    <div className="h-full bg-blue-400 rounded-sm" style={{ width: `${(a / wkMax2) * 100}%` }} />
+                                  </div>
+                                  <div className="flex-1 bg-neutral-100 rounded-sm overflow-hidden">
+                                    <div className="h-full bg-purple-400 rounded-sm" style={{ width: `${(b / wkMax2) * 100}%` }} />
+                                  </div>
+                                </div>
+                                <div className="text-right w-14 text-neutral-600">{a.toFixed(1)}</div>
+                                <div className="text-right w-14 text-neutral-600">{b.toFixed(1)}</div>
+                                <div className={`text-right w-12 font-medium ${diff > 0 ? "text-brand-green-dark" : diff < 0 ? "text-brand-alert" : "text-neutral-400"}`}>
                                   {diff > 0 ? "+" : ""}{diff.toFixed(1)}
                                 </div>
                               </div>
-                            ))}
-                          </div>
-                        );
-                      })}
-                    </div>
+                            );
+                          })}
+                        </div>
+                      );
+                    })()}
                   </div>
                 </div>
               )}
