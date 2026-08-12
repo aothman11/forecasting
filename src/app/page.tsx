@@ -29,6 +29,7 @@ import { ProcessingPlan } from "@/components/steps/ProcessingPlan";
 import { FarmQuotaDistribution } from "@/components/steps/FarmQuotaDistribution";
 import { PlanningAssistant } from "@/components/PlanningAssistant";
 import { CutBalancePanel } from "@/components/CutBalancePanel";
+import { SavePlanButton } from "@/components/SavePlanButton";
 import { buildPlanContext } from "@/lib/buildPlanContext";
 
 function StepContent({ step }: { step: number }) {
@@ -84,6 +85,7 @@ export default function Home() {
               {homeOpen ? "Home" : compareOpen ? "Scenario Comparison" : demandOpen ? "Demand Plan" : supplyOpen ? "Supply Requirements" : reconcileOpen ? "Reconciliation" : ddpOpen ? "Demand-Driven Placement" : reportOpen ? "COP Report" : bomOpen ? "Product BOM" : processingPlanOpen ? "Processing Plan" : broilerIntakeOpen ? "Broiler Intake Plan" : cutBalanceOpen ? "Co-Product Balance" : currentLabel}
             </div>
             <div className="flex items-center gap-3">
+              <SavePlanButton />
               <ExportButtons />
               <button
                 onClick={toggleAssumptions}
