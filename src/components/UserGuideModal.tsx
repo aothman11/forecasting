@@ -174,7 +174,7 @@ const T = {
       step7: {
         label: "Production Pipeline",
         badge: "Step 7",
-        title: "Step 7 · Farm Quota Distribution",
+        title: "Step 7 · Farm Distribution by Cycle",
         subtitle: "Assign weekly chick quotas to farms — SAP MEQ1 export",
         body: "Distributes weekly chick placement totals across your farm roster in rotation order, respecting each farm's capacity ceiling. Output mirrors the SAP MEQ1 format.",
         farmMaster: "The Farm Master is fully editable here — farm code (VERID in SAP), sequence position, capacity ceiling, cycle length, and a Skip This Cycle flag. Inactive and Under Maintenance farms are excluded automatically.",

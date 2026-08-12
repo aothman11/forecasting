@@ -1199,7 +1199,7 @@ export function FarmQuotaDistribution() {
   return (
     <div className="space-y-4">
       <div>
-        <h1 className="text-xl font-bold section-title">Step 7 — Farm Quota Distribution</h1>
+        <h1 className="text-xl font-bold section-title">Step 7 — Farm Distribution by Cycle</h1>
         <p className="text-sm text-neutral-500 mt-0.5">
           Farm master list with capacity, status, and skip flags per placement cycle. Upload from SAP or edit inline.
         </p>

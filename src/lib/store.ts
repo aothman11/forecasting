@@ -29,7 +29,7 @@ export const STEPS = [
   { id: 4, label: "Product Family Allocation", short: "Products", icon: "📦" },
   { id: 5, label: "FPP Cut Plan", short: "Cuts", icon: "🍗" },
   { id: 6, label: "Processing Plan by Plant", short: "Plants", icon: "🏭" },
-  { id: 7, label: "Farm Quota Distribution", short: "Farms", icon: "🌾" },
+  { id: 7, label: "Farm Distribution by Cycle", short: "Farms", icon: "🌾" },
 ] as const;
 
 export type PlantFilter = PlantKey | "all";
