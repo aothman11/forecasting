@@ -493,9 +493,8 @@ export function CutBalancePanel() {
                     <thead>
                       <tr className="bg-neutral-50 text-[10px] uppercase tracking-wide text-neutral-500">
                         <th className="text-left px-3 py-2">Cut Type</th>
-                        <th className="text-right px-3 py-2">Birds needed</th>
-                        <th className="text-right px-3 py-2">Demanded (kg)</th>
-                        <th className="text-right px-3 py-2">Produced (kg)</th>
+                        <th className="text-right px-3 py-2">Demand (kg)</th>
+                        <th className="text-right px-3 py-2">From {fmtK(weekDetail.driverBirds)} birds (kg)</th>
                         <th className="text-right px-3 py-2">Surplus (kg)</th>
                         <th className="text-right px-3 py-2">Surplus (t)</th>
                       </tr>
@@ -505,22 +504,24 @@ export function CutBalancePanel() {
                         const dem = weekDetail.demandKg[ck];
                         const pro = weekDetail.producedKg[ck];
                         const sur = weekDetail.surplusKg[ck];
-                        const birds = weekDetail.birdsNeeded[ck];
                         const isDriver = ck === weekDetail.driverCut;
+                        if (dem === 0 && pro === 0) return null;
                         return (
-                          <tr key={ck} className={`border-t border-[var(--border-subtle)] ${isDriver ? "bg-blue-50/50" : ""}`}>
+                          <tr key={ck} className={`border-t border-[var(--border-subtle)] ${isDriver ? "bg-blue-50/50" : "hover:bg-neutral-50"}`}>
                             <td className="px-3 py-2 font-medium text-neutral-700">
                               {CUT_LABELS[ck]}
-                              {isDriver && <span className="ml-2 text-[10px] bg-blue-100 text-blue-700 border border-blue-200 px-1.5 py-0.5 rounded font-semibold">driver</span>}
+                              {isDriver
+                                ? <span className="ml-2 text-[10px] bg-blue-100 text-blue-700 border border-blue-200 px-1.5 py-0.5 rounded font-semibold">driver</span>
+                                : <span className="ml-2 text-[10px] text-neutral-400">co-product</span>
+                              }
                             </td>
-                            <td className="px-3 py-2 text-right text-neutral-500">{birds > 0 ? fmtK(birds) : "—"}</td>
                             <td className="px-3 py-2 text-right text-neutral-600">{dem > 0 ? Math.round(dem).toLocaleString() : "—"}</td>
-                            <td className="px-3 py-2 text-right text-neutral-600">{pro > 0 ? Math.round(pro).toLocaleString() : "—"}</td>
-                            <td className={`px-3 py-2 text-right font-medium ${sur > 0 ? "text-amber-700" : "text-neutral-400"}`}>
-                              {pro > 0 ? (sur > 0 ? `+${Math.round(sur).toLocaleString()}` : Math.round(sur).toLocaleString()) : "—"}
+                            <td className="px-3 py-2 text-right text-neutral-600 font-medium">{Math.round(pro).toLocaleString()}</td>
+                            <td className={`px-3 py-2 text-right font-medium ${sur > 0 ? "text-amber-700" : sur < 0 ? "text-red-600" : "text-neutral-400"}`}>
+                              {sur > 0 ? `+${Math.round(sur).toLocaleString()}` : sur < 0 ? Math.round(sur).toLocaleString() : "0"}
                             </td>
-                            <td className={`px-3 py-2 text-right font-medium ${sur > 0 ? "text-amber-700" : "text-neutral-400"}`}>
-                              {pro > 0 ? (sur > 0 ? `+${fmtT(sur)}` : fmtT(sur)) : "—"}
+                            <td className={`px-3 py-2 text-right font-medium ${sur > 0 ? "text-amber-700" : sur < 0 ? "text-red-600" : "text-neutral-400"}`}>
+                              {sur > 0 ? `+${fmtT(sur)}` : sur < 0 ? fmtT(sur) : "0.0"}
                             </td>
                           </tr>
                         );
