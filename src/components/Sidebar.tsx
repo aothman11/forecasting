@@ -167,7 +167,7 @@ export function Sidebar() {
         )}
         {collapsed && <div className="border-t border-neutral-100 my-1 mx-2" />}
 
-        <NavBtn active={compareOpen} onClick={() => { closeAll(); setHomeOpen(false); setCompareOpen(true); }} badge="⇄" label="Scenario Comparison" title="Scenario Comparison" />
+        <NavBtn active={compareOpen} onClick={() => { closeAll(); setHomeOpen(false); setCompareOpen(true); }} badge="⇄" label="Saved Plans" title="Saved Plans" />
 
         {/* Master Data header */}
         {!collapsed && (
