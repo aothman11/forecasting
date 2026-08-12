@@ -124,6 +124,7 @@ export function CutBalancePanel() {
   const setCutProductMapping = usePlanStore((s) => s.setCutProductMapping);
 
   const [selectedWeek, setSelectedWeek] = useState<number | null>(null);
+  const [mappingOpen, setMappingOpen] = useState(false);
 
   const cutProducts = useMemo(
     () => demandProducts.filter((p) => p.category === "cuts"),
@@ -196,10 +197,19 @@ export function CutBalancePanel() {
       {/* Header */}
       <div>
         <h2 className="text-base font-semibold text-neutral-800">Whole Carcass Balance</h2>
-        <p className="text-xs text-neutral-500 mt-0.5">
-          Demand for any cut (e.g. breast) determines how many birds are slaughtered.
-          Those birds produce <em>all</em> other cuts regardless of demand — this view shows
-          what becomes surplus as a result.
+        <div className="mt-2 flex flex-wrap items-center gap-1.5 text-[11px]">
+          <span className="bg-blue-50 border border-blue-200 text-blue-700 rounded-md px-2.5 py-1 font-medium">① Sales Demand (kg)</span>
+          <span className="text-neutral-400 font-bold">→</span>
+          <span className="bg-purple-50 border border-purple-200 text-purple-700 rounded-md px-2.5 py-1 font-medium">② Birds Needed per Cut</span>
+          <span className="text-neutral-400 font-bold">→</span>
+          <span className="bg-amber-50 border border-amber-200 text-amber-700 rounded-md px-2.5 py-1 font-medium">③ Driver Cut sets bird count</span>
+          <span className="text-neutral-400 font-bold">→</span>
+          <span className="bg-emerald-50 border border-emerald-200 text-emerald-700 rounded-md px-2.5 py-1 font-medium">④ All cuts produced at yield</span>
+          <span className="text-neutral-400 font-bold">→</span>
+          <span className="bg-red-50 border border-red-200 text-red-700 rounded-md px-2.5 py-1 font-medium">⑤ Surplus = Produced − Demanded</span>
+        </div>
+        <p className="text-[11px] text-neutral-400 mt-1.5">
+          The cut with the highest demand drives slaughter volume. Every bird produces <em>all</em> cuts in fixed yield ratios — any cut below that volume becomes a co-product surplus.
         </p>
       </div>
 
@@ -245,15 +255,17 @@ export function CutBalancePanel() {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 xl:grid-cols-3 gap-5">
-
-            {/* Product mapping */}
+          {/* Product mapping — collapsible */}
+          {mappingOpen && (
             <div className="bg-white border border-[var(--border-subtle)] rounded-xl p-4 space-y-3">
-              <div>
-                <div className="text-xs font-semibold text-neutral-700 uppercase tracking-wide">Product → Cut Type</div>
-                <div className="text-[11px] text-neutral-400 mt-0.5">
-                  Map each demand product to the cut it represents. Auto-suggested from product names.
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="text-xs font-semibold text-neutral-700 uppercase tracking-wide">Product → Cut Type</div>
+                  <div className="text-[11px] text-neutral-400 mt-0.5">
+                    Map each demand product to the cut it represents. Auto-suggested from product names.
+                  </div>
                 </div>
+                <button onClick={() => setMappingOpen(false)} className="text-neutral-400 hover:text-neutral-600 text-lg leading-none" title="Close">×</button>
               </div>
               {cutProducts.length === 0 ? (
                 <div className="text-xs text-neutral-400 py-4 text-center">
@@ -298,16 +310,30 @@ export function CutBalancePanel() {
                 </button>
               )}
             </div>
+          )}
+
+          <div className="grid grid-cols-1 gap-5">
 
             {/* Full-horizon table */}
-            <div className="xl:col-span-2 bg-white border border-[var(--border-subtle)] rounded-xl overflow-hidden">
-              <div className="px-4 py-3 border-b border-[var(--border-subtle)]">
-                <div className="text-xs font-semibold text-neutral-700 uppercase tracking-wide">
-                  Full-Horizon Co-Product Balance
+            <div className="bg-white border border-[var(--border-subtle)] rounded-xl overflow-hidden">
+              <div className="px-4 py-3 border-b border-[var(--border-subtle)] flex items-start justify-between gap-3">
+                <div>
+                  <div className="text-xs font-semibold text-neutral-700 uppercase tracking-wide">
+                    Full-Horizon Co-Product Balance
+                  </div>
+                  <div className="text-[11px] text-neutral-400 mt-0.5">
+                    Production is sized to meet the most demanding cut each week. All other cuts are co-products.
+                  </div>
                 </div>
-                <div className="text-[11px] text-neutral-400 mt-0.5">
-                  Production is sized to meet the most demanding cut each week. All other cuts are co-products.
-                </div>
+                {!mappingOpen && (
+                  <button
+                    onClick={() => setMappingOpen(true)}
+                    className="text-[11px] text-neutral-400 hover:text-brand-green border border-[var(--border-subtle)] hover:border-brand-green rounded px-2 py-1 shrink-0 transition-colors"
+                    title="Configure product-to-cut-type mapping"
+                  >
+                    ⚙ Product Mapping
+                  </button>
+                )}
               </div>
               <div className="overflow-x-auto">
                 <table className="w-full text-xs tabular-nums">
