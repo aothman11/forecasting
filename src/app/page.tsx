@@ -124,7 +124,7 @@ export default function Home() {
             ) : broilerIntakeOpen ? (
               <BroilerIntakePlan />
             ) : cutBalanceOpen ? (
-              <CutBalancePanel result={result} />
+              <CutBalancePanel />
             ) : (
               <StepContent step={selectedStep} />
             )}
