@@ -395,6 +395,21 @@ export function BroilerIntakePlan() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [supplyMap, params.carcassSizeDistribution]);
 
+  // ── isoWeek → actual start-date timestamp (for cross-year sort) ──
+  // ISO week numbers restart at 1 every January, so a plan spanning Aug 2026 → Jan 2027
+  // has supply weeks 32-52 (2026) and demand weeks 1-4 (2027). Sorting numerically
+  // puts Jan 2027 (ISO 1-4) before Aug 2026 (ISO 32+). We sort by calendar date instead.
+  const isoWeekToDate = useMemo(() => {
+    const [y, mo, day] = params.planStartDate.split("-").map(Number);
+    const m = new Map<number, number>(); // isoWeek → ms timestamp
+    for (const [planWeek, isoWeek] of planWeekToIsoWeek) {
+      const d = new Date(y, mo - 1, day);
+      d.setDate(d.getDate() + (planWeek - 1) * 7);
+      m.set(isoWeek, d.getTime());
+    }
+    return m;
+  }, [planWeekToIsoWeek, params.planStartDate]);
+
   // ── Weeks: union of demand weeks + non-zero supply weeks ──
   // This ensures both early demand weeks (no harvest yet) AND later supply weeks
   // (harvest from in-plan placements) are shown side-by-side.
@@ -407,8 +422,10 @@ export function BroilerIntakePlan() {
         supplyWeeks.add(isoWeek);
       }
     }
-    return [...new Set([...demandWeeks, ...supplyWeeks])].sort((a, b) => a - b);
-  }, [cells, supplyMap]);
+    const allWeeks = [...new Set([...demandWeeks, ...supplyWeeks])];
+    // Sort by actual calendar date so cross-year plans render chronologically.
+    return allWeeks.sort((a, b) => (isoWeekToDate.get(a) ?? a) - (isoWeekToDate.get(b) ?? b));
+  }, [cells, supplyMap, isoWeekToDate]);
 
   // Always show all three plants so supply data is never hidden.
   const plants = ALL_PLANTS as readonly string[];
