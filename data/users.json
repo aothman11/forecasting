@@ -1,0 +1,34 @@
+[
+  {
+    "id": "1",
+    "name": "Admin",
+    "email": "admin@awp.com",
+    "password": "$2b$10$GDb2Pn6vQ2Gby/gU4OTPkuR2hOjGok5u490Th2lf3efoH58Hb2VUm",
+    "role": "admin",
+    "active": true
+  },
+  {
+    "id": "2",
+    "name": "Sales Planner",
+    "email": "sales@awp.com",
+    "password": "$2b$10$NxW4BIdGC7pZYgI45FekUeg4qxv5ZbDzR/GxgMx4uN1k29skJLZ7m",
+    "role": "sales_planner",
+    "active": true
+  },
+  {
+    "id": "3",
+    "name": "Processing Planner",
+    "email": "processing@awp.com",
+    "password": "$2b$10$p7JqUMxd4eRe.yAJuNtAl.iJoD.tIFZwHDLzh7yIfx1nrfjJXaD3C",
+    "role": "processing_planner",
+    "active": true
+  },
+  {
+    "id": "4",
+    "name": "Broiler Planner",
+    "email": "broiler@awp.com",
+    "password": "$2b$10$/xTvI5j/BaFK2XGuBrFDAOigKxNbHmEazzYG4vXgV8vV6j8nOov2.",
+    "role": "broiler_planner",
+    "active": true
+  }
+]
