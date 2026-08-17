@@ -72,7 +72,7 @@ export function Sidebar() {
 
   return (
     <aside
-      className={`relative shrink-0 border-r border-[var(--border-subtle)] bg-white flex flex-col transition-all duration-200 ${collapsed ? "w-14" : "w-64"}`}
+      className={`relative shrink-0 border-r border-[var(--border-subtle)] bg-white flex flex-col overflow-hidden transition-all duration-200 ${collapsed ? "w-14" : "w-64"}`}
     >
       {/* Collapse / expand tab — sticks out from the right edge */}
       <button
