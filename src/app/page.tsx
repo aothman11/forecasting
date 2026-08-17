@@ -32,6 +32,9 @@ import { CutBalancePanel } from "@/components/CutBalancePanel";
 import { ShortTermPlanning } from "@/components/ShortTermPlanning";
 import { SavePlanButton } from "@/components/SavePlanButton";
 import { buildPlanContext } from "@/lib/buildPlanContext";
+import { useCurrentUser } from "@/hooks/useCurrentUser";
+import { logoutAction } from "@/app/actions/logout";
+import { useFormStatus } from "react-dom";
 
 function StepContent({ step }: { step: number }) {
   switch (step) {
@@ -99,6 +102,8 @@ export default function Home() {
               >
                 Assumptions
               </button>
+              <div className="w-px h-5 bg-[var(--border-subtle)]" />
+              <HeaderUserMenu />
             </div>
           </header>
 
@@ -169,5 +174,49 @@ export default function Home() {
         </div>
       </div>
     </>
+  );
+}
+
+// ── Header user menu: avatar + name + sign-out button ─────────────────────
+function HeaderLogoutBtn() {
+  const { pending } = useFormStatus();
+  return (
+    <button
+      type="submit"
+      disabled={pending}
+      title="Sign out"
+      className="flex items-center gap-1.5 text-xs font-medium text-neutral-500 hover:text-brand-alert transition-colors disabled:opacity-40"
+    >
+      <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24"
+        fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+        <polyline points="16 17 21 12 16 7"/>
+        <line x1="21" y1="12" x2="9" y2="12"/>
+      </svg>
+      {pending ? "…" : "Sign out"}
+    </button>
+  );
+}
+
+function HeaderUserMenu() {
+  const user = useCurrentUser();
+  if (!user) return null;
+  const initials = user.name.split(" ").map((w: string) => w[0]).join("").slice(0, 2).toUpperCase();
+  return (
+    <div className="flex items-center gap-2">
+      {/* Avatar */}
+      <div className="w-7 h-7 rounded-full bg-brand-green flex items-center justify-center text-white text-xs font-bold shrink-0">
+        {initials}
+      </div>
+      {/* Name + role */}
+      <div className="flex flex-col leading-none">
+        <span className="text-xs font-semibold text-neutral-700">{user.name}</span>
+        <span className="text-[10px] text-neutral-400 capitalize">{user.role.replace("_", " ")}</span>
+      </div>
+      {/* Sign out */}
+      <form action={logoutAction}>
+        <HeaderLogoutBtn />
+      </form>
+    </div>
   );
 }
