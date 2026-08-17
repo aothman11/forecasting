@@ -29,6 +29,7 @@ import { ProcessingPlan } from "@/components/steps/ProcessingPlan";
 import { FarmQuotaDistribution } from "@/components/steps/FarmQuotaDistribution";
 import { PlanningAssistant } from "@/components/PlanningAssistant";
 import { CutBalancePanel } from "@/components/CutBalancePanel";
+import { ShortTermPlanning } from "@/components/ShortTermPlanning";
 import { SavePlanButton } from "@/components/SavePlanButton";
 import { buildPlanContext } from "@/lib/buildPlanContext";
 
@@ -66,6 +67,7 @@ export default function Home() {
   const processingPlanOpen = usePlanStore((s) => s.processingPlanOpen);
   const broilerIntakeOpen = usePlanStore((s) => s.broilerIntakeOpen);
   const cutBalanceOpen = usePlanStore((s) => s.cutBalanceOpen);
+  const shortTermPlanningOpen = usePlanStore((s) => s.shortTermPlanningOpen);
   const assumptionsOpen = usePlanStore((s) => s.assumptionsOpen);
   const toggleAssumptions = usePlanStore((s) => s.toggleAssumptions);
   const { result, params, issues } = usePipeline();
@@ -82,7 +84,7 @@ export default function Home() {
         <div className="flex-1 flex flex-col min-w-0">
           <header className="h-14 border-b border-[var(--border-subtle)] bg-white flex items-center justify-between px-6 shrink-0">
             <div className="text-sm font-semibold text-neutral-700">
-              {homeOpen ? "Home" : compareOpen ? "Saved Plans" : demandOpen ? "Demand Plan" : supplyOpen ? "Supply Requirements" : reconcileOpen ? "Reconciliation" : ddpOpen ? "Demand-Driven Placement" : reportOpen ? "COP Report" : bomOpen ? "Product BOM" : processingPlanOpen ? "Processing Plan" : broilerIntakeOpen ? "Broiler Intake Plan" : cutBalanceOpen ? "Whole Carcass Balance" : currentLabel}
+              {homeOpen ? "Home" : compareOpen ? "Saved Plans" : demandOpen ? "Demand Plan" : supplyOpen ? "Supply Requirements" : reconcileOpen ? "Reconciliation" : ddpOpen ? "Demand-Driven Placement" : reportOpen ? "COP Report" : bomOpen ? "Product BOM" : processingPlanOpen ? "Processing Plan" : broilerIntakeOpen ? "Broiler Intake Plan" : cutBalanceOpen ? "Whole Carcass Balance" : shortTermPlanningOpen ? "Short-Term Planning" : currentLabel}
             </div>
             <div className="flex items-center gap-3">
               <SavePlanButton />
@@ -125,6 +127,8 @@ export default function Home() {
               <BroilerIntakePlan />
             ) : cutBalanceOpen ? (
               <CutBalancePanel />
+            ) : shortTermPlanningOpen ? (
+              <ShortTermPlanning />
             ) : (
               <StepContent step={selectedStep} />
             )}

@@ -67,6 +67,7 @@ interface PlanState {
   homeOpen: boolean;
   bomOpen: boolean;
   cutBalanceOpen: boolean;
+  shortTermPlanningOpen: boolean;
   cutProductMapping: Record<string, CutKey | "ignore">;
   scenarios: ScenarioSnapshot[];
   archivedPlans: ArchivedPlan[];
@@ -125,6 +126,7 @@ interface PlanState {
   setHomeOpen: (open: boolean) => void;
   setBomOpen: (open: boolean) => void;
   setCutBalanceOpen: (open: boolean) => void;
+  setShortTermPlanningOpen: (open: boolean) => void;
   setCutProductMapping: (mapping: Record<string, CutKey | "ignore">) => void;
   saveScenario: (name: string) => void;
   deleteScenario: (id: string) => void;
@@ -169,6 +171,7 @@ export const usePlanStore = create<PlanState>()(
       homeOpen: true,
       bomOpen: false,
       cutBalanceOpen: false,
+      shortTermPlanningOpen: false,
       cutProductMapping: {},
       scenarios: [],
       archivedPlans: [],
@@ -411,6 +414,7 @@ export const usePlanStore = create<PlanState>()(
 
       setCompareOpen: (open) => set({ compareOpen: open }),
       setCutBalanceOpen: (open) => set({ cutBalanceOpen: open }),
+      setShortTermPlanningOpen: (open) => set({ shortTermPlanningOpen: open }),
       setCutProductMapping: (mapping) => set({ cutProductMapping: mapping }),
       setDemandOpen: (open) => set({ demandOpen: open }),
       setSupplyOpen: (open) => set({ supplyOpen: open }),

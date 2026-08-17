@@ -31,12 +31,14 @@ export function Sidebar() {
   const setProcessingPlanOpen = usePlanStore((s) => s.setProcessingPlanOpen);
   const broilerIntakeOpen = usePlanStore((s) => s.broilerIntakeOpen);
   const setBroilerIntakeOpen = usePlanStore((s) => s.setBroilerIntakeOpen);
+  const shortTermPlanningOpen = usePlanStore((s) => s.shortTermPlanningOpen);
+  const setShortTermPlanningOpen = usePlanStore((s) => s.setShortTermPlanningOpen);
 
   const closeAll = () => {
     setCompareOpen(false); setDemandOpen(false); setSupplyOpen(false);
     setReconcileOpen(false); setDdpOpen(false); setReportOpen(false);
     setBomOpen(false); setProcessingPlanOpen(false); setBroilerIntakeOpen(false);
-    setCutBalanceOpen(false);
+    setCutBalanceOpen(false); setShortTermPlanningOpen(false);
   };
 
   const btnBase = "w-full text-left flex items-center transition-colors text-sm";
@@ -146,6 +148,13 @@ export function Sidebar() {
           label="Whole Carcass Balance"
           title="Whole Carcass Balance — Cut Surplus from Demand"
         />
+        <NavBtn
+          active={shortTermPlanningOpen}
+          onClick={() => { closeAll(); setHomeOpen(false); setShortTermPlanningOpen(true); }}
+          badge="ST"
+          label="Short-Term Planning"
+          title="Broiler Short-Term Planning — Weekly Mix Analysis"
+        />
 
         {/* Production Pipeline header */}
         {!collapsed && (
@@ -154,7 +163,7 @@ export function Sidebar() {
         {collapsed && <div className="border-t border-neutral-100 my-1 mx-2" />}
 
         {STEPS.map((step) => {
-          const active = !compareOpen && !demandOpen && !supplyOpen && !reconcileOpen && !ddpOpen && !reportOpen && !homeOpen && !bomOpen && !processingPlanOpen && !broilerIntakeOpen && !cutBalanceOpen && selectedStep === step.id;
+          const active = !compareOpen && !demandOpen && !supplyOpen && !reconcileOpen && !ddpOpen && !reportOpen && !homeOpen && !bomOpen && !processingPlanOpen && !broilerIntakeOpen && !cutBalanceOpen && !shortTermPlanningOpen && selectedStep === step.id;
           return (
             <NavBtn
               key={step.id}
