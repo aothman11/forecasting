@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useActionState } from "react";
 import { loginAction, type LoginState } from "./actions";
@@ -33,7 +33,7 @@ export default function LoginForm() {
             />
           </div>
           <p className="text-white/80 text-xs tracking-widest uppercase font-semibold">
-            Central Operations Planning
+            Central Operational Planning
           </p>
         </div>
 

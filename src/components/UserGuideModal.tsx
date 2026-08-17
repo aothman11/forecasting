@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState } from "react";
 
@@ -12,7 +12,7 @@ interface Props {
 
 const T = {
   en: {
-    eyebrow: "Al-Watania Poultry · Central Operations Planning",
+    eyebrow: "Al-Watania Poultry · Central Operational Planning",
     title: "AWP COP — Planning Guide",
     langLabel: "EN",
     altLangLabel: "AR",
@@ -22,7 +22,7 @@ const T = {
         label: "Introduction",
         title: "What this tool does",
         body: [
-          "AWP COP (Central Operations Planning) is a demand-first planning tool. Start from what the market needs — by product, channel, and week — and the system works backward to tell you how many chicks to place, then forward to show exactly what comes out of the plant.",
+          "AWP COP (Central Operational Planning) is a demand-first planning tool. Start from what the market needs — by product, channel, and week — and the system works backward to tell you how many chicks to place, then forward to show exactly what comes out of the plant.",
           "The tool has two parallel tracks: <strong>COP Modules (M1–M5)</strong> for the demand side — capture demand, reverse-engineer supply needs, identify gaps, and write placements into the calendar — and the <strong>Production Pipeline (Steps 1–7)</strong> for the supply side — build a placement calendar and follow the bird from chick-in to carcass, grades, cuts, and plant allocations. All calculations update live; there is no recalculate button.",
         ],
       },

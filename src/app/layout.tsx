@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+﻿import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "@/components/auth/AuthProvider";
@@ -11,7 +11,7 @@ const inter = Inter({
 
 export const metadata: Metadata = {
   title: "AWP COP",
-  description: "Al-Watania Poultry Central Operations Planning workbench",
+  description: "Al-Watania Poultry Central Operational Planning workbench",
 };
 
 export default async function RootLayout({

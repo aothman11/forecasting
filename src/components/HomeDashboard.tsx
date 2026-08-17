@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState } from "react";
 import { usePipeline } from "@/lib/usePipeline";
@@ -284,7 +284,7 @@ export function HomeDashboard() {
               letterSpacing: "-0.01em",
             }}
           >
-            Central Operations Planning
+            Central Operational Planning
           </div>
           <div
             className="mt-1 text-[11px] font-medium tracking-widest uppercase"

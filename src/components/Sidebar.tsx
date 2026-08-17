@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState } from "react";
 import Image from "next/image";
@@ -93,7 +93,7 @@ export function Sidebar() {
           <div>
             <Image src="/alwatania-logo-white.png" alt="Al-Watania Poultry" width={140} height={70} className="h-10 w-auto mb-2" priority />
             <div className="text-lg font-bold text-brand-green section-title leading-tight">AWP COP</div>
-            <div className="text-[11px] text-neutral-500 mt-0.5">Central Operations Planning</div>
+            <div className="text-[11px] text-neutral-500 mt-0.5">Central Operational Planning</div>
           </div>
         )}
         {collapsed && (
