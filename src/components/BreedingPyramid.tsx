@@ -208,7 +208,7 @@ function GpSupplyTab() {
   function startAdd() {
     setEditId("__new__");
     setForm({
-      name: `GP-${new Date().getFullYear()}-${String.fromCharCode(65 + gpFlocks.length)}`,
+      name: `GP-${new Date().getFullYear()}-${gpFlocks.length + 1}`,
       placementDate: todayIso(), femaleCount: 50000, layStartWeekAge: 25,
     });
   }

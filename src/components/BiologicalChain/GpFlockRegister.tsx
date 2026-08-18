@@ -154,7 +154,7 @@ export function GpFlockRegister({
     const placementWeek = suggestNextPlacementWeek(flocks);
     onAdd({
       id: nextFlockId(flocks),
-      name: `GP Flock ${String.fromCharCode(65 + flocks.length % 26)}`,
+      name: `GP Flock ${flocks.length + 1}`,
       placementWeek,
       femaleCount: 12198,
     });

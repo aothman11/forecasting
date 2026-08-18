@@ -157,15 +157,15 @@ export const ASSUMPTION_GROUPS: AssumptionGroup[] = [
 // Age at plan W1 = 1 − placementWeek.
 
 export const DEFAULT_BIO_CHAIN_GP_FLOCKS: BioChainGpFlock[] = [
-  { id: "gp-a", name: "GP Flock A", placementWeek: -24, femaleCount: 12198 }, // age 25 → just started laying
-  { id: "gp-b", name: "GP Flock B", placementWeek: -31, femaleCount: 12198 }, // age 32
-  { id: "gp-c", name: "GP Flock C", placementWeek: -38, femaleCount: 12198 }, // age 39
-  { id: "gp-d", name: "GP Flock D", placementWeek: -45, femaleCount: 12198 }, // age 46
-  { id: "gp-e", name: "GP Flock E", placementWeek: -52, femaleCount: 12198 }, // age 53 (7 wks to depop)
-  { id: "gp-f", name: "GP Flock F", placementWeek: -17, femaleCount: 12198 }, // age 18 → starts laying W8
-  { id: "gp-g", name: "GP Flock G", placementWeek: -10, femaleCount: 12198 }, // age 11 → starts laying W15
-  { id: "gp-h", name: "GP Flock H", placementWeek:  -3, femaleCount: 12198 }, // age  4 → starts laying W22
-  { id: "gp-i", name: "GP Flock I", placementWeek:   4, femaleCount: 12198 }, // future  → starts laying W29
+  { id: "gp-a", name: "GP Flock 1", placementWeek: -24, femaleCount: 12198 }, // age 25 → just started laying
+  { id: "gp-b", name: "GP Flock 2", placementWeek: -31, femaleCount: 12198 }, // age 32
+  { id: "gp-c", name: "GP Flock 3", placementWeek: -38, femaleCount: 12198 }, // age 39
+  { id: "gp-d", name: "GP Flock 4", placementWeek: -45, femaleCount: 12198 }, // age 46
+  { id: "gp-e", name: "GP Flock 5", placementWeek: -52, femaleCount: 12198 }, // age 53 (7 wks to depop)
+  { id: "gp-f", name: "GP Flock 6", placementWeek: -17, femaleCount: 12198 }, // age 18 → starts laying W8
+  { id: "gp-g", name: "GP Flock 7", placementWeek: -10, femaleCount: 12198 }, // age 11 → starts laying W15
+  { id: "gp-h", name: "GP Flock 8", placementWeek:  -3, femaleCount: 12198 }, // age  4 → starts laying W22
+  { id: "gp-i", name: "GP Flock 9", placementWeek:   4, femaleCount: 12198 }, // future  → starts laying W29
 ];
 
 // ─── Bilingual stage labels ───────────────────────────────────────────────────
