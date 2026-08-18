@@ -559,9 +559,68 @@ export function BookGuideModal({ onClose }: Props) {
 
             {/* ── Breeding Cycle ── */}
             <div className="guide-section-break">
-              <ChapterBanner num="Chapter 7" title="Breeding Cycle" desc="GP → PS → Broiler DOC full supply chain planning." />
-              <Screen src="/guide-screens/12-breeding-cycle.jpg" alt="Breeding Cycle" caption="Breeding Cycle — GP flock fleet, PS supply view, schedule, pyramid overview, and scenario comparison" />
-              <p className="guide-p">The Breeding Cycle module models the full grandparent–parent stock–broiler supply chain. It spans the biological pyramid from GP flock management through PS egg production down to broiler DOC availability. Use it for long-range supply planning and backward-chain scenario comparison.</p>
+              <ChapterBanner num="Chapter 7" title="Breeding Cycle" desc="GP → PS → Broiler DOC backward demand chain." />
+              <Screen src="/guide-screens/12-breeding-cycle.jpg" alt="Breeding Cycle" caption="Biological Chain — 7-step backward demand calculation, GP flock fleet, and egg supply-vs-demand gap chart" />
+              <p className="guide-p">The Biological Chain module traces the full upstream supply pyramid backward from your catching plan. Enter the catching volume and the system computes — step by step — the exact PS DOC placements, PS hatchery requirements, and GP rearing DOC needed to meet it.</p>
+
+              <TwoCol>
+                <InfoCard title="7-Step Backward Chain">
+                  <Steps items={[
+                    "<strong>Step 1 — AWP Broiler DOC:</strong> catching plan ÷ (1 − 5% mortality) = DOC placed 4 weeks before catching.",
+                    "<strong>Step 2 — AWP Hatchery:</strong> broiler DOC ÷ (1 − 2% cull) ÷ 84% hatchability = PS settable eggs set 3 weeks prior.",
+                    "<strong>Step 3 — PS Laying Hens:</strong> settable eggs ÷ 87% settable ratio = total eggs ÷ avg HDP curve × 7.",
+                    "<strong>Step 4 — PS Rearing DOC:</strong> cohort logic; total DOC = female DOC ÷ 92% survival ÷ 90% female fraction.",
+                    "<strong>Step 5 — GP Hatchery:</strong> PS DOC ÷ 80% GP proportion → GP eggs set = total hatch ÷ 80% GP hatchability.",
+                    "<strong>Step 6 — GP Laying Hens:</strong> GP settable eggs ÷ 85% settable ratio = total eggs ÷ avg GP HDP × 7.",
+                    "<strong>Step 7 — GP Rearing DOC:</strong> cohort logic; total GP DOC = female DOC ÷ 86% GP survival.",
+                  ]} />
+                </InfoCard>
+                <InfoCard title="Confirmed Biological Parameters">
+                  <Steps items={[
+                    "<strong>PS lay-start age:</strong> 25 weeks · depop: 64 wks · laying period: 40 wks",
+                    "<strong>PS rearing mortality:</strong> 8% · male ratio: 10% (9:1 F:M, Cobb 500)",
+                    "<strong>PS settable ratio:</strong> 87% of total eggs to hatchery",
+                    "<strong>PS hatchability (AWP):</strong> 84% · incubation: 3 wks · cull: 2%",
+                    "<strong>GP lay-start age:</strong> 24 weeks · depop: 60 wks · laying period: 36 wks",
+                    "<strong>GP rearing mortality:</strong> 14% · GP settable ratio: 85%",
+                    "<strong>GP hatchability:</strong> 80% · self-replacement: 20% of total GP hatch",
+                    "<strong>Broiler grow-out:</strong> 4 weeks (25.5 days)",
+                  ]} />
+                </InfoCard>
+              </TwoCol>
+
+              <InfoCard title="Production Curves — HDP by Age">
+                <p className="guide-p" style={{fontSize:13}}>Both PS and GP use 3-segment Hen-Day Production (HDP) curves — a linear ramp-up phase, a flat peak, and a linear decline to depopulation. HDP = fraction of active hens laying one egg per day (total eggs; settable ratio applied separately).</p>
+                <TwoCol>
+                  <div>
+                    <p className="guide-p" style={{fontSize:12,fontWeight:700,marginBottom:4}}>PS Production Curve</p>
+                    <Steps items={[
+                      "Ages 25–29: ramp from 40% → 83% HDP",
+                      "Ages 30–35: peak at 85% HDP",
+                      "Ages 36–64: decline from 84% → 47% HDP",
+                      "Weighted average ≈ 69% (backward chain uses this)",
+                    ]} />
+                  </div>
+                  <div>
+                    <p className="guide-p" style={{fontSize:12,fontWeight:700,marginBottom:4}}>GP Production Curve</p>
+                    <Steps items={[
+                      "Ages 24–29: ramp from 35% → 79% HDP",
+                      "Ages 30–34: peak at 81% HDP",
+                      "Ages 35–60: decline from 80% → 42% HDP",
+                      "Weighted average ≈ 65% (backward chain uses this)",
+                    ]} />
+                  </div>
+                </TwoCol>
+                <Note><strong>These curves are industry benchmarks.</strong> Update them in the Biological Chain Assumptions panel once AWP and the GP company confirm actual flock performance records from their farm management systems. The backward chain uses the weighted average HDP; the GP Flock Fleet forward supply calculation uses the curve per age-week for precision.</Note>
+              </InfoCard>
+
+              <InfoCard title="GP Flock Fleet Register">
+                <p className="guide-p" style={{fontSize:13}}>The GP Flock Fleet Register lists every active and planned GP flock. Each row shows flock name, placement week, current age, status (Future / Rearing / Laying / Completed), and projected weekly settable egg supply. Inline editing lets you adjust flock counts or placement weeks directly in the table.</p>
+                <p className="guide-p" style={{fontSize:13}}>The <strong>Supply vs Demand Gap chart</strong> below the table compares the fleet&apos;s forward egg supply (calculated week-by-week from each flock&apos;s age and production curve) against the backward chain&apos;s weekly egg demand. A persistent red gap means additional GP capacity is needed before that horizon.</p>
+              </InfoCard>
+
+              <Note><strong>KPI Summary Bar</strong> — the strip above the chain tables shows total PS DOC required, GP DOC required, total GP settable eggs demanded, and the plan horizon. These update live as you adjust any assumption in the Assumptions panel.</Note>
+              <Note><strong>Inline cell overrides</strong> — each stage table supports direct cell editing. Click any value in a data row to override it; the cell turns amber to indicate a manual override. Clear it to revert to the calculated value. Overrides are useful for confirming a specific flock count or egg target when farm commitments are already fixed.</Note>
             </div>
 
             {/* ── Saved Plans + BOM ── */}

@@ -226,6 +226,41 @@ const T = {
         ],
         note: "Load the BOM to enable the Req. Birds column and per-bird KPI cards in the Broiler Intake Plan — the system looks up each SKU's package weight and units-per-carton to convert carcass KG into bird counts. Without a BOM those columns are blank. The Processing Plan carcass requirement always comes from the Demand Plan regardless of whether a BOM is loaded.",
       },
+      bioChain: {
+        label: "Breeding Cycle",
+        badge: "BC",
+        title: "Biological Chain",
+        subtitle: "Backward demand chain: Catching Plan → GP DOC placement",
+        body: "The Biological Chain module traces the full upstream supply pyramid backward from your catching plan. Enter the catching volume and the system automatically computes — step by step — the PS placements, GP hatchery requirements, and GP rearing DOC needed to meet it.",
+        stepsTitle: "7-step backward calculation",
+        steps: [
+          "<strong>Step 1 — AWP Broiler DOC:</strong> catching plan ÷ (1 − broiler mortality) = DOC to place at broiler farms (4 weeks before catching).",
+          "<strong>Step 2 — AWP Hatchery:</strong> broiler DOC ÷ (1 − hatchery cull 2%) ÷ hatchability 84% = settable PS eggs to set in incubator (3 weeks before DOC).",
+          "<strong>Step 3 — PS Laying Hens:</strong> settable eggs ÷ settable ratio 87% = total eggs laid ÷ average HDP curve × 7 = PS active hens required.",
+          "<strong>Step 4 — PS Rearing DOC:</strong> using cohort logic — only place new DOC when flock demand grows. Total DOC = female DOC ÷ (1 − 8% mortality) ÷ (1 − 10% male ratio).",
+          "<strong>Step 5 — GP Hatchery:</strong> PS DOC ÷ (1 − 20% self-replacement) = total GP hatch; GP eggs set = total hatch ÷ 80% GP hatchability.",
+          "<strong>Step 6 — GP Laying Hens:</strong> settable GP eggs ÷ settable ratio 85% = total GP eggs ÷ average GP HDP curve × 7.",
+          "<strong>Step 7 — GP Rearing DOC:</strong> same cohort logic; total GP DOC = female DOC ÷ (1 − 14% mortality).",
+        ],
+        params: [
+          ["Broiler Grow-out", "4 weeks (25.5 days) — time from broiler DOC placement to catching."],
+          ["PS Hatchability (AWP)", "84% — fraction of settable PS eggs set at AWP hatchery that hatch."],
+          ["Hatchery Cull", "2% — DOC inspected and removed before delivery to broiler farms."],
+          ["PS Settable Ratio", "87% — fraction of total PS eggs laid that are suitable for incubation."],
+          ["PS Rearing Period", "25 weeks — PS DOC start laying at age 25 weeks."],
+          ["PS Rearing Mortality", "8% — total mortality from PS DOC arrival to laying start."],
+          ["PS Male Ratio", "10% of total PS DOC are males (9:1 F:M ratio — Cobb 500 standard)."],
+          ["GP Hatchability", "80% — fraction of GP settable eggs set that hatch (benchmark; confirm with GP hatchery records)."],
+          ["GP Settable Ratio", "85% — fraction of total GP eggs laid that reach the hatchery (covers both PS DOC and GP self-replacement output)."],
+          ["GP Rearing Period", "24 weeks — GP hens start laying at age 24 weeks."],
+          ["GP Rearing Mortality", "14% — total mortality from GP DOC arrival to laying start."],
+          ["GP Self-Replacement", "20% — fraction of total GP hatch kept within GP for flock renewal."],
+          ["GP Depop Age", "60 weeks — GP flocks depopulated at age 60 (36-week laying period: ages 24–60)."],
+        ] as [string, string][],
+        curveNote: "<strong>Production curves:</strong> Both PS (ages 25–64) and GP (ages 24–60) use 3-segment HDP curves — linear ramp-up → peak → linear decline. Current values are industry benchmarks. Update the curves in <code>constants.ts</code> once AWP and GP confirm actual flock performance records. The backward chain uses the weighted average HDP from the curve; the GP flock forward supply calculation uses the curve per-age.",
+        gpFleetNote: "<strong>GP Flock Fleet Register</strong> shows each GP flock's placement week, age, status (future / rearing / laying / completed), and projected egg supply. Edit flock counts or placement weeks inline. The supply vs demand gap chart compares the fleet's actual forward supply against the backward chain's weekly egg demand — a persistent red gap means more GP capacity is needed.",
+      },
+
       scenarios: {
         label: "Tools",
         badge: "Scenarios",
@@ -471,6 +506,40 @@ const T = {
           "<strong>تصدير BOM</strong> — تنزيل BOM الحالي كملف Excel للأرشفة أو المشاركة.",
         ],
         note: "قم بتحميل BOM لتفعيل عمود 'الطيور المطلوبة' وبطاقات مؤشرات الطيور في خطة استقبال الدواجن — يبحث النظام عن وزن عبوة كل SKU وعدد الوحدات في الكرتون لتحويل كيلوجرامات الذبيحة إلى أعداد الطيور. بدون BOM تبقى هذه الأعمدة فارغة. متطلبات الذبائح في خطة التصنيع تأتي دائمًا من خطة الطلب بغض النظر عن وجود BOM.",
+      },
+      bioChain: {
+        label: "دورة التربية",
+        badge: "BC",
+        title: "السلسلة البيولوجية",
+        subtitle: "التخطيط العكسي: خطة الإمساك ← توطين GP",
+        body: "تتتبع وحدة السلسلة البيولوجية هرم التوريد الأمامي بالكامل بصورة عكسية انطلاقًا من خطة الإمساك. أدخل حجم الإمساك وسيحسب النظام تلقائيًا — خطوة بخطوة — عدد كتاكيت PS المطلوب توطينها، وكميات بيض GP، وكتاكيت GP اللازمة لتلبية الطلب.",
+        stepsTitle: "الحساب العكسي السباعي الخطوات",
+        steps: [
+          "<strong>الخطوة 1 — كتاكيت AWP البروايلر:</strong> خطة الإمساك ÷ (1 − نفوق 5%) = كتاكيت توطين مزارع البروايلر (4 أسابيع قبل الإمساك).",
+          "<strong>الخطوة 2 — مفرخة AWP:</strong> كتاكيت البروايلر ÷ (1 − استبعاد 2%) ÷ قابلية التفريخ 84% = بيض PS قابل للتفريخ (3 أسابيع قبل الكتاكيت).",
+          "<strong>الخطوة 3 — دجاج PS الوالدي:</strong> البيض القابل للتفريخ ÷ نسبة القابلية 87% = إجمالي البيض ÷ متوسط منحنى HDP × 7 = عدد الدجاج المطلوب.",
+          "<strong>الخطوة 4 — كتاكيت PS الرعاية:</strong> بمنطق الدفعة الواحدة — لا يُوطَّن دفعة جديدة إلا عند زيادة الطلب. إجمالي الكتاكيت = كتاكيت الإناث ÷ (1 − 8% نفوق) ÷ (1 − 10% ذكور).",
+          "<strong>الخطوة 5 — مفرخة GP:</strong> كتاكيت PS ÷ (1 − 20% إحلال ذاتي GP) = إجمالي فقس GP؛ بيض GP المطلوب = إجمالي الفقس ÷ 80% قابلية تفريخ GP.",
+          "<strong>الخطوة 6 — دجاج GP الوالدي:</strong> بيض GP القابل للتفريخ ÷ نسبة القابلية 85% = إجمالي البيض ÷ متوسط منحنى HDP لـ GP × 7.",
+          "<strong>الخطوة 7 — كتاكيت GP الرعاية:</strong> نفس منطق الدفعة؛ إجمالي كتاكيت GP = كتاكيت الإناث ÷ (1 − 14% نفوق).",
+        ],
+        params: [
+          ["فترة تربية البروايلر", "4 أسابيع (25.5 يوم) — من توطين الكتاكيت حتى الإمساك."],
+          ["قابلية تفريخ PS في AWP", "84% — نسبة بيض PS القابل للتفريخ الذي يفقس في مفرخة AWP."],
+          ["نسبة استبعاد المفرخة", "2% — كتاكيت تُفحص وتُستبعد قبل تسليمها لمزارع البروايلر."],
+          ["نسبة قابلية التفريخ لـ PS", "87% — نسبة إجمالي بيض PS الذي يصلح للتفريخ."],
+          ["فترة رعاية PS", "25 أسبوعًا — تبدأ PS الإنتاج في عمر 25 أسبوعًا."],
+          ["نفوق رعاية PS", "8% — نفوق إجمالي من استقبال كتاكيت PS حتى بداية الإنتاج."],
+          ["نسبة الذكور PS", "10% من إجمالي كتاكيت PS ذكور (نسبة 9:1 أنثى:ذكر — معيار Cobb 500)."],
+          ["قابلية تفريخ GP", "80% — نسبة بيض GP القابل للتفريخ الذي يفقس (يُستكمل بسجلات GP)."],
+          ["نسبة قابلية التفريخ لـ GP", "85% — نسبة إجمالي بيض GP الذي يصلح للتفريخ (يشمل كتاكيت PS وإحلال GP)."],
+          ["فترة رعاية GP", "24 أسبوعًا — تبدأ GP الإنتاج في عمر 24 أسبوعًا."],
+          ["نفوق رعاية GP", "14% — نفوق إجمالي من استقبال كتاكيت GP حتى بداية الإنتاج."],
+          ["الإحلال الذاتي لـ GP", "20% — نسبة إجمالي فقس GP المحتجزة لتجديد قطيع GP."],
+          ["عمر إيقاف GP", "60 أسبوعًا — تُوقف قطعان GP في عمر 60 أسبوعًا (فترة إنتاج 36 أسبوعًا: عمر 24–60)."],
+        ] as [string, string][],
+        curveNote: "<strong>منحنيات الإنتاج:</strong> يستخدم كل من PS (الأعمار 25–64 أسبوعًا) وGP (الأعمار 24–60 أسبوعًا) منحنيات HDP ذات 3 مراحل — رفع تدريجي، ذروة، تراجع تدريجي. القيم الحالية مرجعية صناعية. حدّث المنحنيات بعد تأكيد سجلات الأداء الفعلي لمزارع AWP وGP. تستخدم السلسلة العكسية متوسط HDP من المنحنى؛ بينما تستخدم حسابات توريد قطيع GP المنحنى لكل عمر.",
+        gpFleetNote: "<strong>سجل قطيع GP</strong> يعرض لكل قطيع: أسبوع التوطين، العمر، الحالة (مستقبلي / رعاية / إنتاج / منتهٍ)، وإنتاج البيض المتوقع. عدّل أعداد القطعان أو أسابيع التوطين مباشرة. مخطط الفجوة بين العرض والطلب يقارن إمداد البيض الفعلي لكل القطعان بالطلب الأسبوعي من السلسلة العكسية — فجوة حمراء مستمرة تعني الحاجة لطاقة GP إضافية.",
       },
       scenarios: {
         label: "الأدوات",
@@ -754,6 +823,36 @@ export function UserGuideModal({ onClose }: Props) {
             <p>{s.step7.body}</p>
             <p>{s.step7.farmMaster}</p>
             <p>{s.step7.exports}</p>
+          </Card>
+
+          {/* Biological Chain / Breeding Cycle */}
+          <SectionHeader label={s.bioChain.label} title={s.bioChain.title} />
+          <Card badge={s.bioChain.badge} title={s.bioChain.title} subtitle={s.bioChain.subtitle}>
+            <p>{s.bioChain.body}</p>
+            <p className="font-semibold mt-3 mb-1">{s.bioChain.stepsTitle}</p>
+            <StepList items={s.bioChain.steps} />
+            <p className="font-semibold mt-4 mb-2">{t.paramHeader[0]}</p>
+            <div className="overflow-x-auto rounded-lg border border-[var(--border-subtle)] mt-1">
+              <table className="w-full text-[12px]">
+                <thead>
+                  <tr className="bg-neutral-50 border-b border-[var(--border-subtle)]">
+                    {t.paramHeader.map((h) => (
+                      <th key={h} className="text-left px-3 py-2 font-semibold text-neutral-500 text-[10px] uppercase tracking-wider">{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[var(--border-subtle)]">
+                  {s.bioChain.params.map(([param, desc]) => (
+                    <tr key={param} className="hover:bg-neutral-50">
+                      <td className="px-3 py-2 font-semibold text-neutral-700 whitespace-nowrap">{param}</td>
+                      <td className="px-3 py-2 text-neutral-600">{desc}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <Note tip>{s.bioChain.curveNote}</Note>
+            <Note>{s.bioChain.gpFleetNote}</Note>
           </Card>
 
           {/* Processing Plan — PP / BI / BOM share one section header */}
