@@ -18,6 +18,7 @@ import { PyramidOverview } from "./views/PyramidOverview";
 import { DemandChainView } from "./views/DemandChainView";
 import { PsSupplyView } from "./views/PsSupplyView";
 import { ScheduleView } from "./views/ScheduleView";
+import { ScenarioView } from "./views/ScenarioView";
 
 // ─── Sub-nav tabs ────────────────────────────────────────────────────────────
 
@@ -26,6 +27,7 @@ const VIEWS: { key: BreedingCycleView; label: string; icon: string; desc: string
   { key: "demand-chain",  label: "Demand Chain",     icon: "🔗", desc: "Backward chain from catching plan" },
   { key: "ps-supply",     label: "PS Supply",        icon: "🐔", desc: "PS cohort production vs demand" },
   { key: "schedule",      label: "Schedule",         icon: "📅", desc: "Ross POs · transfers · depops" },
+  { key: "scenarios",     label: "Scenarios",        icon: "⚖️",  desc: "Backward-chain what-if comparison" },
 ];
 
 // ─── Main component ───────────────────────────────────────────────────────────
@@ -114,6 +116,7 @@ export function BreedingCyclePage() {
         {view === "demand-chain" && <DemandChainView />}
         {view === "ps-supply"    && <PsSupplyView        cycleResult={cycleResult} horizonWeeks={horizonWeeks} planStartDate={planStartDate} />}
         {view === "schedule"     && <ScheduleView        actions={cycleResult.procurementActions} today={new Date().toISOString().slice(0, 10)} />}
+        {view === "scenarios"    && <ScenarioView />}
       </div>
     </div>
   );

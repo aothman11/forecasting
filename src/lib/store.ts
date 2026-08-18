@@ -23,6 +23,7 @@ import { DEFAULT_BIO_ASSUMPTIONS, DEFAULT_BIO_CHAIN_GP_FLOCKS } from "./biologic
 import type { BioChainAssumptions, BioChainGpFlock } from "./biologicalChain/types";
 import { DEFAULT_BOM_RECORDS } from "./bomDefaults";
 import type { BomRecord } from "./bomTypes";
+import type { BreedingCycleView, BreedingScenario } from "./breedingCycleTypes";
 import type { SalesPlanCartonRow } from "./processingPlanTypes";
 import { DEFAULT_DEMAND_PRODUCTS, DEFAULT_FARMS, DEFAULT_MONTHLY_PLAN_CONFIG, DEFAULT_PARAMETERS } from "./defaults";
 import { ensurePlacementDaysHorizon, isFridayDate, quickFillPlacementDays } from "./calculations";
@@ -77,8 +78,11 @@ interface PlanState {
   breedingPyramidOpen: boolean;
 
   // ── Breeding Cycle (new module) ───────────────────────────────────────────
-  breedingCycleView: "overview" | "demand-chain" | "ps-supply" | "schedule";
-  setBrCycleView: (v: "overview" | "demand-chain" | "ps-supply" | "schedule") => void;
+  breedingCycleView: BreedingCycleView;
+  setBrCycleView: (v: BreedingCycleView) => void;
+  breedingScenarios: BreedingScenario[];
+  saveBreedingScenario: (s: BreedingScenario) => void;
+  deleteBreedingScenario: (id: string) => void;
   /** Cell-level planner overrides. Key: `"${tierKey}::${week}"`, value: overridden qty. */
   bpOverrides: Record<string, number>;
   setBpOverride: (key: string, value: number) => void;
@@ -224,6 +228,9 @@ export const usePlanStore = create<PlanState>()(
         return { bpOverrides: rest };
       }),
       clearAllBpOverrides: () => set({ bpOverrides: {} }),
+      breedingScenarios: [],
+      saveBreedingScenario: (s) => set((st) => ({ breedingScenarios: [...st.breedingScenarios, s] })),
+      deleteBreedingScenario: (id) => set((st) => ({ breedingScenarios: st.breedingScenarios.filter((s) => s.id !== id) })),
       bioChainAssumptions: DEFAULT_BIO_ASSUMPTIONS,
       setBioChainAssumptions: (a) => set({ bioChainAssumptions: a }),
       bioChainGpFlocks: DEFAULT_BIO_CHAIN_GP_FLOCKS,

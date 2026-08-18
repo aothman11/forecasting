@@ -5,7 +5,25 @@
  *       → 1230 PS Rearing → 1220 PS Laying → 1210 AWP Hatchery → 1200 Broiler Farms
  */
 
-export type BreedingCycleView = "overview" | "demand-chain" | "ps-supply" | "schedule";
+export type BreedingCycleView = "overview" | "demand-chain" | "ps-supply" | "schedule" | "scenarios";
+
+// ─── Saved scenario ───────────────────────────────────────────────────────────
+
+/**
+ * A named snapshot of BioChainAssumptions overrides for scenario comparison.
+ * Applied on top of the current live bioChainAssumptions when replayed.
+ */
+export interface BreedingScenario {
+  id: string;
+  name: string;
+  createdAt: string;            // ISO yyyy-mm-dd
+  psRearingWeeks: number;
+  psRearingMortality: number;   // 0..1
+  gpRearingWeeks: number;
+  gpRearingMortality: number;   // 0..1
+  hatchabilityPs: number;       // 0..1
+  hatchabilityGp: number;       // 0..1
+}
 
 // ─── Tier keys ────────────────────────────────────────────────────────────────
 
