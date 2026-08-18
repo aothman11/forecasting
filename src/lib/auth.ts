@@ -6,6 +6,9 @@ import "server-only";
 import fs from "fs";
 import path from "path";
 import { compare, hash } from "bcryptjs";
+// Static import — bundled by webpack at build time, always available on Vercel
+// even when the runtime filesystem doesn't expose the project root.
+import usersStatic from "../../data/users.json";
 
 export interface StoredUser {
   id: string;
@@ -20,9 +23,12 @@ const USERS_FILE = path.join(process.cwd(), "data", "users.json");
 
 export function loadUsers(): StoredUser[] {
   try {
+    // Prefer the live file so local admin-UI edits take effect immediately.
     return JSON.parse(fs.readFileSync(USERS_FILE, "utf-8")) as StoredUser[];
   } catch {
-    return [];
+    // Vercel serverless: fs.readFileSync fails because the project root isn't
+    // mounted at process.cwd(). Fall back to the copy bundled at build time.
+    return usersStatic as StoredUser[];
   }
 }
 
