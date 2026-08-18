@@ -19,6 +19,8 @@ import type {
   SupplyRequirementsWeek,
 } from "./types";
 import { DEFAULT_BREEDING_PARAMS } from "./breedingPyramidDefaults";
+import { DEFAULT_BIO_ASSUMPTIONS } from "./biologicalChain/constants";
+import type { BioChainAssumptions } from "./biologicalChain/types";
 import { DEFAULT_BOM_RECORDS } from "./bomDefaults";
 import type { BomRecord } from "./bomTypes";
 import type { SalesPlanCartonRow } from "./processingPlanTypes";
@@ -73,6 +75,10 @@ interface PlanState {
   cutBalanceOpen: boolean;
   shortTermPlanningOpen: boolean;
   breedingPyramidOpen: boolean;
+
+  // ── Biological Chain ──────────────────────────────────────────────────────
+  bioChainAssumptions: BioChainAssumptions;
+  setBioChainAssumptions: (a: BioChainAssumptions) => void;
 
   // ── Breeding Pyramid ──────────────────────────────────────────────────────
   gpFlocks: GpFlock[];
@@ -195,6 +201,8 @@ export const usePlanStore = create<PlanState>()(
       cutBalanceOpen: false,
       shortTermPlanningOpen: false,
       breedingPyramidOpen: false,
+      bioChainAssumptions: DEFAULT_BIO_ASSUMPTIONS,
+      setBioChainAssumptions: (a) => set({ bioChainAssumptions: a }),
       gpFlocks: [],
       rossPsOrders: [],
       breedingParams: DEFAULT_BREEDING_PARAMS,

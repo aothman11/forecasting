@@ -173,9 +173,9 @@ export function Sidebar() {
         <NavBtn
           active={breedingPyramidOpen}
           onClick={() => { closeAll(); setHomeOpen(false); setBreedingPyramidOpen(true); }}
-          badge="BP"
-          label="Breeding Pyramid"
-          title="Breeding Pyramid Plan — GP → PS → Broiler DOC"
+          badge="BC"
+          label="Biological Chain"
+          title="Biological Chain — upstream supply chain backward from Catching Plan"
         />
 
         {STEPS.map((step) => {
