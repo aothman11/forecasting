@@ -22,6 +22,7 @@ import { usePlanStore } from "@/lib/store";
 import { computeBioChain } from "@/lib/biologicalChain/calculations";
 import type {
   BioChainAssumptions,
+  BioChainResult,
   CatchingPlanWeek,
   AwpPsRearingWeek,
   AwpPsLayingWeek,
@@ -239,6 +240,156 @@ function stageOverrideMap(stageKey: string, allOverrides: Record<string, number>
   return out;
 }
 
+// ─── Chain KPI summary ────────────────────────────────────────────────────────
+
+interface KpiPillProps {
+  label: string;
+  value: string;
+  sub?: string;
+  accent?: "green" | "gold" | "neutral";
+  tip?: string;
+}
+
+function KpiPill({ label, value, sub, accent = "neutral", tip }: KpiPillProps) {
+  const border = accent === "green"   ? "#16a34a"
+               : accent === "gold"    ? "#b45309"
+               : "#d1d5db";
+  const valColor = accent === "green" ? "#15803d"
+                 : accent === "gold"  ? "#92400e"
+                 : "#111827";
+  return (
+    <div
+      title={tip}
+      className="rounded-xl border px-4 py-3 flex flex-col gap-0.5 min-w-[120px] bg-white"
+      style={{ borderColor: border }}
+    >
+      <span className="text-[10px] font-semibold uppercase tracking-wider text-neutral-400">{label}</span>
+      <span className="text-lg font-bold tabular-nums leading-none" style={{ color: valColor }}>{value}</span>
+      {sub && <span className="text-[10px] text-neutral-400 leading-tight">{sub}</span>}
+    </div>
+  );
+}
+
+/**
+ * Compact KPI bar showing:
+ *  - Computed chain outputs (PS/GP DOC needed, peak active hens)
+ *  - Key assumptions (hatchabilities, laying peak, self-replace ratio)
+ */
+function ChainKpis({ chain, a }: { chain: BioChainResult; a: BioChainAssumptions }) {
+  const N = new Intl.NumberFormat("en-US");
+  const pct = (v: number) => `${(v * 100).toFixed(0)}%`;
+
+  const totalPsDoc    = chain.awpPsRearing.reduce((s, r) => s + r.docPlaced, 0);
+  const peakPsHens    = chain.awpPsLaying.reduce((mx, r) => Math.max(mx, r.activeHens), 0);
+  const totalGpDoc    = chain.gpRearing.reduce((s, r) => s + r.docPlaced, 0);
+  const peakGpHens    = chain.gpLaying.reduce((mx, r) => Math.max(mx, r.activeHens), 0);
+  const psEvents      = chain.awpPsRearing.length;
+  const gpEvents      = chain.gpRearing.length;
+
+  // Earliest placement date (GP Rearing row with smallest weekStart)
+  const earliestGpDate = chain.gpRearing.length > 0 ? chain.gpRearing[0].weekStart : null;
+
+  return (
+    <div className="space-y-2">
+      {/* ── AWP computed outputs ── */}
+      <p className="text-[11px] font-semibold text-neutral-500 uppercase tracking-wider">AWP — Computed Requirements</p>
+      <div className="flex flex-wrap gap-2">
+        <KpiPill
+          label="PS DOC Required"
+          value={N.format(Math.round(totalPsDoc))}
+          sub={`${psEvents} placement event${psEvents !== 1 ? "s" : ""}`}
+          accent="green"
+          tip="Total PS DOC to place across the plan horizon (all cohorts combined)"
+        />
+        <KpiPill
+          label="Peak PS Active Hens"
+          value={N.format(Math.round(peakPsHens))}
+          sub="max across all laying weeks"
+          accent="green"
+          tip="Maximum number of PS laying hens required in any single week"
+        />
+        <KpiPill
+          label="PS Hatchability"
+          value={pct(a.hatchabilityPs)}
+          sub="fertile eggs → broiler DOC"
+          accent="green"
+          tip="AWP Hatchery: % of PS eggs set that hatch successfully"
+        />
+        <KpiPill
+          label="PS Rearing Period"
+          value={`${a.psRearingWeeks} wks`}
+          sub="lead time for PS placement"
+          accent="green"
+          tip="Weeks from PS DOC placement to first eggs (rearing period)"
+        />
+        <KpiPill
+          label="PS Laying Peak"
+          value={`${a.psLayingPeakWeeks} wks`}
+          sub="cohort laying duration"
+          accent="green"
+          tip="How long a single PS cohort remains in production (used for cohort expiry)"
+        />
+      </div>
+
+      {/* ── GP computed outputs ── */}
+      <p className="text-[11px] font-semibold text-neutral-500 uppercase tracking-wider mt-3">GP — Computed Requirements</p>
+      <div className="flex flex-wrap gap-2">
+        <KpiPill
+          label="GP DOC Required"
+          value={N.format(Math.round(totalGpDoc))}
+          sub={gpEvents > 0 ? `${gpEvents} placement event${gpEvents !== 1 ? "s" : ""}` : "no data"}
+          accent="gold"
+          tip="Total GP DOC to place (includes mortality gross-up and cohort replacements)"
+        />
+        <KpiPill
+          label="Peak GP Active Hens"
+          value={N.format(Math.round(peakGpHens))}
+          sub="max across all GP laying weeks"
+          accent="gold"
+          tip="Maximum number of GP laying hens required in any single week"
+        />
+        <KpiPill
+          label="GP Hatchability"
+          value={pct(a.hatchabilityGp)}
+          sub="GP eggs → PS + self-replace DOC"
+          accent="gold"
+          tip="GP Hatchery: % of GP eggs set that hatch (applied to total hatch incl. self-replacement)"
+        />
+        <KpiPill
+          label="Self-Replace Ratio"
+          value={pct(a.gpSelfreplacementRatio)}
+          sub="of total GP hatch kept by GP"
+          accent="gold"
+          tip="Fraction of total GP hatch output redirected for GP self-replacement (not delivered to AWP)"
+        />
+        <KpiPill
+          label="GP Rearing Period"
+          value={`${a.gpRearingWeeks} wks`}
+          sub="lead time for GP placement"
+          accent="gold"
+          tip="Weeks from GP DOC placement to first GP eggs (rearing = lay-start age)"
+        />
+        <KpiPill
+          label="GP Laying Peak"
+          value={`${a.gpLayingPeakWeeks} wks`}
+          sub="GP cohort laying duration"
+          accent="gold"
+          tip="How long a single GP cohort remains in production (used for cohort expiry)"
+        />
+        {earliestGpDate && (
+          <KpiPill
+            label="Earliest GP Placement"
+            value={earliestGpDate}
+            sub="first GP DOC needed on this date"
+            accent="gold"
+            tip="Calendar date of the first GP rearing DOC placement required to meet the catching plan"
+          />
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ─── Main component ────────────────────────────────────────────────────────────
 
 export function BiologicalChainPage() {
@@ -328,6 +479,11 @@ export function BiologicalChainPage() {
             <div className="bg-white border border-[var(--border-subtle)] rounded-xl p-4">
               <ChainFlowDiagram assumptions={bioChainAssumptions} />
             </div>
+          </section>
+
+          {/* ── KPI summary ── */}
+          <section>
+            <ChainKpis chain={chainWithOverrides} a={bioChainAssumptions} />
           </section>
 
           {/* ── Stage tables (backward chain detail) ── */}

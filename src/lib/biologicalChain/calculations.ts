@@ -131,20 +131,51 @@ function step3_PsLayingHens(
 /**
  * Step 4 — AWP PS Laying → AWP PS Rearing DOC placement.
  *
- * For each laying week W with `activeHens` required:
- *   rearing_week    = W - psRearingWeeks
- *   docPlaced       = activeHens / (1 - psRearingMortality)
+ * KEY INSIGHT: A single PS cohort placed once lays eggs continuously for
+ * psLayingPeakWeeks (≈40 weeks). The backward chain must only generate a NEW
+ * placement event when the required active flock GROWS beyond what existing
+ * cohorts can cover — NOT one placement per catching week.
  *
- * The rearing-mortality gross-up: we place more PS DOC than the final laying
- * flock size to offset deaths during the 18-week rearing period.
+ * Algorithm:
+ *   1. Walk laying weeks in ascending order.
+ *   2. Expire any cohort whose laying period has ended
+ *      (startLayingWeek + psLayingPeakWeeks ≤ current week).
+ *   3. If the running active-hen total < the week's requirement, place enough
+ *      additional DOC (psRearingWeeks earlier) to cover the shortfall.
+ *
+ * For a flat 26-week catching plan this yields ONE placement event; for a
+ * ramp-up it yields incremental events; for a plan longer than
+ * psLayingPeakWeeks it also generates a replacement event when the first
+ * cohort ages out.
  */
 function step4_PsRearingDoc(
   psLayingHensMap: WMap,
   a: BioChainAssumptions,
 ): WMap {
   const m: WMap = new Map();
-  for (const [w, hens] of psLayingHensMap) {
-    acc(m, w - a.psRearingWeeks, hens / (1 - a.psRearingMortality));
+  const sortedWeeks = [...psLayingHensMap.keys()].sort((wa, wb) => wa - wb);
+
+  // cohorts: laying-start week → pullets transferred to laying (after rearing)
+  const cohorts = new Map<number, number>();
+
+  for (const w of sortedWeeks) {
+    const needed = psLayingHensMap.get(w)!;
+
+    // Expire cohorts whose laying period has ended
+    for (const [start] of cohorts) {
+      if (w >= start + a.psLayingPeakWeeks) cohorts.delete(start);
+    }
+
+    // Sum available hens from all still-active cohorts
+    let available = 0;
+    for (const h of cohorts.values()) available += h;
+
+    // Only place new DOC when required flock exceeds available capacity
+    const marginal = needed - available;
+    if (marginal > 0) {
+      acc(m, w - a.psRearingWeeks, marginal / (1 - a.psRearingMortality));
+      cohorts.set(w, marginal); // record this cohort's pullet contribution
+    }
   }
   return m;
 }
@@ -152,15 +183,18 @@ function step4_PsRearingDoc(
 /**
  * Step 5 — AWP PS Rearing → GP Hatchery PS DOC production.
  *
- * For each AWP PS Rearing placement week W with `docPlaced` PS DOC needed:
- *   gp_hatch_week     = W - gpHatcheryToAwpDeliveryWeeks
- *   psDOCForAwp       = docPlaced                               [what GP hatchery produces]
- *   gpSelfReplaceDOC  = psDOCForAwp × gpSelfreplacementRatio   [GP keeps for own GP flock replacement]
- *   gp_eggs_set_week  = gp_hatch_week - incubationWeeks
- *   gpEggsSet         = psDOCForAwp / hatchabilityGp           [GP fertile eggs needed]
+ * `doc` (from step 4) = PS DOC delivered to AWP = the AWP portion of GP hatch output.
+ * gpSelfreplacementRatio = fraction of the TOTAL GP hatch that GP keeps for
+ * its own GP flock replacement (the rest goes to AWP).
  *
- * Note: gpSelfreplacementRatio represents the fraction of GP hatch output
- * redirected for GP rearing (self-replacement). This is tracked as a separate flow.
+ * Therefore:
+ *   totalHatch    = doc / (1 − gpSelfreplacementRatio)    [total DOC the GP hatchery produces]
+ *   psDOCForAwp   = doc                                   [= totalHatch × (1 − ratio)]
+ *   gpSelfReplace = totalHatch × gpSelfreplacementRatio   [kept by GP]
+ *   gpEggsSet     = totalHatch / hatchabilityGp           [GP fertile eggs to set]
+ *
+ * Using totalHatch (not just doc) for the eggs calculation ensures the GP
+ * Laying flock is sized to cover BOTH the AWP delivery AND GP self-replacement.
  */
 function step5_GpHatchery(
   psRearingDocMap: WMap,
@@ -171,12 +205,15 @@ function step5_GpHatchery(
   const eggsSetMap: WMap = new Map();
 
   for (const [w, doc] of psRearingDocMap) {
-    const gpHatchWeek = w - a.gpHatcheryToAwpDeliveryWeeks;
-    const gpEggsSetWeek = gpHatchWeek - a.incubationWeeks;
+    const gpHatchWeek    = w - a.gpHatcheryToAwpDeliveryWeeks;
+    const gpEggsSetWeek  = gpHatchWeek - a.incubationWeeks;
 
-    acc(psDocMap, gpHatchWeek, doc);
-    acc(selfReplaceMap, gpHatchWeek, doc * a.gpSelfreplacementRatio);
-    acc(eggsSetMap, gpEggsSetWeek, doc / a.hatchabilityGp);
+    // Total GP hatch output required (AWP portion + GP self-replacement)
+    const totalHatch = doc / (1 - a.gpSelfreplacementRatio);
+
+    acc(psDocMap,      gpHatchWeek,   doc);
+    acc(selfReplaceMap, gpHatchWeek,  totalHatch * a.gpSelfreplacementRatio);
+    acc(eggsSetMap,    gpEggsSetWeek, totalHatch / a.hatchabilityGp);
   }
 
   return { psDocMap, selfReplaceMap, eggsSetMap };
@@ -207,18 +244,41 @@ function step6_GpLayingHens(
 /**
  * Step 7 — GP Laying → GP Rearing DOC placement.
  *
- * Mirrors Step 4 but using GP rearing parameters.
- * For each GP laying week W:
- *   gp_rearing_week = W - gpRearingWeeks
- *   docPlaced       = activeHens / (1 - gpRearingMortality)
+ * Mirrors Step 4 (same marginal/cohort-aware logic) but uses GP rearing
+ * and GP laying-peak parameters.
+ *
+ * A GP cohort placed once provides laying hens for gpLayingPeakWeeks (≈40 wks).
+ * New GP DOC placements are only triggered when the required GP laying flock
+ * GROWS beyond existing cohort capacity, or when an older cohort ages out.
  */
 function step7_GpRearingDoc(
   gpLayingHensMap: WMap,
   a: BioChainAssumptions,
 ): WMap {
   const m: WMap = new Map();
-  for (const [w, hens] of gpLayingHensMap) {
-    acc(m, w - a.gpRearingWeeks, hens / (1 - a.gpRearingMortality));
+  const sortedWeeks = [...gpLayingHensMap.keys()].sort((wa, wb) => wa - wb);
+
+  // cohorts: laying-start week → GP pullets transferred to laying
+  const cohorts = new Map<number, number>();
+
+  for (const w of sortedWeeks) {
+    const needed = gpLayingHensMap.get(w)!;
+
+    // Expire cohorts whose GP laying period has ended
+    for (const [start] of cohorts) {
+      if (w >= start + a.gpLayingPeakWeeks) cohorts.delete(start);
+    }
+
+    // Sum available GP hens from active cohorts
+    let available = 0;
+    for (const h of cohorts.values()) available += h;
+
+    // Only place new GP DOC when required flock exceeds available capacity
+    const marginal = needed - available;
+    if (marginal > 0) {
+      acc(m, w - a.gpRearingWeeks, marginal / (1 - a.gpRearingMortality));
+      cohorts.set(w, marginal);
+    }
   }
   return m;
 }
