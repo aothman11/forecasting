@@ -124,7 +124,8 @@ function deriveAwpHatchery(
   return {};
 }
 
-/** Recompute derived columns for AWP PS Laying when activeHens is overridden. */
+/** Recompute derived columns for AWP PS Laying when activeHens is overridden.
+ *  eggsRequired = settable eggs = totalLaid × psSettableRatio. */
 function deriveAwpPsLaying(
   row: AwpPsLayingWeek,
   field: string,
@@ -132,12 +133,13 @@ function deriveAwpPsLaying(
   a: BioChainAssumptions,
 ): Partial<AwpPsLayingWeek> {
   if (field === "activeHens") {
-    return { eggsRequired: Math.round(value * a.henDayProduction * 7) };
+    return { eggsRequired: Math.round(value * a.henDayProduction * 7 * a.psSettableRatio) };
   }
   return {};
 }
 
-/** Recompute derived columns for AWP PS Rearing when docPlaced is overridden. */
+/** Recompute derived columns for AWP PS Rearing when docPlaced is overridden.
+ *  pulletsToLaying = female survivors = docPlaced × (1−psMaleRatio) × (1−psRearingMortality). */
 function deriveAwpPsRearing(
   row: AwpPsRearingWeek,
   field: string,
@@ -145,7 +147,7 @@ function deriveAwpPsRearing(
   a: BioChainAssumptions,
 ): Partial<AwpPsRearingWeek> {
   if (field === "docPlaced") {
-    return { pulletsToLaying: Math.round(value * (1 - a.psRearingMortality)) };
+    return { pulletsToLaying: Math.round(value * (1 - a.psMaleRatio) * (1 - a.psRearingMortality)) };
   }
   return {};
 }
@@ -167,7 +169,8 @@ function deriveGpHatchery(
   return {};
 }
 
-/** Recompute derived columns for GP Laying when activeHens is overridden. */
+/** Recompute derived columns for GP Laying when activeHens is overridden.
+ *  eggsProduced = settable eggs = totalLaid × gpSettableRatio. */
 function deriveGpLaying(
   row: GpLayingWeek,
   field: string,
@@ -175,7 +178,7 @@ function deriveGpLaying(
   a: BioChainAssumptions,
 ): Partial<GpLayingWeek> {
   if (field === "activeHens") {
-    return { eggsProduced: Math.round(value * a.gpHenDayProduction * 7) };
+    return { eggsProduced: Math.round(value * a.gpHenDayProduction * 7 * a.gpSettableRatio) };
   }
   return {};
 }

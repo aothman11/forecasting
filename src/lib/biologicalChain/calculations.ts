@@ -25,6 +25,7 @@ import type {
   GpRearingWeek,
   GpFlockStatus,
   GpFlockWeekRow,
+  ProductionCurvePoint,
 } from "./types";
 
 // ─── Internal sparse-map helpers ──────────────────────────────────────────────
@@ -40,6 +41,38 @@ function acc(m: WMap, week: number, val: number): void {
 /** Returns entries sorted ascending by week. */
 function sortedEntries(m: WMap): [number, number][] {
   return [...m.entries()].sort(([a], [b]) => a - b);
+}
+
+// ─── Production curve helpers ─────────────────────────────────────────────────
+
+/**
+ * Simple arithmetic mean of all HDP values in the curve.
+ * Used by the backward chain to compute hen requirements from an aggregate
+ * eggs-needed figure (we don't know individual flock ages in the backward pass).
+ */
+function averageHDP(curve: ProductionCurvePoint[]): number {
+  if (curve.length === 0) return 0.68; // safe fallback
+  return curve.reduce((s, p) => s + p.hdp, 0) / curve.length;
+}
+
+/**
+ * HDP at a specific age, with linear interpolation and boundary clamping.
+ * Used by the forward flock supply calculation where each flock's age is known.
+ */
+export function hdpAtAge(curve: ProductionCurvePoint[], ageWeeks: number): number {
+  if (curve.length === 0) return 0;
+  const sorted = [...curve].sort((a, b) => a.ageWeeks - b.ageWeeks);
+  if (ageWeeks <= sorted[0].ageWeeks) return sorted[0].hdp;
+  const last = sorted[sorted.length - 1];
+  if (ageWeeks >= last.ageWeeks) return last.hdp;
+  for (let i = 0; i < sorted.length - 1; i++) {
+    const lo = sorted[i], hi = sorted[i + 1];
+    if (ageWeeks >= lo.ageWeeks && ageWeeks < hi.ageWeeks) {
+      const t = (ageWeeks - lo.ageWeeks) / (hi.ageWeeks - lo.ageWeeks);
+      return lo.hdp + t * (hi.hdp - lo.hdp);
+    }
+  }
+  return 0;
 }
 
 // ─── Date utility ─────────────────────────────────────────────────────────────
@@ -86,11 +119,15 @@ function step1_AwpBroilerDoc(
 /**
  * Step 2 — AWP Broiler DOC → AWP Hatchery eggs-set schedule.
  *
- * For each DOC week W:
- *   eggs_set_week = W - incubationWeeks
- *   eggsSet       = docPlaced / hatchabilityPs
+ * Two loss rates between a settable egg and a DOC arriving at the broiler farm:
+ *   1. Hatchery cull (2%): chicks inspected after hatching; non-viable ones removed.
+ *   2. Hatchability (84%): fraction of set eggs that actually hatch.
  *
- * Eggs must be set incubationWeeks before the DOC is needed.
+ * Working backward:
+ *   docPreCull  = docPlaced / (1 − hatcheryCullPct)   [DOC before inspection loss]
+ *   eggsToSet   = docPreCull / hatchabilityPs          [settable eggs required in incubator]
+ *
+ * These are SETTABLE eggs; step 3 converts to total eggs laid using psSettableRatio.
  */
 function step2_HatcheryEggsSet(
   broilerDocMap: WMap,
@@ -98,7 +135,8 @@ function step2_HatcheryEggsSet(
 ): WMap {
   const m: WMap = new Map();
   for (const [w, doc] of broilerDocMap) {
-    acc(m, w - a.incubationWeeks, doc / a.hatchabilityPs);
+    const docPreCull = doc / (1 - a.hatcheryCullPct);
+    acc(m, w - a.incubationWeeks, docPreCull / a.hatchabilityPs);
   }
   return m;
 }
@@ -106,13 +144,15 @@ function step2_HatcheryEggsSet(
 /**
  * Step 3 — AWP Hatchery eggs → AWP PS Laying hen requirement.
  *
- * For each eggs-set week W:
- *   laying_week = W - eggCollectionLeadWeeks
- *   activeHens  = eggsSet / (henDayProduction × 7)   [hen-weeks of laying capacity]
- *   eggsRequired = eggsSet                            [same quantity from the hens' side]
+ * `eggs` from step 2 are SETTABLE eggs (what the hatchery needs to set).
+ * Not all eggs laid by PS hens are settable; psSettableRatio = 0.87 converts:
+ *   totalEggsLaid = settableEggs / psSettableRatio
  *
- * The eggCollectionLeadWeeks lag accounts for collection, transport, and grading
- * before the eggs reach the hatchery.
+ * Hens required (backward chain uses average HDP across the production curve):
+ *   activeHens = totalEggsLaid / (avgHDP × 7)
+ *
+ * The eggCollectionLeadWeeks lag accounts for collection, transport, and grading.
+ * `eggsMap` stores settable eggs (the hatchery-facing quantity shown in the table).
  */
 function step3_PsLayingHens(
   hatcheryEggsSetMap: WMap,
@@ -120,10 +160,12 @@ function step3_PsLayingHens(
 ): { hensMap: WMap; eggsMap: WMap } {
   const hensMap: WMap = new Map();
   const eggsMap: WMap = new Map();
-  for (const [w, eggs] of hatcheryEggsSetMap) {
-    const layingWeek = w - a.eggCollectionLeadWeeks;
-    acc(hensMap, layingWeek, eggs / (a.henDayProduction * 7));
-    acc(eggsMap, layingWeek, eggs);
+  const avgHdp = averageHDP(a.psProductionCurve);
+  for (const [w, settableEggs] of hatcheryEggsSetMap) {
+    const layingWeek    = w - a.eggCollectionLeadWeeks;
+    const totalEggsLaid = settableEggs / a.psSettableRatio;
+    acc(hensMap, layingWeek, totalEggsLaid / (avgHdp * 7));
+    acc(eggsMap, layingWeek, settableEggs);
   }
   return { hensMap, eggsMap };
 }
@@ -173,8 +215,13 @@ function step4_PsRearingDoc(
     // Only place new DOC when required flock exceeds available capacity
     const marginal = needed - available;
     if (marginal > 0) {
-      acc(m, w - a.psRearingWeeks, marginal / (1 - a.psRearingMortality));
-      cohorts.set(w, marginal); // record this cohort's pullet contribution
+      // Female DOC needed (gross up for rearing mortality)
+      const femaleDOC = marginal / (1 - a.psRearingMortality);
+      // Total DOC including males (psMaleRatio = fraction of total that are male)
+      // e.g. psMaleRatio=0.10 → females = 90% of total → totalDOC = femaleDOC / 0.90
+      const totalDOC = femaleDOC / (1 - a.psMaleRatio);
+      acc(m, w - a.psRearingWeeks, totalDOC);
+      cohorts.set(w, marginal); // cohort tracks female hens needed at laying start
     }
   }
   return m;
@@ -222,10 +269,15 @@ function step5_GpHatchery(
 /**
  * Step 6 — GP Hatchery eggs → GP Laying hen requirement.
  *
- * Mirrors Step 3 but using GP laying parameters.
- * For each GP eggs-set week W:
- *   gp_laying_week = W - eggCollectionLeadWeeks   [reuses same lead-time param]
- *   activeHens     = gpEggsSet / (gpHenDayProduction × 7)
+ * Mirrors Step 3 but using GP parameters.
+ * `eggs` from step 5 = settable GP eggs needed by GP hatchery.
+ * Not all GP eggs laid are settable; gpSettableRatio = 0.85 converts:
+ *   totalEggsLaid = settableEggs / gpSettableRatio
+ *
+ * Hens required (backward chain uses average HDP across the GP production curve):
+ *   activeHens = totalEggsLaid / (avgGpHDP × 7)
+ *
+ * `eggsMap` stores settable eggs (the hatchery-facing quantity shown in the table).
  */
 function step6_GpLayingHens(
   gpHatchEggsSetMap: WMap,
@@ -233,10 +285,12 @@ function step6_GpLayingHens(
 ): { hensMap: WMap; eggsMap: WMap } {
   const hensMap: WMap = new Map();
   const eggsMap: WMap = new Map();
-  for (const [w, eggs] of gpHatchEggsSetMap) {
-    const layingWeek = w - a.eggCollectionLeadWeeks;
-    acc(hensMap, layingWeek, eggs / (a.gpHenDayProduction * 7));
-    acc(eggsMap, layingWeek, eggs);
+  const avgGpHdp = averageHDP(a.gpProductionCurve);
+  for (const [w, settableEggs] of gpHatchEggsSetMap) {
+    const layingWeek    = w - a.eggCollectionLeadWeeks;
+    const totalEggsLaid = settableEggs / a.gpSettableRatio;
+    acc(hensMap, layingWeek, totalEggsLaid / (avgGpHdp * 7));
+    acc(eggsMap, layingWeek, settableEggs);
   }
   return { hensMap, eggsMap };
 }
@@ -355,11 +409,12 @@ export function computeBioChain(
   }));
 
   // AWP PS Rearing: one row per DOC-placement week
+  // docPlaced = total (female + male); pulletsToLaying = female survivors only
   const awpPsRearing: AwpPsRearingWeek[] = sortedEntries(psRearingDocMap).map(([w, doc]) => ({
     week:            w,
     weekStart:       wsd(w),
     docPlaced:       Math.round(doc),
-    pulletsToLaying: Math.round(doc * (1 - a.psRearingMortality)),
+    pulletsToLaying: Math.round(doc * (1 - a.psMaleRatio) * (1 - a.psRearingMortality)),
   }));
 
   // GP Hatchery: one row per GP hatch / PS DOC production week
@@ -483,8 +538,10 @@ export function computeGpFlockProduction(
         femalesAlive = Math.round(
           femalesAtLayStart * Math.pow(1 - a.gpLayingMortWeekly, layingWeekIndex),
         );
+        // Use production curve HDP for this exact age (interpolated if needed)
+        const hdp = hdpAtAge(a.gpProductionCurve, ageWeeks);
         eggsProduced = Math.round(
-          femalesAlive * a.gpHenDayProduction * 7 * a.gpSettableRatio,
+          femalesAlive * hdp * 7 * a.gpSettableRatio,
         );
         // Accumulate into weekly supply totals
         supplyByWeek.set(w, (supplyByWeek.get(w) ?? 0) + eggsProduced);

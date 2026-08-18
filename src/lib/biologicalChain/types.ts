@@ -9,43 +9,65 @@
  * Negative week indices represent historical weeks (before plan start).
  */
 
+// ─── Production curve ─────────────────────────────────────────────────────────
+
+/**
+ * One point on a hen production curve.
+ * `ageWeeks` is the hen's age; `hdp` is Hen-Day Production (fraction 0–1).
+ * HDP = fraction of active hens that lay one egg on a given day.
+ * These are TOTAL eggs; apply settable ratio separately to get eggs sent to hatchery.
+ */
+export interface ProductionCurvePoint {
+  ageWeeks: number;
+  hdp: number;
+}
+
 // ─── Assumptions ─────────────────────────────────────────────────────────────
 
 export interface BioChainAssumptions {
   // AWP Broiler farms
-  broilerGrowoutWeeks: number;        // 6 — weeks from DOC placement to catching
+  broilerGrowoutWeeks: number;        // 4 — weeks from DOC placement to catching (25.5 days grow-out)
   broilerMortality: number;           // 0.05 — fraction dying during grow-out
 
   // AWP Hatchery (PS eggs → Broiler DOC)
-  hatchabilityPs: number;             // 0.82 — fraction of set eggs that hatch
+  hatchabilityPs: number;             // 0.84 — fraction of settable PS eggs set that hatch
+  hatcheryCullPct: number;            // 0.02 — fraction of hatched DOC culled at inspection before delivery
   incubationWeeks: number;            // 3 — weeks from egg setting to hatch
 
   // AWP PS Laying farms
-  henDayProduction: number;           // 0.68 — eggs per hen per day
+  henDayProduction: number;           // 0.69 — avg eggs per hen per day (average of psProductionCurve; used in manual-override derive only)
+  psSettableRatio: number;            // 0.87 — fraction of total PS eggs laid that are settable quality
   eggCollectionLeadWeeks: number;     // 1 — weeks from laying to hatchery setting
-  psLayingPeakWeeks: number;          // 40 — informational: peak laying period length
+  psLayingPeakWeeks: number;          // 40 — full PS laying period weeks (ages 25→64); used for cohort expiry
 
   // AWP PS Rearing farms
-  psRearingWeeks: number;             // 18 — weeks from PS DOC to laying start
-  psRearingMortality: number;         // 0.04 — fraction dying during PS rearing
+  psRearingWeeks: number;             // 25 — weeks from PS DOC to laying start (= lay-start age)
+  psRearingMortality: number;         // 0.08 — fraction dying during PS rearing
+  psMaleRatio: number;                // 0.10 — fraction of total PS DOC placed that are males (9:1 F:M ratio)
 
-  // GP Hatchery (cross-company, GP fertile eggs → PS DOC)
-  hatchabilityGp: number;             // 0.78 — fraction of GP eggs that hatch as PS DOC
+  // PS production curve (HDP by age — total eggs, not settable)
+  psProductionCurve: ProductionCurvePoint[];  // ages 25–64, one point per week
+
+  // GP Hatchery (cross-company, GP fertile eggs → PS DOC + GP self-replacement)
+  hatchabilityGp: number;             // 0.80 — fraction of GP settable eggs set that hatch
   gpHatcheryToAwpDeliveryWeeks: number; // 1 — weeks from GP hatch to AWP farm delivery
-  gpSelfreplacementRatio: number;     // 0.20 — fraction of GP hatch used for GP self-replacement
+  gpSelfreplacementRatio: number;     // 0.20 — fraction of total GP hatch kept for GP self-replacement
 
   // GP Laying farms
-  gpHenDayProduction: number;         // 0.65 — GP fertile eggs per hen per day
-  gpLayingPeakWeeks: number;          // 40 — informational
+  gpHenDayProduction: number;         // 0.65 — avg GP HDP (average of gpProductionCurve; used in manual-override derive only)
+  gpLayingPeakWeeks: number;          // 36 — full GP laying period weeks (ages 24→60); used for cohort expiry
 
   // GP Rearing farms
-  gpRearingWeeks: number;             // 25 — weeks from GP DOC to GP laying start (= lay-start age)
-  gpRearingMortality: number;         // 0.04 — fraction dying during GP rearing
+  gpRearingWeeks: number;             // 24 — weeks from GP DOC to GP laying start (= lay-start age)
+  gpRearingMortality: number;         // 0.14 — fraction dying during GP rearing
 
   // GP Flock biology (used in forward supply calculation from actual flocks)
-  gpLayEndAgeWeeks: number;           // 60 — age at GP depopulation (35-wk lay period)
-  gpSettableRatio: number;            // 0.90 — fraction of GP eggs that are settable
+  gpLayEndAgeWeeks: number;           // 60 — age at GP depopulation (36-wk lay period: 24→60 wks)
+  gpSettableRatio: number;            // 0.85 — fraction of GP eggs laid that are settable quality
   gpLayingMortWeekly: number;         // 0.003 — weekly mortality during GP laying period
+
+  // GP production curve (HDP by age — total eggs, not settable)
+  gpProductionCurve: ProductionCurvePoint[];  // ages 24–60, one point per week
 }
 
 // ─── Per-stage weekly rows ────────────────────────────────────────────────────
@@ -84,15 +106,15 @@ export interface AwpPsLayingWeek {
   week: number;
   weekStart: string;
   activeHens: number;        // PS hens required in lay (hen-weeks)
-  eggsRequired: number;      // total PS fertile eggs produced (= activeHens × HDP × 7)
+  eggsRequired: number;      // settable PS eggs needed by hatchery (total laid × psSettableRatio)
 }
 
 /** AWP PS Rearing Farms — PS pullet rearing. */
 export interface AwpPsRearingWeek {
   week: number;
   weekStart: string;
-  docPlaced: number;         // PS female DOC placed in rearing (gross)
-  pulletsToLaying: number;   // PS pullets transferred to laying (= docPlaced × (1-mortality))
+  docPlaced: number;         // total PS DOC placed (females + males, gross; male = psMaleRatio fraction)
+  pulletsToLaying: number;   // PS female pullets transferred to laying (= docPlaced × (1−psMaleRatio) × (1−mortality))
 }
 
 /** GP Hatchery — cross-company PS DOC production + GP self-replacement. */
@@ -109,7 +131,7 @@ export interface GpLayingWeek {
   week: number;
   weekStart: string;
   activeHens: number;        // GP hens in lay (hen-weeks required)
-  eggsProduced: number;      // GP fertile eggs produced
+  eggsProduced: number;      // settable GP eggs demanded by backward chain (total laid × gpSettableRatio)
 }
 
 /** GP Rearing Farms — GP pullet rearing. */
