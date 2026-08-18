@@ -1,7 +1,7 @@
 /**
  * AWP Biological Chain — default assumption values and UI grouping metadata.
  */
-import type { BioChainAssumptions } from "./types";
+import type { BioChainAssumptions, BioChainGpFlock } from "./types";
 
 export const DEFAULT_BIO_ASSUMPTIONS: BioChainAssumptions = {
   // AWP Broiler farms
@@ -31,8 +31,13 @@ export const DEFAULT_BIO_ASSUMPTIONS: BioChainAssumptions = {
   gpLayingPeakWeeks:             40,
 
   // GP Rearing
-  gpRearingWeeks:                20,
+  gpRearingWeeks:                25,    // = lay-start age (hens begin laying at 25 wks)
   gpRearingMortality:            0.04,
+
+  // GP Flock biology — used in forward supply calculation
+  gpLayEndAgeWeeks:              60,    // depop age (35-wk laying period: 25→60 wks)
+  gpSettableRatio:               0.90,  // fraction of GP eggs that are settable
+  gpLayingMortWeekly:            0.003, // weekly mortality during laying (~10% over 35 wks)
 };
 
 // ─── UI grouping metadata (used by AssumptionsPanel) ─────────────────────────
@@ -121,8 +126,11 @@ export const ASSUMPTION_GROUPS: AssumptionGroup[] = [
     company: "GP",
     color: "gold",
     fields: [
-      { key: "gpHenDayProduction",      label: "Hen-Day Production",     labelAr: "إنتاج اليوم / دجاجة",  unit: "eggs/hen/day", step: 0.01, min: 0.3, max: 1 },
-      { key: "gpLayingPeakWeeks",       label: "Peak Laying Period",     labelAr: "فترة الذروة للوضع",    unit: "weeks",   step: 1,    min: 10,  max: 60  },
+      { key: "gpHenDayProduction",  label: "Hen-Day Production",    labelAr: "إنتاج اليوم / دجاجة",  unit: "eggs/hen/day", step: 0.01, min: 0.3, max: 1    },
+      { key: "gpLayingPeakWeeks",   label: "Peak Laying Period",    labelAr: "فترة الذروة للوضع",    unit: "weeks",        step: 1,    min: 10,  max: 60   },
+      { key: "gpLayEndAgeWeeks",    label: "Depop Age",             labelAr: "عمر الإزالة",           unit: "weeks",        step: 1,    min: 40,  max: 80   },
+      { key: "gpSettableRatio",     label: "Settable Egg Ratio",    labelAr: "نسبة البيض القابل",     unit: "decimal",      step: 0.01, min: 0.7, max: 1    },
+      { key: "gpLayingMortWeekly",  label: "Weekly Laying Mort.",   labelAr: "نفوق أسبوعي خلال الوضع", unit: "decimal",   step: 0.001,min: 0,   max: 0.02 },
     ],
   },
   {
@@ -132,10 +140,32 @@ export const ASSUMPTION_GROUPS: AssumptionGroup[] = [
     company: "GP",
     color: "gold",
     fields: [
-      { key: "gpRearingWeeks",          label: "Rearing Period",         labelAr: "فترة التربية",          unit: "weeks",   step: 1,    min: 10,  max: 36  },
-      { key: "gpRearingMortality",      label: "Mortality Rate",         labelAr: "نسبة النفوق",           unit: "decimal", step: 0.01, min: 0,   max: 0.2 },
+      { key: "gpRearingWeeks",      label: "Rearing Period (= Lay-Start Age)", labelAr: "فترة التربية (= سن بدء الوضع)", unit: "weeks",   step: 1,    min: 18, max: 36  },
+      { key: "gpRearingMortality",  label: "Mortality Rate",                   labelAr: "نسبة النفوق",                   unit: "decimal", step: 0.01, min: 0,  max: 0.2 },
     ],
   },
+];
+
+// ─── Default GP Flock Fleet (9 flocks: 5 laying + 4 rearing at plan W1) ──────
+//
+// Fleet cycle: 7-week placement interval (35-wk laying period / 5 flocks = 7 wks/cycle).
+// At plan week 1:
+//   Laying (age 25-60):  A(25), B(32), C(39), D(46), E(53)
+//   Rearing (age 0-25):  F(18), G(11), H(4), I(future, placed W4)
+//
+// placementWeek = plan week when the flock was/will be placed.
+// Age at plan W1 = 1 − placementWeek.
+
+export const DEFAULT_BIO_CHAIN_GP_FLOCKS: BioChainGpFlock[] = [
+  { id: "gp-a", name: "GP Flock A", placementWeek: -24, femaleCount: 12198 }, // age 25 → just started laying
+  { id: "gp-b", name: "GP Flock B", placementWeek: -31, femaleCount: 12198 }, // age 32
+  { id: "gp-c", name: "GP Flock C", placementWeek: -38, femaleCount: 12198 }, // age 39
+  { id: "gp-d", name: "GP Flock D", placementWeek: -45, femaleCount: 12198 }, // age 46
+  { id: "gp-e", name: "GP Flock E", placementWeek: -52, femaleCount: 12198 }, // age 53 (7 wks to depop)
+  { id: "gp-f", name: "GP Flock F", placementWeek: -17, femaleCount: 12198 }, // age 18 → starts laying W8
+  { id: "gp-g", name: "GP Flock G", placementWeek: -10, femaleCount: 12198 }, // age 11 → starts laying W15
+  { id: "gp-h", name: "GP Flock H", placementWeek:  -3, femaleCount: 12198 }, // age  4 → starts laying W22
+  { id: "gp-i", name: "GP Flock I", placementWeek:   4, femaleCount: 12198 }, // future  → starts laying W29
 ];
 
 // ─── Bilingual stage labels ───────────────────────────────────────────────────

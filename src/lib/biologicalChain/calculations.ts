@@ -13,6 +13,7 @@
 
 import type {
   BioChainAssumptions,
+  BioChainGpFlock,
   BioChainResult,
   CatchingPlanWeek,
   AwpBroilerWeek,
@@ -22,6 +23,8 @@ import type {
   GpHatcheryWeek,
   GpLayingWeek,
   GpRearingWeek,
+  GpFlockStatus,
+  GpFlockWeekRow,
 } from "./types";
 
 // ─── Internal sparse-map helpers ──────────────────────────────────────────────
@@ -44,8 +47,9 @@ function sortedEntries(m: WMap): [number, number][] {
 /**
  * Given a known (baseWeek → baseDate) anchor and a target week index,
  * returns the ISO date string for that week's Monday.
+ * Exported so UI components can compute dates from week indices.
  */
-function isoForWeek(
+export function isoForWeek(
   targetWeek: number,
   baseWeek: number,
   baseDate: string,
@@ -358,4 +362,88 @@ export function totalLeadWeeks(a: BioChainAssumptions): number {
     + a.incubationWeeks           // AWP incubation → Broiler DOC
     + a.broilerGrowoutWeeks       // Broiler grow-out → catching
   );
+}
+
+// ─── GP Flock Fleet — forward supply calculation ──────────────────────────────
+
+/**
+ * Computes weekly GP fertile-egg supply from the actual GP flock fleet.
+ *
+ * Each flock:
+ *   • Is in rearing for `gpRearingWeeks` weeks (= the lay-start age).
+ *   • Lays from age `gpRearingWeeks` to age `gpLayEndAgeWeeks`.
+ *   • At lay-start: femalesAlive = femaleCount × (1 − gpRearingMortality).
+ *   • During laying: femalesAlive decays weekly by gpLayingMortWeekly.
+ *   • Eggs per week = femalesAlive × gpHenDayProduction × 7 × gpSettableRatio.
+ *
+ * @param flocks     The fleet register from Zustand.
+ * @param a          Current biological assumptions.
+ * @param weekRange  Plan-relative week indices to evaluate.
+ * @param anchorWeek One known week index (used to compute ISO dates).
+ * @param anchorDate ISO date for anchorWeek.
+ *
+ * @returns
+ *   supplyByWeek  — Map<weekIndex, totalSettableEggs> (all flocks summed).
+ *   flockWeekRows — Per-flock per-week detail rows for the expanded table.
+ */
+export function computeGpFlockProduction(
+  flocks: BioChainGpFlock[],
+  a: BioChainAssumptions,
+  weekRange: number[],
+  anchorWeek: number,
+  anchorDate: string,
+): { supplyByWeek: Map<number, number>; flockWeekRows: GpFlockWeekRow[] } {
+  const supplyByWeek: Map<number, number> = new Map();
+  const flockWeekRows: GpFlockWeekRow[] = [];
+
+  const layStartAge = a.gpRearingWeeks;          // = gpLayStartAgeWeeks
+  const layEndAge   = a.gpLayEndAgeWeeks;
+
+  for (const flock of flocks) {
+    // Females surviving rearing (applied at the moment laying starts)
+    const femalesAtLayStart = flock.femaleCount * (1 - a.gpRearingMortality);
+
+    for (const w of weekRange) {
+      const ageWeeks = w - flock.placementWeek;  // negative = not yet placed
+
+      let status: GpFlockStatus;
+      let femalesAlive = 0;
+      let eggsProduced = 0;
+
+      if (ageWeeks < 0) {
+        status = "future";
+      } else if (ageWeeks < layStartAge) {
+        status = "rearing";
+        // Linear approximation: survive from femaleCount → femalesAtLayStart over rearing period
+        const survivalFraction = 1 - (a.gpRearingMortality * ageWeeks / layStartAge);
+        femalesAlive = Math.round(flock.femaleCount * Math.max(0, survivalFraction));
+      } else if (ageWeeks < layEndAge) {
+        status = "laying";
+        const layingWeekIndex = ageWeeks - layStartAge;
+        femalesAlive = Math.round(
+          femalesAtLayStart * Math.pow(1 - a.gpLayingMortWeekly, layingWeekIndex),
+        );
+        eggsProduced = Math.round(
+          femalesAlive * a.gpHenDayProduction * 7 * a.gpSettableRatio,
+        );
+        // Accumulate into weekly supply totals
+        supplyByWeek.set(w, (supplyByWeek.get(w) ?? 0) + eggsProduced);
+      } else {
+        status = "completed";
+      }
+
+      flockWeekRows.push({
+        week:        w,
+        weekStart:   isoForWeek(w, anchorWeek, anchorDate),
+        flockId:     flock.id,
+        flockName:   flock.name,
+        ageWeeks,
+        status,
+        femalesAlive,
+        eggsProduced,
+      });
+    }
+  }
+
+  return { supplyByWeek, flockWeekRows };
 }

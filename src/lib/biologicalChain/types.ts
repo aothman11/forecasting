@@ -39,8 +39,13 @@ export interface BioChainAssumptions {
   gpLayingPeakWeeks: number;          // 40 — informational
 
   // GP Rearing farms
-  gpRearingWeeks: number;             // 20 — weeks from GP DOC to GP laying start
+  gpRearingWeeks: number;             // 25 — weeks from GP DOC to GP laying start (= lay-start age)
   gpRearingMortality: number;         // 0.04 — fraction dying during GP rearing
+
+  // GP Flock biology (used in forward supply calculation from actual flocks)
+  gpLayEndAgeWeeks: number;           // 60 — age at GP depopulation (35-wk lay period)
+  gpSettableRatio: number;            // 0.90 — fraction of GP eggs that are settable
+  gpLayingMortWeekly: number;         // 0.003 — weekly mortality during GP laying period
 }
 
 // ─── Per-stage weekly rows ────────────────────────────────────────────────────
@@ -113,6 +118,43 @@ export interface GpRearingWeek {
   weekStart: string;
   docPlaced: number;         // GP female DOC placed in rearing (gross)
   pulletsToLaying: number;   // GP pullets transferred to GP laying (= docPlaced × (1-mortality))
+}
+
+// ─── GP Flock fleet types ─────────────────────────────────────────────────────
+
+/**
+ * One GP flock in the fleet register.
+ * placementWeek is a plan-relative week index (negative = placed before plan start).
+ */
+export interface BioChainGpFlock {
+  id: string;
+  name: string;
+  placementWeek: number;    // plan week when this flock was/will be placed
+  femaleCount: number;      // females placed (before rearing mortality)
+}
+
+export type GpFlockStatus = "future" | "rearing" | "laying" | "completed";
+
+/** Weekly detail row for one flock (used in the flock-level detail table). */
+export interface GpFlockWeekRow {
+  week: number;
+  weekStart: string;
+  flockId: string;
+  flockName: string;
+  ageWeeks: number;
+  status: GpFlockStatus;
+  femalesAlive: number;
+  eggsProduced: number;     // settable eggs this week from this flock
+}
+
+/** Weekly supply vs demand gap row at the GP egg level. */
+export interface GpEggGapRow {
+  week: number;
+  weekStart: string;
+  activeFlockCount: number;
+  gpEggsSupply: number;     // total settable eggs from all active flocks (forward calc)
+  gpEggsDemand: number;     // GP eggs required by backward chain
+  gap: number;              // supply - demand  (positive = surplus, negative = shortage)
 }
 
 // ─── Master result ────────────────────────────────────────────────────────────

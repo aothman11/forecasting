@@ -19,8 +19,8 @@ import type {
   SupplyRequirementsWeek,
 } from "./types";
 import { DEFAULT_BREEDING_PARAMS } from "./breedingPyramidDefaults";
-import { DEFAULT_BIO_ASSUMPTIONS } from "./biologicalChain/constants";
-import type { BioChainAssumptions } from "./biologicalChain/types";
+import { DEFAULT_BIO_ASSUMPTIONS, DEFAULT_BIO_CHAIN_GP_FLOCKS } from "./biologicalChain/constants";
+import type { BioChainAssumptions, BioChainGpFlock } from "./biologicalChain/types";
 import { DEFAULT_BOM_RECORDS } from "./bomDefaults";
 import type { BomRecord } from "./bomTypes";
 import type { SalesPlanCartonRow } from "./processingPlanTypes";
@@ -79,6 +79,11 @@ interface PlanState {
   // ── Biological Chain ──────────────────────────────────────────────────────
   bioChainAssumptions: BioChainAssumptions;
   setBioChainAssumptions: (a: BioChainAssumptions) => void;
+  bioChainGpFlocks: BioChainGpFlock[];
+  addBioChainGpFlock: (flock: BioChainGpFlock) => void;
+  updateBioChainGpFlock: (id: string, patch: Partial<BioChainGpFlock>) => void;
+  removeBioChainGpFlock: (id: string) => void;
+  resetBioChainGpFlocks: () => void;
 
   // ── Breeding Pyramid ──────────────────────────────────────────────────────
   gpFlocks: GpFlock[];
@@ -203,6 +208,15 @@ export const usePlanStore = create<PlanState>()(
       breedingPyramidOpen: false,
       bioChainAssumptions: DEFAULT_BIO_ASSUMPTIONS,
       setBioChainAssumptions: (a) => set({ bioChainAssumptions: a }),
+      bioChainGpFlocks: DEFAULT_BIO_CHAIN_GP_FLOCKS,
+      addBioChainGpFlock: (flock) => set((s) => ({ bioChainGpFlocks: [...s.bioChainGpFlocks, flock] })),
+      updateBioChainGpFlock: (id, patch) => set((s) => ({
+        bioChainGpFlocks: s.bioChainGpFlocks.map((f) => f.id === id ? { ...f, ...patch } : f),
+      })),
+      removeBioChainGpFlock: (id) => set((s) => ({
+        bioChainGpFlocks: s.bioChainGpFlocks.filter((f) => f.id !== id),
+      })),
+      resetBioChainGpFlocks: () => set({ bioChainGpFlocks: DEFAULT_BIO_CHAIN_GP_FLOCKS }),
       gpFlocks: [],
       rossPsOrders: [],
       breedingParams: DEFAULT_BREEDING_PARAMS,
