@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { STEPS, usePlanStore } from "@/lib/store";
 import { usePipeline } from "@/lib/usePipeline";
 import { Sidebar } from "@/components/Sidebar";
@@ -33,6 +34,7 @@ import { ShortTermPlanning } from "@/components/ShortTermPlanning";
 import { BiologicalChainPage } from "@/components/BiologicalChain/BiologicalChainPage";
 import { BreedingCyclePage } from "@/components/BreedingCycle/BreedingCyclePage";
 import { SavePlanButton } from "@/components/SavePlanButton";
+import { BookGuideModal } from "@/components/BookGuideModal";
 import { buildPlanContext } from "@/lib/buildPlanContext";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
 import { logoutAction } from "@/app/actions/logout";
@@ -60,6 +62,7 @@ function StepContent({ step }: { step: number }) {
 }
 
 export default function Home() {
+  const [bookGuideOpen, setBookGuideOpen] = useState(false);
   const selectedStep = usePlanStore((s) => s.selectedStep);
   const compareOpen = usePlanStore((s) => s.compareOpen);
   const demandOpen = usePlanStore((s) => s.demandOpen);
@@ -95,6 +98,14 @@ export default function Home() {
             <div className="flex items-center gap-3">
               <SavePlanButton />
               <ExportButtons />
+              <button
+                onClick={() => setBookGuideOpen(true)}
+                className="text-xs font-medium px-3 py-1.5 rounded-md border border-[var(--border-subtle)] hover:border-brand-green hover:text-brand-green transition-colors flex items-center gap-1.5"
+                title="Open the AWP COP Planning Guide"
+              >
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
+                Guide
+              </button>
               <button
                 onClick={toggleAssumptions}
                 className={`text-xs font-medium px-3 py-1.5 rounded-md border transition-colors ${
@@ -171,6 +182,9 @@ export default function Home() {
 
       {/* AI planning assistant — floating bottom-right */}
       <PlanningAssistant planContext={buildPlanContext(m, result)} />
+
+      {/* Book Guide — full-screen overlay */}
+      {bookGuideOpen && <BookGuideModal onClose={() => setBookGuideOpen(false)} />}
 
       {/* Off-screen render target used for PDF export */}
       <div style={{ position: "fixed", top: 0, left: -10000 }}>
