@@ -97,6 +97,16 @@ interface PlanState {
   updateBioChainGpFlock: (id: string, patch: Partial<BioChainGpFlock>) => void;
   removeBioChainGpFlock: (id: string) => void;
   resetBioChainGpFlocks: () => void;
+  /**
+   * Inline overrides for backward-chain stage tables.
+   * Key: `"${stageKey}::${weekDate}::${field}"` where weekDate is ISO yyyy-mm-dd.
+   * Using the date (not the raw plan-relative integer) keeps keys stable if the
+   * plan start date changes and mirrors the dailyPlannedQtyOverrides convention.
+   */
+  bioChainCellOverrides: Record<string, number>;
+  setBioChainCellOverride: (stageKey: string, weekDate: string, field: string, value: number) => void;
+  clearBioChainCellOverride: (stageKey: string, weekDate: string, field: string) => void;
+  clearAllBioChainCellOverrides: () => void;
 
   // ── Breeding Pyramid ──────────────────────────────────────────────────────
   gpFlocks: GpFlock[];
@@ -242,6 +252,15 @@ export const usePlanStore = create<PlanState>()(
         bioChainGpFlocks: s.bioChainGpFlocks.filter((f) => f.id !== id),
       })),
       resetBioChainGpFlocks: () => set({ bioChainGpFlocks: DEFAULT_BIO_CHAIN_GP_FLOCKS }),
+      bioChainCellOverrides: {},
+      setBioChainCellOverride: (stageKey, weekDate, field, value) =>
+        set((s) => ({ bioChainCellOverrides: { ...s.bioChainCellOverrides, [`${stageKey}::${weekDate}::${field}`]: value } })),
+      clearBioChainCellOverride: (stageKey, weekDate, field) =>
+        set((s) => {
+          const { [`${stageKey}::${weekDate}::${field}`]: _, ...rest } = s.bioChainCellOverrides;
+          return { bioChainCellOverrides: rest };
+        }),
+      clearAllBioChainCellOverrides: () => set({ bioChainCellOverrides: {} }),
       gpFlocks: [],
       rossPsOrders: [],
       breedingParams: DEFAULT_BREEDING_PARAMS,
