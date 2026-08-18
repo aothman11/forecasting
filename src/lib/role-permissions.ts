@@ -22,7 +22,6 @@ export const ROLE_MODULES: Record<string, string[]> = {
     "processing_plan",     // PP: Carcass Requirement
     "broiler_intake",      // BI: Broiler Intake Plan
     "whole_carcass_balance", // WC: Whole Carcass Balance
-    "short_term_planning", // ST: Short-Term Planning (shared)
     "carcass_yield",       // Step 3: Carcass Yield & Grade Split
     "product_family",      // Step 4: Product Family Allocation
     "cut_plan",            // Step 5: FPP Cut Plan

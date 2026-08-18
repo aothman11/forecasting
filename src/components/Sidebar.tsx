@@ -153,6 +153,13 @@ export function Sidebar() {
           label="Whole Carcass Balance"
           title="Whole Carcass Balance — Cut Surplus from Demand"
         />
+
+        {/* Production Pipeline header */}
+        {!collapsed && (
+          <div className="px-4 text-[11px] uppercase tracking-wide text-neutral-400 font-semibold mt-4 mb-1">Production Pipeline</div>
+        )}
+        {collapsed && <div className="border-t border-neutral-100 my-1 mx-2" />}
+
         <NavBtn
           active={shortTermPlanningOpen}
           onClick={() => { closeAll(); setHomeOpen(false); setShortTermPlanningOpen(true); }}
@@ -160,12 +167,6 @@ export function Sidebar() {
           label="Short-Term Planning"
           title="Broiler Short-Term Planning — Weekly Mix Analysis"
         />
-
-        {/* Production Pipeline header */}
-        {!collapsed && (
-          <div className="px-4 text-[11px] uppercase tracking-wide text-neutral-400 font-semibold mt-4 mb-1">Production Pipeline</div>
-        )}
-        {collapsed && <div className="border-t border-neutral-100 my-1 mx-2" />}
 
         {STEPS.map((step) => {
           const active = !compareOpen && !demandOpen && !supplyOpen && !reconcileOpen && !ddpOpen && !reportOpen && !homeOpen && !bomOpen && !processingPlanOpen && !broilerIntakeOpen && !cutBalanceOpen && !shortTermPlanningOpen && selectedStep === step.id;
