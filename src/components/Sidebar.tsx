@@ -38,12 +38,15 @@ export function Sidebar() {
   const setBroilerIntakeOpen = usePlanStore((s) => s.setBroilerIntakeOpen);
   const shortTermPlanningOpen = usePlanStore((s) => s.shortTermPlanningOpen);
   const setShortTermPlanningOpen = usePlanStore((s) => s.setShortTermPlanningOpen);
+  const breedingPyramidOpen = usePlanStore((s) => s.breedingPyramidOpen);
+  const setBreedingPyramidOpen = usePlanStore((s) => s.setBreedingPyramidOpen);
 
   const closeAll = () => {
     setCompareOpen(false); setDemandOpen(false); setSupplyOpen(false);
     setReconcileOpen(false); setDdpOpen(false); setReportOpen(false);
     setBomOpen(false); setProcessingPlanOpen(false); setBroilerIntakeOpen(false);
     setCutBalanceOpen(false); setShortTermPlanningOpen(false);
+    setBreedingPyramidOpen(false);
   };
 
   const btnBase = "w-full text-left flex items-center transition-colors text-sm";
@@ -165,11 +168,18 @@ export function Sidebar() {
           onClick={() => { closeAll(); setHomeOpen(false); setShortTermPlanningOpen(true); }}
           badge="ST"
           label="Short-Term Planning"
-          title="Broiler Short-Term Planning — Weekly Mix Analysis"
+          title="Broiler Short-Term Planning — Catching Plan"
+        />
+        <NavBtn
+          active={breedingPyramidOpen}
+          onClick={() => { closeAll(); setHomeOpen(false); setBreedingPyramidOpen(true); }}
+          badge="BP"
+          label="Breeding Pyramid"
+          title="Breeding Pyramid Plan — GP → PS → Broiler DOC"
         />
 
         {STEPS.map((step) => {
-          const active = !compareOpen && !demandOpen && !supplyOpen && !reconcileOpen && !ddpOpen && !reportOpen && !homeOpen && !bomOpen && !processingPlanOpen && !broilerIntakeOpen && !cutBalanceOpen && !shortTermPlanningOpen && selectedStep === step.id;
+          const active = !compareOpen && !demandOpen && !supplyOpen && !reconcileOpen && !ddpOpen && !reportOpen && !homeOpen && !bomOpen && !processingPlanOpen && !broilerIntakeOpen && !cutBalanceOpen && !shortTermPlanningOpen && !breedingPyramidOpen && selectedStep === step.id;
           return (
             <NavBtn
               key={step.id}

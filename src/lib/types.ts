@@ -349,3 +349,84 @@ export interface ValidationIssue {
   step: string;
   message: string;
 }
+
+// ─── Breeding Pyramid ─────────────────────────────────────────────────────────
+
+/** One Grandparent (GP) flock — Cobb-500 only for AWP. */
+export interface GpFlock {
+  id: string;
+  name: string;              // e.g. "GP-2026-A"
+  placementDate: string;     // ISO yyyy-mm-dd
+  femaleCount: number;       // females at placement
+  layStartWeekAge: number;   // age in weeks when laying begins (default 25)
+}
+
+/** One external Ross-308 PS purchase order. */
+export interface RossPsOrder {
+  id: string;
+  name: string;              // e.g. "Ross-PO-001"
+  arrivalDate: string;       // ISO yyyy-mm-dd — PS females arrive at PS farm
+  femaleCount: number;       // PS females in this shipment
+}
+
+/** Biological + planning parameters for the breeding pyramid. */
+export interface BreedingParams {
+  planStartDate: string;       // ISO yyyy-mm-dd — week 1 of the breeding grid
+  planHorizonWeeks: number;    // 52
+
+  // ── Incubation (shared GP→PS and PS→Broiler) ──
+  incubationWeeks: number;     // 3
+
+  // ── GP Grandparent parameters ─────────────────
+  gpLayingWeeks: number;       // 40
+  gpLayMortWeekly: number;     // 0.003  (0.3% weekly mortality during laying)
+  gpHDP: number;               // 65     (hen-day production %)
+  gpSettableRatio: number;     // 0.85
+  gpHatchRate: number;         // 0.78
+  gpMaleByproductPct: number;  // 0.50   (50% of hatchlings are male PS byproduct)
+
+  // ── Cobb PS Parent Stock parameters ───────────
+  cobbLayStartWeekAge: number; // 25     (PS female age in weeks when laying starts)
+  cobbLayingWeeks: number;     // 38
+  cobbLayMortWeekly: number;   // 0.003
+  cobbHDP: number;             // 62
+  cobbSettableRatio: number;   // 0.87
+  cobbHatchRate: number;       // 0.80
+  cobbMaleByproductPct: number;// 0.50
+
+  // ── Ross PS Parent Stock parameters ───────────
+  rossLayStartWeekAge: number; // 25
+  rossLayingWeeks: number;     // 38
+  rossLayMortWeekly: number;   // 0.003
+  rossHDP: number;             // 60
+  rossSettableRatio: number;   // 0.85
+  rossHatchRate: number;       // 0.78
+  rossMaleByproductPct: number;// 0.50
+
+  // ── Ross PO lead time ─────────────────────────
+  rossPOLeadWeeks: number;     // 52
+}
+
+/** One row of the computed breeding pyramid schedule (one plan week). */
+export interface BreedingWeekRow {
+  week: number;            // 1-based
+  weekStart: string;       // ISO yyyy-mm-dd (Monday of that week)
+
+  // GP Supply
+  gpSettableEggs: number;  // settable eggs from all GP flocks this week
+
+  // PS supply from GP (Cobb chain)
+  cobbPsDOC: number;       // Cobb PS female DOC arriving this week (from GP eggs wk-3)
+  cobbPsEggs: number;      // Cobb PS settable eggs this week (from all PS cohorts)
+
+  // PS supply (Ross chain)
+  rossPsEggs: number;      // Ross PS settable eggs this week (from all Ross PS cohorts)
+
+  // Broiler DOC
+  broilerFromCobb: number; // Broiler female DOC from Cobb PS (cobbPsEggs wk-3 × hatch × (1-male%))
+  broilerFromRoss: number; // Broiler female DOC from Ross PS
+  totalBroilerDOC: number; // combined
+
+  // Ross PO dates (for any Ross orders whose PO date falls in this week)
+  rossPoOrders: { name: string; femaleCount: number; poDate: string; arrivalDate: string }[];
+}

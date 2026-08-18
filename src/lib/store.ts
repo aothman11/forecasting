@@ -2,19 +2,23 @@ import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import type {
   ArchivedPlan,
+  BreedingParams,
   ChannelKey,
   CutKey,
   DemandPlanQty,
   DemandProduct,
   Farm,
+  GpFlock,
   MonthlyPlanConfig,
   Parameters,
   PlacementDayRow,
   PlacementEntry,
   PlantKey,
+  RossPsOrder,
   ScenarioSnapshot,
   SupplyRequirementsWeek,
 } from "./types";
+import { DEFAULT_BREEDING_PARAMS } from "./breedingPyramidDefaults";
 import { DEFAULT_BOM_RECORDS } from "./bomDefaults";
 import type { BomRecord } from "./bomTypes";
 import type { SalesPlanCartonRow } from "./processingPlanTypes";
@@ -68,6 +72,13 @@ interface PlanState {
   bomOpen: boolean;
   cutBalanceOpen: boolean;
   shortTermPlanningOpen: boolean;
+  breedingPyramidOpen: boolean;
+
+  // ── Breeding Pyramid ──────────────────────────────────────────────────────
+  gpFlocks: GpFlock[];
+  rossPsOrders: RossPsOrder[];
+  breedingParams: BreedingParams;
+
   cutProductMapping: Record<string, CutKey | "ignore">;
   scenarios: ScenarioSnapshot[];
   archivedPlans: ArchivedPlan[];
@@ -127,6 +138,17 @@ interface PlanState {
   setBomOpen: (open: boolean) => void;
   setCutBalanceOpen: (open: boolean) => void;
   setShortTermPlanningOpen: (open: boolean) => void;
+  setBreedingPyramidOpen: (open: boolean) => void;
+
+  // ── Breeding Pyramid setters ──────────────────────────────────────────────
+  addGpFlock: (flock: GpFlock) => void;
+  updateGpFlock: (id: string, patch: Partial<GpFlock>) => void;
+  removeGpFlock: (id: string) => void;
+  addRossPsOrder: (order: RossPsOrder) => void;
+  updateRossPsOrder: (id: string, patch: Partial<RossPsOrder>) => void;
+  removeRossPsOrder: (id: string) => void;
+  setBreedingParams: (patch: Partial<BreedingParams>) => void;
+
   setCutProductMapping: (mapping: Record<string, CutKey | "ignore">) => void;
   saveScenario: (name: string) => void;
   deleteScenario: (id: string) => void;
@@ -172,6 +194,10 @@ export const usePlanStore = create<PlanState>()(
       bomOpen: false,
       cutBalanceOpen: false,
       shortTermPlanningOpen: false,
+      breedingPyramidOpen: false,
+      gpFlocks: [],
+      rossPsOrders: [],
+      breedingParams: DEFAULT_BREEDING_PARAMS,
       cutProductMapping: {},
       scenarios: [],
       archivedPlans: [],
@@ -415,6 +441,19 @@ export const usePlanStore = create<PlanState>()(
       setCompareOpen: (open) => set({ compareOpen: open }),
       setCutBalanceOpen: (open) => set({ cutBalanceOpen: open }),
       setShortTermPlanningOpen: (open) => set({ shortTermPlanningOpen: open }),
+      setBreedingPyramidOpen: (open) => set({ breedingPyramidOpen: open }),
+
+      addGpFlock: (flock) => set((s) => ({ gpFlocks: [...s.gpFlocks, flock] })),
+      updateGpFlock: (id, patch) =>
+        set((s) => ({ gpFlocks: s.gpFlocks.map((f) => (f.id === id ? { ...f, ...patch } : f)) })),
+      removeGpFlock: (id) => set((s) => ({ gpFlocks: s.gpFlocks.filter((f) => f.id !== id) })),
+      addRossPsOrder: (order) => set((s) => ({ rossPsOrders: [...s.rossPsOrders, order] })),
+      updateRossPsOrder: (id, patch) =>
+        set((s) => ({ rossPsOrders: s.rossPsOrders.map((o) => (o.id === id ? { ...o, ...patch } : o)) })),
+      removeRossPsOrder: (id) => set((s) => ({ rossPsOrders: s.rossPsOrders.filter((o) => o.id !== id) })),
+      setBreedingParams: (patch) =>
+        set((s) => ({ breedingParams: { ...s.breedingParams, ...patch } })),
+
       setCutProductMapping: (mapping) => set({ cutProductMapping: mapping }),
       setDemandOpen: (open) => set({ demandOpen: open }),
       setSupplyOpen: (open) => set({ supplyOpen: open }),
