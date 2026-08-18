@@ -76,6 +76,15 @@ interface PlanState {
   shortTermPlanningOpen: boolean;
   breedingPyramidOpen: boolean;
 
+  // ── Breeding Cycle (new module) ───────────────────────────────────────────
+  breedingCycleView: "overview" | "demand-chain" | "ps-supply" | "schedule";
+  setBrCycleView: (v: "overview" | "demand-chain" | "ps-supply" | "schedule") => void;
+  /** Cell-level planner overrides. Key: `"${tierKey}::${week}"`, value: overridden qty. */
+  bpOverrides: Record<string, number>;
+  setBpOverride: (key: string, value: number) => void;
+  clearBpOverride: (key: string) => void;
+  clearAllBpOverrides: () => void;
+
   // ── Biological Chain ──────────────────────────────────────────────────────
   bioChainAssumptions: BioChainAssumptions;
   setBioChainAssumptions: (a: BioChainAssumptions) => void;
@@ -206,6 +215,15 @@ export const usePlanStore = create<PlanState>()(
       cutBalanceOpen: false,
       shortTermPlanningOpen: false,
       breedingPyramidOpen: false,
+      breedingCycleView: "overview",
+      setBrCycleView: (v) => set({ breedingCycleView: v }),
+      bpOverrides: {},
+      setBpOverride: (key, value) => set((s) => ({ bpOverrides: { ...s.bpOverrides, [key]: value } })),
+      clearBpOverride: (key) => set((s) => {
+        const { [key]: _, ...rest } = s.bpOverrides;
+        return { bpOverrides: rest };
+      }),
+      clearAllBpOverrides: () => set({ bpOverrides: {} }),
       bioChainAssumptions: DEFAULT_BIO_ASSUMPTIONS,
       setBioChainAssumptions: (a) => set({ bioChainAssumptions: a }),
       bioChainGpFlocks: DEFAULT_BIO_CHAIN_GP_FLOCKS,

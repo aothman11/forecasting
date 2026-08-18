@@ -170,12 +170,19 @@ export function Sidebar() {
           label="Short-Term Planning"
           title="Broiler Short-Term Planning — Catching Plan"
         />
+
+        {/* Breeding Cycle header */}
+        {!collapsed && (
+          <div className="px-4 text-[11px] uppercase tracking-wide text-neutral-400 font-semibold mt-4 mb-1">Breeding Cycle</div>
+        )}
+        {collapsed && <div className="border-t border-neutral-100 my-1 mx-2" />}
+
         <NavBtn
           active={breedingPyramidOpen}
           onClick={() => { closeAll(); setHomeOpen(false); setBreedingPyramidOpen(true); }}
-          badge="BC"
-          label="Biological Chain"
-          title="Biological Chain — upstream supply chain backward from Catching Plan"
+          badge="🔺"
+          label="Breeding Cycle"
+          title="Breeding Cycle — GP → PS → Broiler DOC full supply chain"
         />
 
         {STEPS.map((step) => {

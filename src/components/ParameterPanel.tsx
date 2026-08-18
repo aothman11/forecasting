@@ -85,6 +85,8 @@ export function ParameterPanel() {
   const resetToDefaults = usePlanStore((s) => s.resetToDefaults);
   const assumptionsOpen = usePlanStore((s) => s.assumptionsOpen);
   const toggleAssumptions = usePlanStore((s) => s.toggleAssumptions);
+  const breedingParams  = usePlanStore((s) => s.breedingParams);
+  const setBreedingParams = usePlanStore((s) => s.setBreedingParams);
 
   if (!assumptionsOpen) return null;
 
@@ -385,6 +387,44 @@ export function ParameterPanel() {
             <div className="text-[11px] text-green-700 mt-1">✓ Total = 100%</div>
           );
         })()}
+      </Section>
+
+      {/* ── Breeding Cycle Parameters ── */}
+      <Section title="Breeding Cycle — Placeholder Params ⚠️">
+        <div className="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-1.5 mb-2 leading-snug">
+          These 6 values are flagged as placeholders. Verify with AWP flock records before using for procurement decisions.
+        </div>
+        <Field
+          label="GP Procurement lead time"
+          value={breedingParams.gpProcurementLeadWeeks ?? 52}
+          onChange={(v) => setBreedingParams({ gpProcurementLeadWeeks: v })}
+          suffix="wks"
+        />
+        <PercentField
+          label="GP rearing mortality (total)"
+          value={breedingParams.gpRearingMortality ?? 0.04}
+          onChange={(v) => setBreedingParams({ gpRearingMortality: v })}
+        />
+        <Field
+          label="PS rearing duration"
+          value={breedingParams.psRearingWeeks ?? 25}
+          onChange={(v) => setBreedingParams({ psRearingWeeks: v })}
+          suffix="wks"
+        />
+        <PercentField
+          label="PS rearing mortality (total)"
+          value={breedingParams.psRearingMortality ?? 0.04}
+          onChange={(v) => setBreedingParams({ psRearingMortality: v })}
+        />
+        <PercentField
+          label="AWP Hatchery cull %"
+          value={breedingParams.hatcheryCullPct ?? 0.02}
+          onChange={(v) => setBreedingParams({ hatcheryCullPct: v })}
+          step={0.1}
+        />
+        <div className="text-[10px] text-neutral-400 pt-1 border-t border-neutral-100 mt-1">
+          Other breed biology params (HDP, hatch rates, laying weeks) are in the Breeding Cycle → Demand Chain view.
+        </div>
       </Section>
 
       <div className="p-4">

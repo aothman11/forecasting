@@ -31,6 +31,7 @@ import { PlanningAssistant } from "@/components/PlanningAssistant";
 import { CutBalancePanel } from "@/components/CutBalancePanel";
 import { ShortTermPlanning } from "@/components/ShortTermPlanning";
 import { BiologicalChainPage } from "@/components/BiologicalChain/BiologicalChainPage";
+import { BreedingCyclePage } from "@/components/BreedingCycle/BreedingCyclePage";
 import { SavePlanButton } from "@/components/SavePlanButton";
 import { buildPlanContext } from "@/lib/buildPlanContext";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
@@ -89,7 +90,7 @@ export default function Home() {
         <div className="flex-1 flex flex-col min-w-0">
           <header className="h-14 border-b border-[var(--border-subtle)] bg-white flex items-center justify-between px-6 shrink-0">
             <div className="text-sm font-semibold text-neutral-700">
-              {homeOpen ? "Home" : compareOpen ? "Saved Plans" : demandOpen ? "Demand Plan" : supplyOpen ? "Supply Requirements" : reconcileOpen ? "Reconciliation" : ddpOpen ? "Demand-Driven Placement" : reportOpen ? "COP Report" : bomOpen ? "Product BOM" : processingPlanOpen ? "Processing Plan" : broilerIntakeOpen ? "Broiler Intake Plan" : cutBalanceOpen ? "Whole Carcass Balance" : shortTermPlanningOpen ? "Short-Term Planning" : breedingPyramidOpen ? "Biological Chain" : currentLabel}
+              {homeOpen ? "Home" : compareOpen ? "Saved Plans" : demandOpen ? "Demand Plan" : supplyOpen ? "Supply Requirements" : reconcileOpen ? "Reconciliation" : ddpOpen ? "Demand-Driven Placement" : reportOpen ? "COP Report" : bomOpen ? "Product BOM" : processingPlanOpen ? "Processing Plan" : broilerIntakeOpen ? "Broiler Intake Plan" : cutBalanceOpen ? "Whole Carcass Balance" : shortTermPlanningOpen ? "Short-Term Planning" : breedingPyramidOpen ? "Breeding Cycle" : currentLabel}
             </div>
             <div className="flex items-center gap-3">
               <SavePlanButton />
@@ -137,7 +138,7 @@ export default function Home() {
             ) : shortTermPlanningOpen ? (
               <ShortTermPlanning />
             ) : breedingPyramidOpen ? (
-              <BiologicalChainPage />
+              <BreedingCyclePage />
             ) : (
               <StepContent step={selectedStep} />
             )}

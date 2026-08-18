@@ -405,6 +405,20 @@ export interface BreedingParams {
 
   // ── Ross PO lead time ─────────────────────────
   rossPOLeadWeeks: number;     // 52
+
+  // ── Breeding Cycle placeholder params (flagged in 0B analysis — AWP to verify) ──
+  /** Weeks from DOC placement at Plant 3300 to first GP egg (= lay-start age). */
+  gpRearingWeeks: number;           // 25
+  /** Total mortality during GP rearing period. Fraction (not %). */
+  gpRearingMortality: number;       // 0.04
+  /** Weeks from PO issue to GP DOC arrival at Plant 3300. */
+  gpProcurementLeadWeeks: number;   // 52
+  /** Weeks from PS DOC arrival at Plant 1230 to first PS egg. */
+  psRearingWeeks: number;           // 25
+  /** Total mortality during PS rearing period. Fraction (not %). */
+  psRearingMortality: number;       // 0.04
+  /** Fraction of hatched DOC rejected as poor quality at Plant 1210 (AWP hatchery). */
+  hatcheryCullPct: number;          // 0.02
 }
 
 /** One row of the computed breeding pyramid schedule (one plan week). */

@@ -39,4 +39,12 @@ export const DEFAULT_BREEDING_PARAMS: BreedingParams = {
 
   // ── Ross PO lead time ───────────────────────────────────────────────────
   rossPOLeadWeeks: 52,      // Purchase Order must be placed 52 weeks before arrival
+
+  // ── Breeding Cycle placeholder params (⚠️ AWP should verify these) ──────
+  gpRearingWeeks: 25,           // GP rearing period = lay-start age (weeks)
+  gpRearingMortality: 0.04,     // 4% total mortality during GP rearing
+  gpProcurementLeadWeeks: 52,   // weeks from GP order to DOC arrival at Plant 3300
+  psRearingWeeks: 25,           // PS rearing period = lay-start age (weeks)
+  psRearingMortality: 0.04,     // 4% total mortality during PS rearing
+  hatcheryCullPct: 0.02,        // 2% DOC cull at AWP Hatchery (Plant 1210)
 };
