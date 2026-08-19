@@ -69,18 +69,23 @@ function buildCatchSchedule(
   mortalityRate: number,
   avgLiveWeightKg: number,
 ): CatchRow[] {
+  // NOTE: placementDays[i].date is the CATCHING (harvest) date — Step 1 stores it that way.
+  // The placement date is back-calculated as catchDate − cycleLengthDays.
+  // Do NOT add cycleLengthDays again here; dayIndex already points to the catch day.
+  void planStartDate; // planStartDate not needed — dates come directly from placementDays
   return placementDays
     .filter((d) => d.farmsPlacing > 0 && d.chicksPerHouse > 0)
     .map((d) => {
       const chicksPlaced = d.farmsPlacing * d.chicksPerHouse;
       const ageAtCatch = Math.round(cycleLengthDays);
-      const catchDayIndex = d.dayIndex + ageAtCatch;
-      const catchDate = addDaysToIso(planStartDate, catchDayIndex);
+      const catchDate = d.date;                                          // already the catch date
+      const catchDayIndex = d.dayIndex;                                  // already the catch day index
+      const placementDate = addDaysToIso(d.date, -ageAtCatch);          // back-calculate placement
       const liveBirds = Math.round(chicksPlaced * (1 - mortalityRate));
       const liveKg = liveBirds * avgLiveWeightKg;
       const catchWeekNum = Math.floor(catchDayIndex / 7) + 1;
       return {
-        placementDate: d.date,
+        placementDate,
         catchDate,
         catchDayIndex,
         catchWeekNum,
