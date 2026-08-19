@@ -1,10 +1,13 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  // Ensure data/users.json is bundled into every serverless function.
-  // Next.js output-file tracing follows static `import` / `require` chains only;
-  // dynamic fs.readFileSync calls (auth.ts loadUsers) are invisible to the
-  // tracer and the file would be missing on Vercel without this explicit inclusion.
+  // better-sqlite3 is a native Node.js addon (.node binary).
+  // Next.js bundles server code with webpack by default, which cannot handle
+  // native modules. Adding it here tells Next.js to leave it as a real
+  // `require()` call so Node loads the .node file at runtime.
+  serverExternalPackages: ["better-sqlite3"],
+
+  // Ensure data/ files (users.json, plans.db) are included in serverless traces.
   outputFileTracingIncludes: {
     "/**": ["./data/**"],
   },

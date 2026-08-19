@@ -9,6 +9,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { usePlanStore } from "@/lib/store";
+import { useCurrentUser } from "@/hooks/useCurrentUser";
 import type { SavedPlanFull, SavedPlanMeta } from "@/lib/types";
 
 // ── helpers ─────────────────────────────────────────────────────────────────
@@ -25,6 +26,8 @@ function fmtDate(iso: string) {
 export function SavedPlansPanel() {
   const collectPlanState = usePlanStore((s) => s.collectPlanState);
   const loadSavedPlan    = usePlanStore((s) => s.loadSavedPlan);
+  const user = useCurrentUser();
+  const isAdmin = user?.role === "admin";
 
   // ── list state ──────────────────────────────────────────────────────────
   const [plans,   setPlans]   = useState<SavedPlanMeta[]>([]);
@@ -192,12 +195,24 @@ export function SavedPlansPanel() {
             Plans are stored on the server and shared across all users.
           </p>
         </div>
-        <button
-          onClick={openSave}
-          className="shrink-0 text-xs font-semibold px-4 py-2 rounded-md bg-brand-green text-white hover:bg-brand-green-dark transition-colors flex items-center gap-2"
-        >
-          💾 Save Current Plan
-        </button>
+        <div className="flex items-center gap-2 shrink-0">
+          {isAdmin && (
+            <a
+              href="/api/plans/backup"
+              download
+              title="Download a complete backup of the plans database (admin only)"
+              className="text-xs font-medium px-3 py-2 rounded-md border border-[var(--border-subtle)] text-neutral-600 hover:border-brand-green hover:text-brand-green transition-colors flex items-center gap-1.5"
+            >
+              ⬇ Download Backup
+            </a>
+          )}
+          <button
+            onClick={openSave}
+            className="text-xs font-semibold px-4 py-2 rounded-md bg-brand-green text-white hover:bg-brand-green-dark transition-colors flex items-center gap-2"
+          >
+            💾 Save Current Plan
+          </button>
+        </div>
       </div>
 
       {/* ── inline save form ── */}

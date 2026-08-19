@@ -73,23 +73,43 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "state is required and must be an object" }, { status: 400 });
   }
 
-  const db  = getDb();
+  let db;
+  try {
+    db = getDb();
+  } catch (err) {
+    console.error("[POST /api/plans] getDb() failed:", err);
+    return NextResponse.json({ error: "Database unavailable", detail: String(err) }, { status: 500 });
+  }
+
   const id  = shortId();
   const now = new Date().toISOString();
 
-  db.prepare(
-    `INSERT INTO saved_plans
-       (id, name, description, saved_by_id, saved_by, saved_at, version, state)
-     VALUES (?, ?, ?, ?, ?, ?, 1, ?)`
-  ).run(
-    id,
-    name.trim(),
-    String(description).trim(),
-    session.userId,
-    session.name,
-    now,
-    JSON.stringify(state),
-  );
+  let stateJson: string;
+  try {
+    stateJson = JSON.stringify(state);
+  } catch (err) {
+    console.error("[POST /api/plans] JSON.stringify(state) failed:", err);
+    return NextResponse.json({ error: "State is not serializable", detail: String(err) }, { status: 400 });
+  }
+
+  try {
+    db.prepare(
+      `INSERT INTO saved_plans
+         (id, name, description, saved_by_id, saved_by, saved_at, version, state)
+       VALUES (?, ?, ?, ?, ?, ?, 1, ?)`
+    ).run(
+      id,
+      name.trim(),
+      String(description).trim(),
+      session.userId,
+      session.name ?? session.email ?? "unknown",
+      now,
+      stateJson,
+    );
+  } catch (err) {
+    console.error("[POST /api/plans] INSERT failed:", err);
+    return NextResponse.json({ error: "Failed to save plan", detail: String(err) }, { status: 500 });
+  }
 
   return NextResponse.json({ id, savedAt: now }, { status: 201 });
 }

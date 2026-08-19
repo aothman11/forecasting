@@ -44,3 +44,9 @@ next-env.d.ts
 
 # generated one-off exports
 awp-placement-template.xlsx
+
+# SQLite database files — keep data out of git
+# Back up data/plans.db manually or via the in-app Download Backup button
+data/*.db
+data/*.db-wal
+data/*.db-shm
