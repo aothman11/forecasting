@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Image from "next/image";
+import { useRouter } from "next/navigation";
 import { STEPS, usePlanStore } from "@/lib/store";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
 import { useFormStatus } from "react-dom";
@@ -11,6 +12,7 @@ import { ROLE_LABELS } from "@/lib/role-permissions";
 
 export function Sidebar() {
   const [collapsed, setCollapsed] = useState(false);
+  const router = useRouter();
 
   const selectedStep = usePlanStore((s) => s.selectedStep);
   const setSelectedStep = usePlanStore((s) => s.setSelectedStep);
@@ -63,11 +65,13 @@ export function Sidebar() {
   }) {
     return (
       <button
+        aria-label={collapsed ? title : undefined}
+        aria-current={active ? "page" : undefined}
         title={collapsed ? title : undefined}
         onClick={onClick}
         className={`${btnBase} ${btnPad} ${active ? "bg-brand-green-tint text-brand-green-dark font-semibold border-r-2 border-brand-green" : "text-neutral-600 hover:bg-neutral-50"}`}
       >
-        <span className={`flex items-center justify-center w-6 h-6 rounded-full text-[11px] font-semibold shrink-0 transition-shadow ${active ? badgeActive : badgeIdle}`}>
+        <span aria-hidden="true" className={`flex items-center justify-center w-6 h-6 rounded-full text-[11px] font-semibold shrink-0 transition-shadow ${active ? badgeActive : badgeIdle}`}>
           {badge}
         </span>
         {!collapsed && <span>{label}</span>}
@@ -80,16 +84,21 @@ export function Sidebar() {
       className={`relative shrink-0 border-r border-[var(--border-subtle)] bg-white flex flex-col h-screen transition-all duration-200 ${collapsed ? "w-14" : "w-64"}`}
     >
       {/* Collapse / expand tab — sticks out from the right edge */}
+      {/* Touch target is expanded via padding; visual stays 28px via inner span */}
       <button
         onClick={() => setCollapsed((c) => !c)}
+        aria-expanded={!collapsed}
+        aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
         title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-        className="absolute -right-3.5 top-6 z-10 flex items-center justify-center w-7 h-7 rounded-full bg-white border border-[var(--border-subtle)] shadow-md text-neutral-500 hover:text-brand-green hover:border-brand-green transition-colors"
+        className="absolute -right-[22px] top-[14px] z-10 p-2 text-neutral-500 hover:text-brand-green transition-colors group"
       >
-        {collapsed ? (
-          <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M6 3l5 5-5 5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
-        ) : (
-          <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M10 3L5 8l5 5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
-        )}
+        <span aria-hidden="true" className="flex items-center justify-center w-7 h-7 rounded-full bg-white border border-[var(--border-subtle)] shadow-md group-hover:border-brand-green transition-colors">
+          {collapsed ? (
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M6 3l5 5-5 5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
+          ) : (
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M10 3L5 8l5 5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
+          )}
+        </span>
       </button>
 
       {/* Header */}
@@ -232,7 +241,7 @@ export function Sidebar() {
           {collapsed && <div className="border-t border-neutral-100 my-1 mx-2" />}
           <NavBtn
             active={false}
-            onClick={() => { window.location.href = "/admin/users"; }}
+            onClick={() => { router.push("/admin/users"); }}
             badge="👤"
             label="User Management"
             title="User Management"

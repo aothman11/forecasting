@@ -261,7 +261,7 @@ export function HomeDashboard() {
       {/* Hero */}
       <div
         className="relative rounded-2xl overflow-hidden shadow-md border border-[var(--border-subtle)]"
-        style={{ backgroundColor: "#fff", backgroundImage: "url('/hero-bg6.svg')", backgroundSize: "100% 100%", backgroundPosition: "center center", minHeight: 100 }}
+        style={{ backgroundColor: "var(--background)", backgroundImage: "url('/hero-bg6.svg')", backgroundSize: "100% 100%", backgroundPosition: "center center", minHeight: 100 }}
       >
         {/* gradient: white at top for text → transparent at bottom to reveal green waves */}
         <div className="absolute inset-0 bg-gradient-to-b from-white/70 via-white/20 to-transparent pointer-events-none" />
@@ -279,7 +279,7 @@ export function HomeDashboard() {
             style={{
               fontSize: "clamp(1.1rem, 2.5vw, 1.6rem)",
               fontWeight: 700,
-              color: "#1a3d1a",
+              color: "var(--brand-green-dark)",
               textShadow: "0 1px 4px rgba(255,255,255,0.6)",
               letterSpacing: "-0.01em",
             }}
@@ -288,7 +288,7 @@ export function HomeDashboard() {
           </div>
           <div
             className="mt-1 text-[11px] font-medium tracking-widest uppercase"
-            style={{ color: "#2d6a2d", letterSpacing: "0.18em" }}
+            style={{ color: "var(--brand-green)", letterSpacing: "0.18em" }}
           >
             Smarter Planning · Better Production
           </div>
@@ -712,7 +712,7 @@ export function HomeDashboard() {
       {/* ── Production Pipeline ── */}
       <div>
         <div className="flex items-center gap-3 mb-3">
-          <h2 className="text-sm font-bold uppercase tracking-widest text-neutral-400">Production Pipeline</h2>
+          <h2 className="text-sm font-bold uppercase tracking-widest text-brand-green-dark">Production Pipeline</h2>
           <div className="flex-1 h-px bg-neutral-200" />
         </div>
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
