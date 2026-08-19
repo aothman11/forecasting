@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { ROLE_OPTIONS, ROLE_LABELS } from "@/lib/role-permissions";
 
 interface User {
@@ -155,6 +156,7 @@ function UserModal({ user, onClose, onSaved }: ModalProps) {
 
 // ── Main client component ────────────────────────────────────────────────────
 export default function UsersClient({ initialUsers }: { initialUsers: User[] }) {
+  const router = useRouter();
   const [users, setUsers] = useState<User[]>(initialUsers);
   const [modal, setModal] = useState<"add" | User | null>(null);
   const [deletePending, startDelete] = useTransition();
@@ -188,9 +190,22 @@ export default function UsersClient({ initialUsers }: { initialUsers: User[] }) 
   return (
     <>
       <div className="flex items-center justify-between mb-5">
-        <div>
-          <h1 className="text-xl font-bold text-neutral-800">User Management</h1>
-          <p className="text-xs text-neutral-500 mt-0.5">{users.length} users · Admin only</p>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => router.push("/")}
+            className="flex items-center gap-1.5 text-xs text-neutral-500 hover:text-brand-green-dark transition-colors"
+            aria-label="Back to app"
+          >
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
+              <path d="M9 2L4 7l5 5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+            Back to app
+          </button>
+          <div className="w-px h-5 bg-neutral-200" aria-hidden="true" />
+          <div>
+            <h1 className="text-xl font-bold text-neutral-800">User Management</h1>
+            <p className="text-xs text-neutral-500 mt-0.5">{users.length} users · Admin only</p>
+          </div>
         </div>
         <button
           onClick={() => setModal("add")}
