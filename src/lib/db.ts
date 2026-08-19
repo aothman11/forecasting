@@ -1,50 +1,44 @@
 /**
- * SQLite database — server-side plan persistence.
+ * Postgres database — server-side plan persistence via Vercel Postgres (Neon).
  * Server-only: never imported by client components.
  *
- * Uses a global singleton so the connection survives Next.js HMR in dev mode
- * without reopening the file on every hot-module reload.
+ * On Vercel, POSTGRES_URL is set automatically when you add a Postgres database
+ * to your project (Dashboard → Storage → Postgres).
+ * For local dev, add POSTGRES_URL to your .env.local.
  */
 import "server-only";
-import Database from "better-sqlite3";
-import path from "path";
-import fs from "fs";
-
-const DB_DIR  = path.join(process.cwd(), "data");
-const DB_PATH = path.join(DB_DIR, "plans.db");
+import { sql } from "@vercel/postgres";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const g = global as any;
 
-function openDb(): Database.Database {
-  if (!fs.existsSync(DB_DIR)) fs.mkdirSync(DB_DIR, { recursive: true });
-
-  const db = new Database(DB_PATH);
-  db.pragma("journal_mode = WAL");   // concurrent reads while writing
-  db.pragma("foreign_keys = ON");
-
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS saved_plans (
-      id          TEXT    PRIMARY KEY,
-      name        TEXT    NOT NULL,
-      description TEXT    NOT NULL DEFAULT '',
-      saved_by_id TEXT    NOT NULL,
-      saved_by    TEXT    NOT NULL,
-      saved_at    TEXT    NOT NULL,
-      version     INTEGER NOT NULL DEFAULT 1,
-      state       TEXT    NOT NULL,
-      deleted_at  TEXT    DEFAULT NULL
-    );
-
-    CREATE INDEX IF NOT EXISTS idx_saved_plans_saved_at
-      ON saved_plans (saved_at DESC)
-      WHERE deleted_at IS NULL;
-  `);
-
-  return db;
+/**
+ * Ensures the saved_plans table exists. Uses a module-level promise so the
+ * CREATE TABLE IF NOT EXISTS only runs once per server instance / cold start.
+ */
+export async function getDb(): Promise<void> {
+  if (!g.__awpSchemaReady) {
+    g.__awpSchemaReady = sql`
+      CREATE TABLE IF NOT EXISTS saved_plans (
+        id          TEXT    PRIMARY KEY,
+        name        TEXT    NOT NULL,
+        description TEXT    NOT NULL DEFAULT '',
+        saved_by_id TEXT    NOT NULL,
+        saved_by    TEXT    NOT NULL,
+        saved_at    TEXT    NOT NULL,
+        version     INTEGER NOT NULL DEFAULT 1,
+        state       TEXT    NOT NULL,
+        deleted_at  TEXT    DEFAULT NULL
+      )
+    `.then(() =>
+      sql`
+        CREATE INDEX IF NOT EXISTS idx_saved_plans_saved_at
+          ON saved_plans (saved_at DESC)
+          WHERE deleted_at IS NULL
+      `
+    ).then(() => undefined as void);
+  }
+  return g.__awpSchemaReady as Promise<void>;
 }
 
-export function getDb(): Database.Database {
-  if (!g.__awpDb) g.__awpDb = openDb();
-  return g.__awpDb as Database.Database;
-}
+export { sql };

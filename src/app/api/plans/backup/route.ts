@@ -1,19 +1,13 @@
 /**
  * GET /api/plans/backup
  *
- * Streams a clean, consistent SQLite backup of data/plans.db.
- * Uses SQLite's native backup API (not a raw file copy) so the snapshot is
- * always valid even while the database is being written to.
- *
+ * Exports all active saved plans as a JSON file.
  * Admin-only.
  */
 import "server-only";
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/session";
-import { getDb } from "@/lib/db";
-import fs from "fs";
-import path from "path";
-import os from "os";
+import { getDb, sql } from "@/lib/db";
 
 export async function GET() {
   const session = await getSession();
@@ -24,27 +18,39 @@ export async function GET() {
     return NextResponse.json({ error: "Admin only" }, { status: 403 });
   }
 
-  // Write a consistent snapshot to a temp file, then stream it back
-  const tmpPath = path.join(os.tmpdir(), `awp-plans-backup-${Date.now()}.db`);
-
   try {
-    const db = getDb();
-    // better-sqlite3's backup() uses SQLite's Online Backup API — safe while live
-    await db.backup(tmpPath);
+    await getDb();
+    const { rows } = await sql`
+      SELECT id, name, description, saved_by_id, saved_by, saved_at, version, state
+      FROM saved_plans
+      WHERE deleted_at IS NULL
+      ORDER BY saved_at DESC
+    `;
 
-    const fileBuffer = fs.readFileSync(tmpPath);
-    const dateStr = new Date().toISOString().slice(0, 10); // yyyy-mm-dd
+    const plans = rows.map((r) => ({
+      id:          r.id,
+      name:        r.name,
+      description: r.description,
+      savedById:   r.saved_by_id,
+      savedBy:     r.saved_by,
+      savedAt:     r.saved_at,
+      version:     r.version,
+      state:       JSON.parse(r.state),
+    }));
 
-    return new NextResponse(fileBuffer, {
+    const dateStr = new Date().toISOString().slice(0, 10);
+    const json = JSON.stringify({ exportedAt: new Date().toISOString(), plans }, null, 2);
+
+    return new NextResponse(json, {
       status: 200,
       headers: {
-        "Content-Type":        "application/octet-stream",
-        "Content-Disposition": `attachment; filename="awp-plans-${dateStr}.db"`,
-        "Content-Length":      String(fileBuffer.byteLength),
+        "Content-Type":        "application/json",
+        "Content-Disposition": `attachment; filename="awp-plans-${dateStr}.json"`,
+        "Content-Length":      String(Buffer.byteLength(json, "utf8")),
       },
     });
-  } finally {
-    // Clean up temp file whether or not the stream succeeded
-    try { fs.unlinkSync(tmpPath); } catch { /* ignore */ }
+  } catch (err) {
+    console.error("[GET /api/plans/backup] failed:", err);
+    return NextResponse.json({ error: "Export failed", detail: String(err) }, { status: 500 });
   }
 }

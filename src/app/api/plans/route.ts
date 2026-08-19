@@ -9,12 +9,11 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { getSession } from "@/lib/session";
-import { getDb } from "@/lib/db";
+import { getDb, sql } from "@/lib/db";
 
 // ── helpers ────────────────────────────────────────────────────────────────
 
 function shortId(): string {
-  // 21-char alphanumeric — no external dependency
   return crypto.randomUUID().replace(/-/g, "").slice(0, 21);
 }
 
@@ -24,31 +23,30 @@ export async function GET() {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const db = getDb();
+  try {
+    await getDb();
+    const { rows } = await sql`
+      SELECT id, name, description, saved_by_id, saved_by, saved_at, version
+      FROM saved_plans
+      WHERE deleted_at IS NULL
+      ORDER BY saved_at DESC
+    `;
 
-  const rows = db
-    .prepare(
-      `SELECT id, name, description, saved_by_id, saved_by, saved_at, version
-       FROM saved_plans
-       WHERE deleted_at IS NULL
-       ORDER BY saved_at DESC`
-    )
-    .all() as {
-      id: string; name: string; description: string;
-      saved_by_id: string; saved_by: string; saved_at: string; version: number;
-    }[];
+    const plans = rows.map((r) => ({
+      id:          r.id,
+      name:        r.name,
+      description: r.description,
+      savedById:   r.saved_by_id,
+      savedBy:     r.saved_by,
+      savedAt:     r.saved_at,
+      version:     r.version,
+    }));
 
-  const plans = rows.map((r) => ({
-    id:          r.id,
-    name:        r.name,
-    description: r.description,
-    savedById:   r.saved_by_id,
-    savedBy:     r.saved_by,
-    savedAt:     r.saved_at,
-    version:     r.version,
-  }));
-
-  return NextResponse.json(plans);
+    return NextResponse.json(plans);
+  } catch (err) {
+    console.error("[GET /api/plans] failed:", err);
+    return NextResponse.json({ error: "Database error", detail: String(err) }, { status: 500 });
+  }
 }
 
 // ── POST /api/plans ────────────────────────────────────────────────────────
@@ -73,39 +71,31 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "state is required and must be an object" }, { status: 400 });
   }
 
-  let db;
+  let stateJson: string;
   try {
-    db = getDb();
+    stateJson = JSON.stringify(state);
   } catch (err) {
-    console.error("[POST /api/plans] getDb() failed:", err);
-    return NextResponse.json({ error: "Database unavailable", detail: String(err) }, { status: 500 });
+    return NextResponse.json({ error: "State is not serializable", detail: String(err) }, { status: 400 });
   }
 
   const id  = shortId();
   const now = new Date().toISOString();
 
-  let stateJson: string;
   try {
-    stateJson = JSON.stringify(state);
-  } catch (err) {
-    console.error("[POST /api/plans] JSON.stringify(state) failed:", err);
-    return NextResponse.json({ error: "State is not serializable", detail: String(err) }, { status: 400 });
-  }
-
-  try {
-    db.prepare(
-      `INSERT INTO saved_plans
-         (id, name, description, saved_by_id, saved_by, saved_at, version, state)
-       VALUES (?, ?, ?, ?, ?, ?, 1, ?)`
-    ).run(
-      id,
-      name.trim(),
-      String(description).trim(),
-      session.userId,
-      session.name ?? session.email ?? "unknown",
-      now,
-      stateJson,
-    );
+    await getDb();
+    await sql`
+      INSERT INTO saved_plans (id, name, description, saved_by_id, saved_by, saved_at, version, state)
+      VALUES (
+        ${id},
+        ${name.trim()},
+        ${String(description).trim()},
+        ${session.userId},
+        ${session.name ?? session.email ?? "unknown"},
+        ${now},
+        1,
+        ${stateJson}
+      )
+    `;
   } catch (err) {
     console.error("[POST /api/plans] INSERT failed:", err);
     return NextResponse.json({ error: "Failed to save plan", detail: String(err) }, { status: 500 });
