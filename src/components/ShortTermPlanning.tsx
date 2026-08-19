@@ -31,6 +31,12 @@ function addDaysToIso(iso: string, days: number): string {
   return d.toISOString().slice(0, 10);
 }
 
+function daysBetween(isoA: string, isoB: string): number {
+  return Math.round(
+    (new Date(isoB + "T00:00:00").getTime() - new Date(isoA + "T00:00:00").getTime()) / 86_400_000,
+  );
+}
+
 function isoWeekRange(startIso: string): string {
   const end = addDaysToIso(startIso, 6);
   return `${fmtDate(startIso)} – ${fmtDate(end)}`;
@@ -276,6 +282,196 @@ function CatchTable({ rows }: { rows: CatchRow[] }) {
   );
 }
 
+// ─── Cycle Gantt ─────────────────────────────────────────────────────────────
+
+function CycleGantt({ rows }: { rows: CatchRow[] }) {
+  if (rows.length === 0) return null;
+
+  const today = new Date().toISOString().slice(0, 10);
+
+  // Window: earliest placement date → last catch date + 7 days buffer
+  const winStart = rows.reduce(
+    (m, r) => (r.placementDate < m ? r.placementDate : m),
+    rows[0].placementDate,
+  );
+  const lastCatch = rows.reduce(
+    (m, r) => (r.catchDate > m ? r.catchDate : m),
+    rows[0].catchDate,
+  );
+  const winEnd = addDaysToIso(lastCatch, 7);
+  const totalDays = Math.max(1, daysBetween(winStart, winEnd));
+
+  // Week tick marks: find the Monday on or before winStart
+  const startDate = new Date(winStart + "T00:00:00");
+  const dow = startDate.getDay(); // 0=Sun
+  const mondayShift = dow === 0 ? -6 : 1 - dow;
+  const firstMonday = addDaysToIso(winStart, mondayShift);
+  const weekMarkers: string[] = [];
+  let wk = firstMonday;
+  while (wk <= winEnd) {
+    weekMarkers.push(wk);
+    wk = addDaysToIso(wk, 7);
+  }
+
+  const pct = (iso: string) =>
+    Math.max(0, Math.min(100, (daysBetween(winStart, iso) / totalDays) * 100));
+
+  const todayPct = pct(today);
+  const showToday = today >= winStart && today <= winEnd;
+  const LABELS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+
+  return (
+    <div className="bg-white rounded-xl border border-[var(--border-subtle)] overflow-hidden shadow-sm">
+      <div className="px-5 pt-4 pb-3">
+        {/* heading + legend */}
+        <div className="flex items-center gap-3 mb-3">
+          <span className="text-[11px] font-semibold uppercase tracking-wider text-neutral-500">
+            Production Cycle Timeline
+          </span>
+          <div className="flex-1 h-px bg-[var(--border-subtle)]" />
+          <div className="flex items-center gap-3 text-[10px] text-neutral-400 shrink-0">
+            <span className="flex items-center gap-1">
+              <span
+                className="inline-block w-4 h-2 rounded-sm"
+                style={{ background: "linear-gradient(90deg,#c8e6d5,#047836)" }}
+              />
+              Grow period
+            </span>
+            <span className="flex items-center gap-1">
+              <span className="inline-block w-2.5 h-2.5 rounded-full border-2 border-white shadow-sm bg-brand-gold" />
+              Catch date
+            </span>
+            {showToday && (
+              <span className="flex items-center gap-1">
+                <span className="inline-block w-0.5 h-3 rounded bg-brand-alert" />
+                Today
+              </span>
+            )}
+          </div>
+        </div>
+
+        {/* Gantt layout */}
+        <div className="flex">
+          {/* Labels column */}
+          <div className="shrink-0" style={{ width: 52 }}>
+            {/* spacer aligns with ruler row */}
+            <div style={{ height: 28 }} />
+            {rows.map((_, i) => (
+              <div key={i} className="flex items-center justify-end pr-2" style={{ height: 40 }}>
+                <span
+                  className="flex items-center justify-center w-5 h-5 rounded-full text-[10px] font-bold text-white shrink-0"
+                  style={{ background: "var(--brand-green)" }}
+                >
+                  {LABELS[i] ?? i + 1}
+                </span>
+              </div>
+            ))}
+          </div>
+
+          {/* Tracks column — position:relative so today line can span full height */}
+          <div className="flex-1 relative border-l border-[var(--border-subtle)]">
+
+            {/* Week ruler */}
+            <div className="relative border-b border-[var(--border-subtle)]" style={{ height: 28 }}>
+              {weekMarkers.map((iso) => {
+                const p = pct(iso);
+                if (p < 0 || p > 100) return null;
+                return (
+                  <div key={iso} className="absolute top-0 bottom-0" style={{ left: `${p}%` }}>
+                    <div className="w-px h-full bg-[var(--border-subtle)]" />
+                    <span
+                      className="absolute text-[9px] font-medium text-neutral-400 whitespace-nowrap"
+                      style={{ top: 6, left: 3 }}
+                    >
+                      {fmtDate(iso)}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Cohort rows */}
+            {rows.map((row, i) => {
+              const barLeft = pct(row.placementDate);
+              const barWidth = (row.ageAtCatch / totalDays) * 100;
+              return (
+                <div
+                  key={i}
+                  className="relative border-b border-[var(--border-subtle)]/40 last:border-0"
+                  style={{ height: 40 }}
+                >
+                  {/* Alternating column stripes */}
+                  {weekMarkers.map((iso, wi) => {
+                    if (wi % 2 !== 0) return null;
+                    const p1 = pct(iso);
+                    const p2 = pct(addDaysToIso(iso, 7));
+                    return (
+                      <div
+                        key={iso}
+                        className="absolute inset-y-0 bg-brand-green-tint/25 pointer-events-none"
+                        style={{ left: `${Math.max(0, p1)}%`, width: `${Math.min(100, p2) - Math.max(0, p1)}%` }}
+                      />
+                    );
+                  })}
+
+                  {/* Grow bar */}
+                  <div
+                    className="absolute rounded overflow-visible"
+                    title={`Cohort ${LABELS[i] ?? i + 1} · Placed ${fmtDate(row.placementDate)} → Catch ${fmtDate(row.catchDate)} · ${row.houses} houses · ${fmtBirds(row.liveBirds)} birds · ${fmtTons(row.liveKg)}`}
+                    style={{
+                      left: `${barLeft}%`,
+                      width: `${barWidth}%`,
+                      top: 7,
+                      bottom: 7,
+                      background: "linear-gradient(90deg,#c8e6d5 0%,#047836 100%)",
+                      opacity: 0.88,
+                    }}
+                  >
+                    {/* Bar label */}
+                    <span
+                      className="absolute text-[9px] font-semibold text-white/90 whitespace-nowrap pointer-events-none select-none"
+                      style={{ left: 6, top: "50%", transform: "translateY(-50%)", textShadow: "0 1px 2px rgba(0,0,0,0.35)" }}
+                    >
+                      {row.houses}h · {fmtBirds(row.liveBirds)}
+                    </span>
+                    {/* Catch dot */}
+                    <span
+                      className="absolute rounded-full border-2 border-white shadow-sm"
+                      style={{
+                        right: -5,
+                        top: "50%",
+                        transform: "translateY(-50%)",
+                        width: 12,
+                        height: 12,
+                        background: "var(--brand-gold)",
+                      }}
+                    />
+                  </div>
+                </div>
+              );
+            })}
+
+            {/* Today line — spans ruler + all rows */}
+            {showToday && (
+              <div
+                className="absolute top-0 bottom-0 z-10 pointer-events-none"
+                style={{ left: `${todayPct}%`, width: 2, background: "var(--brand-alert)" }}
+              >
+                <span
+                  className="absolute text-[9px] font-bold whitespace-nowrap px-1 rounded"
+                  style={{ top: 4, left: 4, color: "var(--brand-alert)", background: "rgba(255,255,255,0.85)" }}
+                >
+                  Today
+                </span>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function EmptyState() {
   return (
     <div className="flex flex-col items-center justify-center h-64 text-center gap-3">
@@ -336,6 +532,9 @@ export function ShortTermPlanning() {
         </Card>
       ) : (
         <>
+          {/* Gantt cycle timeline */}
+          <CycleGantt rows={catchSchedule} />
+
           {/* Week selector + bar chart overview */}
           <Card>
             <div className="flex flex-col lg:flex-row lg:items-start gap-6">
