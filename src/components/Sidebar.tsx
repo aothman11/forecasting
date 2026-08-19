@@ -159,6 +159,20 @@ export function Sidebar() {
           title="Whole Carcass Balance — Cut Surplus from Demand"
         />
 
+        {/* Breeder Production Cycle header */}
+        {!collapsed && (
+          <div className="px-4 text-[11px] uppercase tracking-wide text-neutral-400 font-semibold mt-4 mb-1">Breeder Production Cycle</div>
+        )}
+        {collapsed && <div className="border-t border-neutral-100 my-1 mx-2" />}
+
+        <NavBtn
+          active={breedingPyramidOpen}
+          onClick={() => { closeAll(); setHomeOpen(false); setBreedingPyramidOpen(true); }}
+          badge="🔺"
+          label="Breeding Phase"
+          title="Breeding Phase — GP → PS → Broiler DOC full supply chain"
+        />
+
         {/* Production Pipeline header */}
         {!collapsed && (
           <div className="px-4 text-[11px] uppercase tracking-wide text-neutral-400 font-semibold mt-4 mb-1">Production Pipeline</div>
@@ -171,20 +185,6 @@ export function Sidebar() {
           badge="ST"
           label="Short-Term Planning"
           title="Broiler Short-Term Planning — Catching Plan"
-        />
-
-        {/* Breeding Cycle header */}
-        {!collapsed && (
-          <div className="px-4 text-[11px] uppercase tracking-wide text-neutral-400 font-semibold mt-4 mb-1">Breeding Cycle</div>
-        )}
-        {collapsed && <div className="border-t border-neutral-100 my-1 mx-2" />}
-
-        <NavBtn
-          active={breedingPyramidOpen}
-          onClick={() => { closeAll(); setHomeOpen(false); setBreedingPyramidOpen(true); }}
-          badge="🔺"
-          label="Breeding Cycle"
-          title="Breeding Cycle — GP → PS → Broiler DOC full supply chain"
         />
 
         {STEPS.map((step) => {
