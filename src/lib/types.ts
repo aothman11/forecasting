@@ -212,6 +212,68 @@ export interface ArchivedPlan {
   totalQty: number;
 }
 
+// ─── Server-persisted full plan ───────────────────────────────────────────────
+
+/**
+ * The full working state captured when a plan is saved to the SQLite database.
+ * All optional fields use `?` so that plans saved before a field was introduced
+ * still load without crashing — callers should fall back to safe defaults.
+ */
+export interface SavedPlanState {
+  // Core pipeline
+  params:                  Parameters;
+  placementDays:           PlacementDayRow[];
+  harvestDeferrals:        Record<number, number>;
+
+  // Demand plan
+  demandProducts:          DemandProduct[];
+  demandQty:               DemandPlanQty;
+  salesPlanProductMap:     Record<string, string>;
+  salesPlanChannelMap:     Record<string, ChannelKey>;
+  salesPlanCartonRows:     import("./processingPlanTypes").SalesPlanCartonRow[];
+  salesPlanCartonConfirmed: boolean;
+
+  // Farm & placement
+  farms:                   import("./types").Farm[];
+  placementEntries:        PlacementEntry[];
+
+  // Processing plan
+  monthlyPlanConfig:       MonthlyPlanConfig;
+  dailyPlannedQtyOverrides: Record<string, number>;
+  broilerCapacity:         Record<string, number>;
+
+  // Products & routing
+  bomRecords:              import("./bomTypes").BomRecord[];
+  cutProductMapping:       Record<string, CutKey | "ignore">;
+
+  // Biological chain
+  bioChainAssumptions:     import("./biologicalChain/types").BioChainAssumptions;
+  bioChainGpFlocks:        import("./biologicalChain/types").BioChainGpFlock[];
+  bioChainCellOverrides:   Record<string, number>;
+
+  // Breeding pyramid (legacy module)
+  breedingParams:          BreedingParams;
+  gpFlocks:                GpFlock[];
+  rossPsOrders:            RossPsOrder[];
+  bpOverrides:             Record<string, number>;
+}
+
+/** Metadata row returned by GET /api/plans (no state blob). */
+export interface SavedPlanMeta {
+  id:          string;
+  name:        string;
+  description: string;
+  savedById:   string;
+  savedBy:     string;
+  savedAt:     string;  // ISO 8601
+  version:     number;
+}
+
+/** Full plan row returned by GET /api/plans/[id]. */
+export interface SavedPlanFull extends SavedPlanMeta {
+  state: SavedPlanState;
+}
+
 /** Module 2: one row per harvest week — demand requirements vs planned supply. */
 export interface SupplyRequirementsWeek {
   week: number;

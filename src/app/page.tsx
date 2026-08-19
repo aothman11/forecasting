@@ -34,6 +34,7 @@ import { ShortTermPlanning } from "@/components/ShortTermPlanning";
 import { BiologicalChainPage } from "@/components/BiologicalChain/BiologicalChainPage";
 import { BreedingCyclePage } from "@/components/BreedingCycle/BreedingCyclePage";
 import { SavePlanButton } from "@/components/SavePlanButton";
+import { SavedPlansPanel } from "@/components/SavedPlansPanel";
 import { BookGuideModal } from "@/components/BookGuideModal";
 import { buildPlanContext } from "@/lib/buildPlanContext";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
@@ -77,6 +78,7 @@ export default function Home() {
   const cutBalanceOpen = usePlanStore((s) => s.cutBalanceOpen);
   const shortTermPlanningOpen = usePlanStore((s) => s.shortTermPlanningOpen);
   const breedingPyramidOpen = usePlanStore((s) => s.breedingPyramidOpen);
+  const savedPlansOpen = usePlanStore((s) => s.savedPlansOpen);
   const assumptionsOpen = usePlanStore((s) => s.assumptionsOpen);
   const toggleAssumptions = usePlanStore((s) => s.toggleAssumptions);
   const { result, params, issues } = usePipeline();
@@ -93,7 +95,7 @@ export default function Home() {
         <div className="flex-1 flex flex-col min-w-0">
           <header className="h-14 border-b border-[var(--border-subtle)] bg-white flex items-center justify-between px-6 shrink-0">
             <div className="text-sm font-semibold text-neutral-700">
-              {homeOpen ? "Home" : compareOpen ? "Saved Plans" : demandOpen ? "Demand Plan" : supplyOpen ? "Supply Requirements" : reconcileOpen ? "Reconciliation" : ddpOpen ? "Demand-Driven Placement" : reportOpen ? "COP Report" : bomOpen ? "Product BOM" : processingPlanOpen ? "Processing Plan" : broilerIntakeOpen ? "Broiler Intake Plan" : cutBalanceOpen ? "Whole Carcass Balance" : shortTermPlanningOpen ? "Short-Term Planning" : breedingPyramidOpen ? "Breeding Cycle" : currentLabel}
+              {homeOpen ? "Home" : savedPlansOpen ? "Saved Plans" : compareOpen ? "Scenario Compare" : demandOpen ? "Demand Plan" : supplyOpen ? "Supply Requirements" : reconcileOpen ? "Reconciliation" : ddpOpen ? "Demand-Driven Placement" : reportOpen ? "COP Report" : bomOpen ? "Product BOM" : processingPlanOpen ? "Processing Plan" : broilerIntakeOpen ? "Broiler Intake Plan" : cutBalanceOpen ? "Whole Carcass Balance" : shortTermPlanningOpen ? "Short-Term Planning" : breedingPyramidOpen ? "Breeding Cycle" : currentLabel}
             </div>
             <div className="flex items-center gap-3">
               <SavePlanButton />
@@ -126,6 +128,8 @@ export default function Home() {
           <main className="workbench-bg flex-1 overflow-y-auto p-6">
             {homeOpen ? (
               <HomeDashboard />
+            ) : savedPlansOpen ? (
+              <SavedPlansPanel />
             ) : compareOpen ? (
               <ScenarioCompare />
             ) : demandOpen ? (

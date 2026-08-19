@@ -15,6 +15,7 @@ import type {
   PlacementEntry,
   PlantKey,
   RossPsOrder,
+  SavedPlanState,
   ScenarioSnapshot,
   SupplyRequirementsWeek,
 } from "./types";
@@ -116,6 +117,20 @@ interface PlanState {
   cutProductMapping: Record<string, CutKey | "ignore">;
   scenarios: ScenarioSnapshot[];
   archivedPlans: ArchivedPlan[];
+
+  /** Whether the server-persisted Saved Plans panel is open. */
+  savedPlansOpen: boolean;
+  setSavedPlansOpen: (open: boolean) => void;
+  /**
+   * Restore a full plan snapshot fetched from the server.
+   * Replaces all planning state; UI state (open panels, selected step) is untouched.
+   */
+  loadSavedPlan: (state: SavedPlanState) => void;
+  /**
+   * Collect all planning state into a SavedPlanState object ready to POST to the server.
+   * Called by SavePlanButton and SavedPlansPanel before sending to /api/plans.
+   */
+  collectPlanState: () => SavedPlanState;
 
   setParam: (patch: Partial<Parameters>) => void;
   setNestedParam: <K extends keyof Parameters>(key: K, value: Parameters[K]) => void;
@@ -267,6 +282,7 @@ export const usePlanStore = create<PlanState>()(
       cutProductMapping: {},
       scenarios: [],
       archivedPlans: [],
+      savedPlansOpen: false,
       harvestDeferrals: {},
 
       setParam: (patch) =>
@@ -521,6 +537,64 @@ export const usePlanStore = create<PlanState>()(
         set((s) => ({ breedingParams: { ...s.breedingParams, ...patch } })),
 
       setCutProductMapping: (mapping) => set({ cutProductMapping: mapping }),
+
+      setSavedPlansOpen: (open) => set({ savedPlansOpen: open }),
+
+      loadSavedPlan: (ps: SavedPlanState) =>
+        set({
+          params:                   ps.params,
+          placementDays:            ps.placementDays,
+          harvestDeferrals:         ps.harvestDeferrals         ?? {},
+          demandProducts:           ps.demandProducts,
+          demandQty:                ps.demandQty,
+          salesPlanProductMap:      ps.salesPlanProductMap       ?? {},
+          salesPlanChannelMap:      ps.salesPlanChannelMap       ?? {},
+          salesPlanCartonRows:      ps.salesPlanCartonRows       ?? [],
+          salesPlanCartonConfirmed: ps.salesPlanCartonConfirmed  ?? false,
+          farms:                    ps.farms,
+          placementEntries:         ps.placementEntries          ?? [],
+          monthlyPlanConfig:        ps.monthlyPlanConfig,
+          dailyPlannedQtyOverrides: ps.dailyPlannedQtyOverrides  ?? {},
+          broilerCapacity:          ps.broilerCapacity            ?? {},
+          bomRecords:               ps.bomRecords,
+          cutProductMapping:        ps.cutProductMapping          ?? {},
+          bioChainAssumptions:      ps.bioChainAssumptions,
+          bioChainGpFlocks:         ps.bioChainGpFlocks           ?? [],
+          bioChainCellOverrides:    ps.bioChainCellOverrides      ?? {},
+          breedingParams:           ps.breedingParams,
+          gpFlocks:                 ps.gpFlocks                   ?? [],
+          rossPsOrders:             ps.rossPsOrders               ?? [],
+          bpOverrides:              ps.bpOverrides                ?? {},
+        }),
+
+      collectPlanState: (): SavedPlanState => {
+        const s = usePlanStore.getState();
+        return {
+          params:                   s.params,
+          placementDays:            s.placementDays,
+          harvestDeferrals:         s.harvestDeferrals,
+          demandProducts:           s.demandProducts,
+          demandQty:                s.demandQty,
+          salesPlanProductMap:      s.salesPlanProductMap,
+          salesPlanChannelMap:      s.salesPlanChannelMap,
+          salesPlanCartonRows:      s.salesPlanCartonRows,
+          salesPlanCartonConfirmed: s.salesPlanCartonConfirmed,
+          farms:                    s.farms,
+          placementEntries:         s.placementEntries,
+          monthlyPlanConfig:        s.monthlyPlanConfig,
+          dailyPlannedQtyOverrides: s.dailyPlannedQtyOverrides,
+          broilerCapacity:          s.broilerCapacity,
+          bomRecords:               s.bomRecords,
+          cutProductMapping:        s.cutProductMapping,
+          bioChainAssumptions:      s.bioChainAssumptions,
+          bioChainGpFlocks:         s.bioChainGpFlocks,
+          bioChainCellOverrides:    s.bioChainCellOverrides,
+          breedingParams:           s.breedingParams,
+          gpFlocks:                 s.gpFlocks,
+          rossPsOrders:             s.rossPsOrders,
+          bpOverrides:              s.bpOverrides,
+        };
+      },
       setDemandOpen: (open) => set({ demandOpen: open }),
       setSupplyOpen: (open) => set({ supplyOpen: open }),
       setReconcileOpen: (open) => set({ reconcileOpen: open }),
@@ -569,7 +643,7 @@ export const usePlanStore = create<PlanState>()(
     }),
     {
       name: "awp-broiler-forecast-store",
-      version: 19,
+      version: 20,
       // v2  switched Step 1 from weekly to daily placement rows (PlacementRow -> PlacementDayRow).
       // v3  replaced the farm-based model with the house-based processing chain — discarded wholesale.
       // v4  added housesPerFarm (additive).
@@ -593,6 +667,9 @@ export const usePlanStore = create<PlanState>()(
       // v16 Plant capacities updated: Plant 1 off (0), Plant 2 → 250k/day, Plant 3 → 500k/day.
       //     Plant shares updated: Plant 1 → 0, Plant 2 → 33.3%, Plant 3 → 66.7%.
       migrate: (persisted, version) => {
+        if (version >= 20) return persisted;
+        // v19 → v20: add savedPlansOpen (additive; UI-only, not persisted to partialize but safe to carry).
+        if (version === 19) return persisted; // no structural change needed
         if (version >= 19) return persisted;
         // v18 → v19: add cutProductMapping (additive).
         if (version === 18) {

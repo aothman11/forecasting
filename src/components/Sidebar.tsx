@@ -40,13 +40,15 @@ export function Sidebar() {
   const setShortTermPlanningOpen = usePlanStore((s) => s.setShortTermPlanningOpen);
   const breedingPyramidOpen = usePlanStore((s) => s.breedingPyramidOpen);
   const setBreedingPyramidOpen = usePlanStore((s) => s.setBreedingPyramidOpen);
+  const savedPlansOpen = usePlanStore((s) => s.savedPlansOpen);
+  const setSavedPlansOpen = usePlanStore((s) => s.setSavedPlansOpen);
 
   const closeAll = () => {
     setCompareOpen(false); setDemandOpen(false); setSupplyOpen(false);
     setReconcileOpen(false); setDdpOpen(false); setReportOpen(false);
     setBomOpen(false); setProcessingPlanOpen(false); setBroilerIntakeOpen(false);
     setCutBalanceOpen(false); setShortTermPlanningOpen(false);
-    setBreedingPyramidOpen(false);
+    setBreedingPyramidOpen(false); setSavedPlansOpen(false);
   };
 
   const btnBase = "w-full text-left flex items-center transition-colors text-sm";
@@ -205,7 +207,8 @@ export function Sidebar() {
         )}
         {collapsed && <div className="border-t border-neutral-100 my-1 mx-2" />}
 
-        <NavBtn active={compareOpen} onClick={() => { closeAll(); setHomeOpen(false); setCompareOpen(true); }} badge="⇄" label="Saved Plans" title="Saved Plans" />
+        <NavBtn active={savedPlansOpen} onClick={() => { closeAll(); setHomeOpen(false); setSavedPlansOpen(true); }} badge="💾" label="Saved Plans" title="Saved Plans — server-persisted full plan snapshots" />
+        <NavBtn active={compareOpen} onClick={() => { closeAll(); setHomeOpen(false); setCompareOpen(true); }} badge="⇄" label="Compare" title="Scenario Compare — side-by-side metric comparison" />
 
         {/* Master Data header */}
         {!collapsed && (
