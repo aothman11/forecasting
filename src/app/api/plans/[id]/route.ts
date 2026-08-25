@@ -40,7 +40,7 @@ export async function GET(_req: NextRequest, ctx: RouteContext) {
       savedBy:     row.saved_by,
       savedAt:     row.saved_at,
       version:     row.version,
-      state:       JSON.parse(row.state),
+      state:       JSON.parse(row.state as string),
     });
   } catch (err) {
     console.error("[GET /api/plans/[id]] failed:", err);

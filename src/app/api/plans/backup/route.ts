@@ -35,7 +35,7 @@ export async function GET() {
       savedBy:     r.saved_by,
       savedAt:     r.saved_at,
       version:     r.version,
-      state:       JSON.parse(r.state),
+      state:       JSON.parse(r.state as string),
     }));
 
     const dateStr = new Date().toISOString().slice(0, 10);
