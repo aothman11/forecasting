@@ -38,6 +38,32 @@ export const ROLE_MODULES: Record<string, string[]> = {
     "demand_driven_placement",  // M4: Demand-Driven Placement
     "short_term_planning",      // ST: Short-Term Planning (shared)
   ],
+
+  /**
+   * SAP Project Manager — can view and edit every module across
+   * demand, processing, and broiler tracks, but does NOT hold the
+   * admin wildcard ("*") so cannot access User Management.
+   */
+  sap_project_manager: [
+    // Demand-side (M1–M4)
+    "demand_plan",
+    "supply_requirements",
+    "demand_driven_placement",
+    // Processing-plan track
+    "processing_plan",
+    "broiler_intake",
+    "whole_carcass_balance",
+    "carcass_yield",
+    "product_family",
+    "cut_plan",
+    "plant_processing",
+    "product_bom",
+    // Broiler / placement track
+    "catching_plan",
+    "live_bird_forecast",
+    "farm_distribution",
+    "short_term_planning",
+  ],
 };
 
 /**
@@ -49,14 +75,16 @@ export const ROLE_LABELS: Record<string, string> = {
   sales_planner: "Sales Planner",
   processing_planner: "Processing Planner",
   broiler_planner: "Broiler Planner",
+  sap_project_manager: "SAP Project Manager",
 };
 
 /** Ordered list for dropdowns — admin first, then alphabetical. */
 export const ROLE_OPTIONS = [
-  { value: "admin",               label: ROLE_LABELS["admin"] },
-  { value: "broiler_planner",     label: ROLE_LABELS["broiler_planner"] },
-  { value: "processing_planner",  label: ROLE_LABELS["processing_planner"] },
-  { value: "sales_planner",       label: ROLE_LABELS["sales_planner"] },
+  { value: "admin",                label: ROLE_LABELS["admin"] },
+  { value: "broiler_planner",      label: ROLE_LABELS["broiler_planner"] },
+  { value: "processing_planner",   label: ROLE_LABELS["processing_planner"] },
+  { value: "sales_planner",        label: ROLE_LABELS["sales_planner"] },
+  { value: "sap_project_manager",  label: ROLE_LABELS["sap_project_manager"] },
 ] as const;
 
 /** Returns true if the given role has write access to the given module. */
