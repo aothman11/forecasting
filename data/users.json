@@ -30,5 +30,13 @@
     "password": "$2b$10$YW2MnBpoVNV6wPLu9nGrYenw/pKsVFV07BhNfgKKVJeJ/zHWoNcze",
     "role": "broiler_planner",
     "active": true
+  },
+  {
+    "id": "5",
+    "name": "SAP Project Manager",
+    "email": "sap.pm@awp.com",
+    "password": "$2b$10$Z/55n6lqkWY32j0v2jTfT.pvX8ufp59VbH8BKtbv6VsZT.X/.Dg4e",
+    "role": "sap_project_manager",
+    "active": true
   }
 ]

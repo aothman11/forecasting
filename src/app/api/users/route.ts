@@ -48,7 +48,14 @@ export async function POST(req: NextRequest) {
     role,
     active,
   };
-  saveUsers([...users, newUser]);
+  try {
+    saveUsers([...users, newUser]);
+  } catch {
+    return NextResponse.json(
+      { error: "User created in memory but could not be persisted to disk. Add the user directly to data/users.json." },
+      { status: 500 },
+    );
+  }
   const { password: _pw, ...safe } = newUser;
   return NextResponse.json(safe, { status: 201 });
 }
@@ -80,7 +87,14 @@ export async function PUT(req: NextRequest) {
   if (plainPassword) updated.password = await hashPassword(plainPassword);
 
   users[idx] = updated;
-  saveUsers(users);
+  try {
+    saveUsers(users);
+  } catch {
+    return NextResponse.json(
+      { error: "Change applied in memory but could not be persisted to disk. Update the user directly in data/users.json." },
+      { status: 500 },
+    );
+  }
   const { password: _pw, ...safe } = updated;
   return NextResponse.json(safe);
 }
