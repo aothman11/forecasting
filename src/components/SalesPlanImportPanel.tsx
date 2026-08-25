@@ -116,6 +116,7 @@ export function SalesPlanImportPanel({ onClose }: { onClose: () => void }) {
   // ── import state ────────────────────────────────────────────────────────
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [fileName, setFileName] = useState<string | null>(null);
+  const [processing, setProcessing] = useState(false);
   const [rows, setRows] = useState<SalesPlanRow[] | null>(null);
   const [fileHeaders, setFileHeaders] = useState<string[]>([]);
   const [productDraft, setProductDraft] = useState<Record<string, string>>({});
@@ -151,9 +152,12 @@ export function SalesPlanImportPanel({ onClose }: { onClose: () => void }) {
     const reader = new FileReader();
     reader.onload = () => {
       const buf = reader.result as ArrayBuffer;
+      setFileName(file.name);
+      setProcessing(true);
+      // Defer heavy parsing so the browser can render the loading state first
+      setTimeout(() => {
       const parsed = parseSalesPlan(buf);
       setRows(parsed);
-      setFileName(file.name);
       setFileHeaders(getSalesPlanHeaders(buf));
       setAppliedMessage(null);
       setShowSaveForm(false);
@@ -213,6 +217,8 @@ export function SalesPlanImportPanel({ onClose }: { onClose: () => void }) {
         }
       });
       setWeekAssignment(initialAssignment);
+      setProcessing(false);
+      }, 0); // end setTimeout
     };
     reader.readAsArrayBuffer(file);
   };
@@ -387,7 +393,15 @@ export function SalesPlanImportPanel({ onClose }: { onClose: () => void }) {
       {/* ── IMPORT TAB ── */}
       {activeTab === "import" && (
         <>
-          {!rows ? (
+          {processing ? (
+            <div className="flex items-center gap-3 py-6 text-sm text-neutral-500">
+              <svg className="animate-spin h-5 w-5 text-brand-green shrink-0" viewBox="0 0 24 24" fill="none">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/>
+              </svg>
+              Processing {fileName}…
+            </div>
+          ) : !rows ? (
             <div className="flex items-center gap-3 flex-wrap">
               <button
                 onClick={() => fileInputRef.current?.click()}
