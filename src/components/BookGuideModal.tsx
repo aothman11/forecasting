@@ -278,49 +278,53 @@ export function BookGuideModal({ onClose }: Props) {
         /* ── PRINT ───────────────────────────────────────────── */
         @media print {
           @page { size: A4 portrait; margin: 15mm 14mm; }
+
+          /* Hide everything on the page except the guide overlay */
           body > * { display: none !important; }
           .book-guide-overlay {
             display: block !important; position: static !important;
             overflow: visible !important; background: #fff !important;
             width: 100% !important; height: auto !important;
+            max-height: none !important;
           }
           .book-guide-toolbar { display: none !important; }
-          .book-guide-body { overflow: visible !important; padding: 0 !important; display: block !important; }
+          .book-guide-body {
+            overflow: visible !important; padding: 0 !important;
+            display: block !important; height: auto !important; max-height: none !important;
+          }
           .book-guide-inner { max-width: 100% !important; margin: 0 !important; padding: 0 !important; }
 
-          /* Page breaks — section start */
-          .guide-section-break { break-before: page; page-break-before: always; }
+          /* NO forced page breaks — let content fill pages naturally */
+          .guide-section-break { break-before: auto; page-break-before: auto; margin-top: 0 !important; }
 
-          /* Kill all top margins on the first banner/cover of each section
-             so there is no blank gap at the top of the new page */
+          /* Keep banners attached to the content that follows them */
+          .guide-chapter-banner, .guide-m-banner, .guide-cover {
+            break-after: avoid; page-break-after: avoid;
+            margin-top: 12px !important;
+          }
           .guide-cover { margin-top: 0 !important; }
-          .guide-section-break > .guide-chapter-banner:first-child,
-          .guide-section-break > .guide-m-banner:first-child { margin-top: 0 !important; }
 
-          /* Avoid orphaned banners — keep them with whatever follows */
-          .guide-chapter-banner, .guide-m-banner { break-after: avoid; page-break-after: avoid; }
-
-          /* Never break in the middle of these blocks */
+          /* Never split these blocks across pages */
           .guide-screen-wrap,
-          .guide-param-table,
           .guide-info-card,
           .guide-note,
-          .guide-tip { break-inside: avoid; page-break-inside: avoid; }
+          .guide-tip,
+          .guide-toc-item,
+          .guide-step-list li,
+          .guide-bullet-list li { break-inside: avoid; page-break-inside: avoid; }
 
-          /* Two-col falls back to a single column so nothing overflows */
+          /* Param table rows stay together */
+          .guide-param-table tr { break-inside: avoid; page-break-inside: avoid; }
+
+          /* Two-col falls back to single column so nothing overflows the page */
           .guide-two-col { grid-template-columns: 1fr !important; }
-
-          /* Colour-accurate backgrounds */
-          .guide-cover { background: #047836 !important; min-height: auto !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-          .guide-chapter-banner, .guide-m-banner { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-          .guide-green-tint-bg, .guide-step-num, .guide-toc-badge,
-          .guide-screen-caption, .guide-note, .guide-tip, .guide-back-cover { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 
           /* Flow diagram wraps instead of clipping */
           .guide-flow-row { flex-wrap: wrap !important; }
 
-          /* Remove modal max-height constraints */
-          .book-guide-overlay, .book-guide-body { max-height: none !important; height: auto !important; }
+          /* Colour-accurate backgrounds */
+          * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+          .guide-cover { background: #047836 !important; min-height: auto !important; }
         }
       `}</style>
 
