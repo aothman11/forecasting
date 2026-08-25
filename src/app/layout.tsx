@@ -2,6 +2,7 @@
 import { Inter } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "@/components/auth/AuthProvider";
+import PlanSyncProvider from "@/components/PlanSyncProvider";
 import { getCurrentUser } from "@/lib/dal";
 
 const inter = Inter({
@@ -27,7 +28,9 @@ export default async function RootLayout({
   return (
     <html lang="en" className={`${inter.variable} h-full antialiased`}>
       <body className="min-h-full flex flex-col">
-        <AuthProvider user={user}>{children}</AuthProvider>
+        <AuthProvider user={user}>
+          <PlanSyncProvider>{children}</PlanSyncProvider>
+        </AuthProvider>
       </body>
     </html>
   );

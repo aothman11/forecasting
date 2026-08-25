@@ -1,44 +1,88 @@
 /**
- * Postgres database — server-side plan persistence via Vercel Postgres (Neon).
- * Server-only: never imported by client components.
+ * Vercel Postgres database helpers.
  *
- * On Vercel, POSTGRES_URL is set automatically when you add a Postgres database
- * to your project (Dashboard → Storage → Postgres).
- * For local dev, add POSTGRES_URL to your .env.local.
+ * REQUIRED SCHEMA (run once in Vercel Postgres → Query tab):
+ *
+ *   -- Named saved plans (per-user snapshots)
+ *   CREATE TABLE IF NOT EXISTS saved_plans (
+ *     id           TEXT PRIMARY KEY,
+ *     name         TEXT NOT NULL,
+ *     description  TEXT NOT NULL DEFAULT '',
+ *     saved_by_id  TEXT NOT NULL,
+ *     saved_by     TEXT NOT NULL,
+ *     saved_at     TIMESTAMPTZ NOT NULL DEFAULT now(),
+ *     version      INTEGER NOT NULL DEFAULT 1,
+ *     state        JSONB NOT NULL,
+ *     deleted_at   TIMESTAMPTZ
+ *   );
+ *
+ *   -- Shared active plan (one row, synced across all PCs in real-time)
+ *   CREATE TABLE IF NOT EXISTS active_plan (
+ *     id         INTEGER PRIMARY KEY DEFAULT 1,
+ *     data       JSONB NOT NULL,
+ *     updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+ *   );
+ *   INSERT INTO active_plan (id, data) VALUES (1, '{}') ON CONFLICT DO NOTHING;
  */
-import "server-only";
-import { sql } from "@vercel/postgres";
+import { sql as vercelSql } from "@vercel/postgres";
+import type { SavedPlanState } from "./types";
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const g = global as any;
+/** Re-export `sql` so existing route handlers can import it from here. */
+export { vercelSql as sql };
 
 /**
- * Ensures the saved_plans table exists. Uses a module-level promise so the
- * CREATE TABLE IF NOT EXISTS only runs once per server instance / cold start.
+ * Initialise the database tables if they don't exist yet.
+ * Call this at the top of every route handler before running queries.
  */
 export async function getDb(): Promise<void> {
-  if (!g.__awpSchemaReady) {
-    g.__awpSchemaReady = sql`
-      CREATE TABLE IF NOT EXISTS saved_plans (
-        id          TEXT    PRIMARY KEY,
-        name        TEXT    NOT NULL,
-        description TEXT    NOT NULL DEFAULT '',
-        saved_by_id TEXT    NOT NULL,
-        saved_by    TEXT    NOT NULL,
-        saved_at    TEXT    NOT NULL,
-        version     INTEGER NOT NULL DEFAULT 1,
-        state       TEXT    NOT NULL,
-        deleted_at  TEXT    DEFAULT NULL
-      )
-    `.then(() =>
-      sql`
-        CREATE INDEX IF NOT EXISTS idx_saved_plans_saved_at
-          ON saved_plans (saved_at DESC)
-          WHERE deleted_at IS NULL
-      `
-    ).then(() => undefined as void);
-  }
-  return g.__awpSchemaReady as Promise<void>;
+  await vercelSql`
+    CREATE TABLE IF NOT EXISTS saved_plans (
+      id           TEXT PRIMARY KEY,
+      name         TEXT NOT NULL,
+      description  TEXT NOT NULL DEFAULT '',
+      saved_by_id  TEXT NOT NULL,
+      saved_by     TEXT NOT NULL,
+      saved_at     TIMESTAMPTZ NOT NULL DEFAULT now(),
+      version      INTEGER NOT NULL DEFAULT 1,
+      state        JSONB NOT NULL,
+      deleted_at   TIMESTAMPTZ
+    )
+  `;
+  await vercelSql`
+    CREATE TABLE IF NOT EXISTS active_plan (
+      id         INTEGER PRIMARY KEY DEFAULT 1,
+      data       JSONB NOT NULL,
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    )
+  `;
+  await vercelSql`
+    INSERT INTO active_plan (id, data)
+    VALUES (1, '{}')
+    ON CONFLICT DO NOTHING
+  `;
 }
 
-export { sql };
+// ── Active-plan helpers (shared real-time sync) ───────────────────────────────
+
+/** Fetch the current shared active plan. Returns null on any error. */
+export async function getPlan(): Promise<SavedPlanState | null> {
+  try {
+    const result = await vercelSql<{ data: SavedPlanState }>`
+      SELECT data FROM active_plan WHERE id = 1 LIMIT 1
+    `;
+    return result.rows[0]?.data ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/** Upsert the shared active plan. */
+export async function savePlan(state: SavedPlanState): Promise<void> {
+  await vercelSql`
+    INSERT INTO active_plan (id, data, updated_at)
+    VALUES (1, ${JSON.stringify(state)}::jsonb, now())
+    ON CONFLICT (id) DO UPDATE
+      SET data       = EXCLUDED.data,
+          updated_at = EXCLUDED.updated_at
+  `;
+}
