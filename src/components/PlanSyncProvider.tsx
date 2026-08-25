@@ -3,14 +3,17 @@
 /**
  * PlanSyncProvider
  *
- * On mount:  fetches /api/active-plan and hydrates the Zustand store via
- *            loadSavedPlan() — so every PC starts with the same shared plan.
+ * On mount:
+ *   1. Fetch /api/active-plan from server.
+ *   2. If the server has a non-empty plan (has params), load it into the store
+ *      (overrides localStorage so all PCs share the same state).
+ *   3. If the server has no plan yet, upload the current store state so other
+ *      PCs can pick it up on their next load.
  *
- * On change: subscribes to store changes, debounces 3 s, then POSTs the
- *            updated plan to /api/active-plan — so every edit is persisted.
+ * On change: subscribes to store, debounces 3 s, POSTs updated plan.
  *
- * If the server is unreachable (POSTGRES_URL not set, table missing, etc.)
- * we log a warning but never crash the app — localStorage remains as fallback.
+ * Network failures are logged but never crash the app — localStorage remains
+ * as fallback.
  */
 import { useEffect, useRef } from "react";
 import { usePlanStore } from "@/lib/store";
@@ -19,12 +22,12 @@ import type { SavedPlanState } from "@/lib/types";
 const DEBOUNCE_MS = 3_000;
 
 export default function PlanSyncProvider({ children }: { children: React.ReactNode }) {
-  const loadSavedPlan = usePlanStore((s) => s.loadSavedPlan);
+  const loadSavedPlan  = usePlanStore((s) => s.loadSavedPlan);
   const collectPlanState = usePlanStore((s) => s.collectPlanState);
-  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const saveTimerRef   = useRef<ReturnType<typeof setTimeout> | null>(null);
   const initializedRef = useRef(false);
 
-  // ── Initial load from server ───────────────────────────────────────────────
+  // ── Initial load / first-time upload ──────────────────────────────────────
   useEffect(() => {
     if (initializedRef.current) return;
     initializedRef.current = true;
@@ -36,15 +39,26 @@ export default function PlanSyncProvider({ children }: { children: React.ReactNo
           return;
         }
         const { plan } = await res.json() as { plan: SavedPlanState | null };
-        if (plan) {
+
+        // Only restore from server if it contains real plan data
+        if (plan && plan.params) {
           loadSavedPlan(plan);
           console.info("[PlanSync] Plan loaded from server.");
+        } else {
+          // Server is empty — upload whatever this PC has in localStorage
+          const localState = collectPlanState();
+          await fetch("/api/active-plan", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(localState),
+          });
+          console.info("[PlanSync] Local plan uploaded to server.");
         }
       })
       .catch((err) => {
-        console.warn("[PlanSync] Could not fetch plan from server:", err);
+        console.warn("[PlanSync] Could not reach server:", err);
       });
-  }, [loadSavedPlan]);
+  }, [loadSavedPlan, collectPlanState]);
 
   // ── Subscribe to store changes → debounced save ───────────────────────────
   useEffect(() => {
