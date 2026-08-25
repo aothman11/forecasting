@@ -294,15 +294,20 @@ export function BookGuideModal({ onClose }: Props) {
           }
           .book-guide-inner { max-width: 100% !important; margin: 0 !important; padding: 0 !important; }
 
-          /* NO forced page breaks — let content fill pages naturally */
+          /* Cover — its own page */
+          .guide-cover { margin-top: 0 !important; break-after: page; page-break-after: always; }
+
+          /* TOC section — its own page */
+          .guide-toc-section { break-after: page; page-break-after: always; }
+
+          /* Everything else flows naturally — no forced breaks */
           .guide-section-break { break-before: auto; page-break-before: auto; margin-top: 0 !important; }
 
           /* Keep banners attached to the content that follows them */
-          .guide-chapter-banner, .guide-m-banner, .guide-cover {
+          .guide-chapter-banner, .guide-m-banner {
             break-after: avoid; page-break-after: avoid;
             margin-top: 12px !important;
           }
-          .guide-cover { margin-top: 0 !important; }
 
           /* Never split these blocks across pages */
           .guide-screen-wrap,
@@ -369,6 +374,7 @@ export function BookGuideModal({ onClose }: Props) {
             </div>
 
             {/* ── TOC ── */}
+            <div className="guide-toc-section">
             <ChapterBanner num="Contents" title="Table of Contents" desc="" />
             <div className="guide-toc-grid">
               <div className="guide-toc-section-head">Introduction</div>
@@ -392,6 +398,8 @@ export function BookGuideModal({ onClose }: Props) {
                 <div key={b} className="guide-toc-item"><span className="guide-toc-badge" style={{background:"var(--guide-navy)",fontSize:10}}>{b}</span><span>{n}</span></div>
               ))}
             </div>
+
+            </div>{/* end guide-toc-section */}
 
             {/* ── Ch 1 — Home ── */}
             <div className="guide-section-break">
