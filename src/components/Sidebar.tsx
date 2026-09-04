@@ -5,6 +5,7 @@ import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { STEPS, usePlanStore } from "@/lib/store";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
+import { useCanViewNav } from "@/hooks/useCanViewNav";
 import { useFormStatus } from "react-dom";
 import { logoutAction } from "@/app/actions/logout";
 import { AdminOnly } from "@/components/auth/AdminOnly";
@@ -44,6 +45,29 @@ export function Sidebar() {
   const setBreedingPyramidOpen = usePlanStore((s) => s.setBreedingPyramidOpen);
   const savedPlansOpen = usePlanStore((s) => s.savedPlansOpen);
   const setSavedPlansOpen = usePlanStore((s) => s.setSavedPlansOpen);
+
+  // Nav visibility — each returns false for roles that shouldn't see the item
+  const showDemandPlan        = useCanViewNav("demand_plan");
+  const showSupplyReq         = useCanViewNav("supply_requirements");
+  const showReconciliation    = useCanViewNav("reconciliation");
+  const showDDP               = useCanViewNav("demand_driven_placement");
+  const showCopReport         = useCanViewNav("cop_report");
+  const showProcessingPlan    = useCanViewNav("processing_plan");
+  const showBroilerIntake     = useCanViewNav("broiler_intake");
+  const showWholeCarcass      = useCanViewNav("whole_carcass_balance");
+  const showShortTerm         = useCanViewNav("short_term_planning");
+  const showBreedingCycle     = useCanViewNav("breeding_cycle");
+  const showSavedPlans        = useCanViewNav("saved_plans");
+  const showProductBom        = useCanViewNav("product_bom");
+  // Step-level visibility (must be called individually — rules of hooks)
+  const showStep1 = useCanViewNav("step_1");
+  const showStep2 = useCanViewNav("step_2");
+  const showStep3 = useCanViewNav("step_3");
+  const showStep4 = useCanViewNav("step_4");
+  const showStep5 = useCanViewNav("step_5");
+  const showStep6 = useCanViewNav("step_6");
+  const showStep7 = useCanViewNav("step_7");
+  const showSteps = [showStep1, showStep2, showStep3, showStep4, showStep5, showStep6, showStep7];
 
   const closeAll = () => {
     setCompareOpen(false); setDemandOpen(false); setSupplyOpen(false);
@@ -128,75 +152,61 @@ export function Sidebar() {
           />
         </div>
 
-        {/* COP Modules header */}
-        {!collapsed && (
-          <div className="px-4 text-[11px] uppercase tracking-wide text-neutral-400 font-semibold mb-1">COP Modules</div>
+        {/* COP Modules header — only if at least one item is visible */}
+        {(showDemandPlan || showSupplyReq || showReconciliation || showDDP || showCopReport) && (
+          <>
+            {!collapsed && <div className="px-4 text-[11px] uppercase tracking-wide text-neutral-400 font-semibold mb-1">COP Modules</div>}
+            {collapsed && <div className="border-t border-neutral-100 my-1 mx-2" />}
+          </>
         )}
-        {collapsed && <div className="border-t border-neutral-100 my-1 mx-2" />}
 
-        <NavBtn active={demandOpen} onClick={() => { closeAll(); setHomeOpen(false); setDemandOpen(true); }} badge="M1" label="Demand Plan" title="M1 · Demand Plan" />
-        <NavBtn active={supplyOpen} onClick={() => { closeAll(); setHomeOpen(false); setSupplyOpen(true); }} badge="M2" label="Supply Requirements" title="M2 · Supply Requirements" />
-        <NavBtn active={reconcileOpen} onClick={() => { closeAll(); setHomeOpen(false); setReconcileOpen(true); }} badge="M3" label="Reconciliation" title="M3 · Reconciliation" />
-        <NavBtn active={ddpOpen} onClick={() => { closeAll(); setHomeOpen(false); setDdpOpen(true); }} badge="M4" label="Demand-Driven Placement" title="M4 · Demand-Driven Placement" />
-        <NavBtn active={reportOpen} onClick={() => { closeAll(); setHomeOpen(false); setReportOpen(true); }} badge="M5" label="COP Report" title="M5 · COP Report" />
+        {showDemandPlan && <NavBtn active={demandOpen} onClick={() => { closeAll(); setHomeOpen(false); setDemandOpen(true); }} badge="M1" label="Demand Plan" title="M1 · Demand Plan" />}
+        {showSupplyReq && <NavBtn active={supplyOpen} onClick={() => { closeAll(); setHomeOpen(false); setSupplyOpen(true); }} badge="M2" label="Supply Requirements" title="M2 · Supply Requirements" />}
+        {showReconciliation && <NavBtn active={reconcileOpen} onClick={() => { closeAll(); setHomeOpen(false); setReconcileOpen(true); }} badge="M3" label="Reconciliation" title="M3 · Reconciliation" />}
+        {showDDP && <NavBtn active={ddpOpen} onClick={() => { closeAll(); setHomeOpen(false); setDdpOpen(true); }} badge="M4" label="Demand-Driven Placement" title="M4 · Demand-Driven Placement" />}
+        {showCopReport && <NavBtn active={reportOpen} onClick={() => { closeAll(); setHomeOpen(false); setReportOpen(true); }} badge="M5" label="COP Report" title="M5 · COP Report" />}
 
         {/* Processing Plan header */}
-        {!collapsed && (
-          <div className="px-4 text-[11px] uppercase tracking-wide text-neutral-400 font-semibold mt-4 mb-1">Processing Plan</div>
+        {(showProcessingPlan || showBroilerIntake || showWholeCarcass) && (
+          <>
+            {!collapsed && <div className="px-4 text-[11px] uppercase tracking-wide text-neutral-400 font-semibold mt-4 mb-1">Processing Plan</div>}
+            {collapsed && <div className="border-t border-neutral-100 my-1 mx-2" />}
+          </>
         )}
-        {collapsed && <div className="border-t border-neutral-100 my-1 mx-2" />}
 
-        <NavBtn
-          active={processingPlanOpen}
-          onClick={() => { closeAll(); setHomeOpen(false); setProcessingPlanOpen(true); }}
-          badge="PP"
-          label="Carcass Requirement"
-          title="Processing Plan — Carcass Requirement"
-        />
-        <NavBtn
-          active={broilerIntakeOpen}
-          onClick={() => { closeAll(); setHomeOpen(false); setBroilerIntakeOpen(true); }}
-          badge="BI"
-          label="Broiler Intake"
-          title="Broiler Intake Plan — Supply vs Demand"
-        />
-        <NavBtn
-          active={cutBalanceOpen}
-          onClick={() => { closeAll(); setHomeOpen(false); setCutBalanceOpen(true); }}
-          badge="WC"
-          label="Whole Carcass Balance"
-          title="Whole Carcass Balance — Cut Surplus from Demand"
-        />
+        {showProcessingPlan && (
+          <NavBtn active={processingPlanOpen} onClick={() => { closeAll(); setHomeOpen(false); setProcessingPlanOpen(true); }} badge="PP" label="Carcass Requirement" title="Processing Plan — Carcass Requirement" />
+        )}
+        {showBroilerIntake && (
+          <NavBtn active={broilerIntakeOpen} onClick={() => { closeAll(); setHomeOpen(false); setBroilerIntakeOpen(true); }} badge="BI" label="Broiler Intake" title="Broiler Intake Plan — Supply vs Demand" />
+        )}
+        {showWholeCarcass && (
+          <NavBtn active={cutBalanceOpen} onClick={() => { closeAll(); setHomeOpen(false); setCutBalanceOpen(true); }} badge="WC" label="Whole Carcass Balance" title="Whole Carcass Balance — Cut Surplus from Demand" />
+        )}
 
         {/* Breeder Production Cycle header */}
-        {!collapsed && (
-          <div className="px-4 text-[11px] uppercase tracking-wide text-neutral-400 font-semibold mt-4 mb-1">Breeder Production Cycle</div>
+        {showBreedingCycle && (
+          <>
+            {!collapsed && <div className="px-4 text-[11px] uppercase tracking-wide text-neutral-400 font-semibold mt-4 mb-1">Breeder Production Cycle</div>}
+            {collapsed && <div className="border-t border-neutral-100 my-1 mx-2" />}
+            <NavBtn active={breedingPyramidOpen} onClick={() => { closeAll(); setHomeOpen(false); setBreedingPyramidOpen(true); }} badge="🔺" label="Breeding Phase" title="Breeding Phase — GP → PS → Broiler DOC full supply chain" />
+          </>
         )}
-        {collapsed && <div className="border-t border-neutral-100 my-1 mx-2" />}
-
-        <NavBtn
-          active={breedingPyramidOpen}
-          onClick={() => { closeAll(); setHomeOpen(false); setBreedingPyramidOpen(true); }}
-          badge="🔺"
-          label="Breeding Phase"
-          title="Breeding Phase — GP → PS → Broiler DOC full supply chain"
-        />
 
         {/* Production Pipeline header */}
-        {!collapsed && (
-          <div className="px-4 text-[11px] uppercase tracking-wide text-neutral-400 font-semibold mt-4 mb-1">Production Pipeline</div>
+        {(showShortTerm || showSteps.some(Boolean)) && (
+          <>
+            {!collapsed && <div className="px-4 text-[11px] uppercase tracking-wide text-neutral-400 font-semibold mt-4 mb-1">Production Pipeline</div>}
+            {collapsed && <div className="border-t border-neutral-100 my-1 mx-2" />}
+          </>
         )}
-        {collapsed && <div className="border-t border-neutral-100 my-1 mx-2" />}
 
-        <NavBtn
-          active={shortTermPlanningOpen}
-          onClick={() => { closeAll(); setHomeOpen(false); setShortTermPlanningOpen(true); }}
-          badge="ST"
-          label="Short-Term Planning"
-          title="Broiler Short-Term Planning — Catching Plan"
-        />
+        {showShortTerm && (
+          <NavBtn active={shortTermPlanningOpen} onClick={() => { closeAll(); setHomeOpen(false); setShortTermPlanningOpen(true); }} badge="ST" label="Short-Term Planning" title="Broiler Short-Term Planning — Catching Plan" />
+        )}
 
-        {STEPS.map((step) => {
+        {STEPS.map((step, idx) => {
+          if (!showSteps[idx]) return null;
           const active = !compareOpen && !demandOpen && !supplyOpen && !reconcileOpen && !ddpOpen && !reportOpen && !homeOpen && !bomOpen && !processingPlanOpen && !broilerIntakeOpen && !cutBalanceOpen && !shortTermPlanningOpen && !breedingPyramidOpen && selectedStep === step.id;
           return (
             <NavBtn
@@ -211,27 +221,23 @@ export function Sidebar() {
         })}
 
         {/* Tools header */}
-        {!collapsed && (
-          <div className="px-4 text-[11px] uppercase tracking-wide text-neutral-400 font-semibold mt-4 mb-1">Tools</div>
+        {showSavedPlans && (
+          <>
+            {!collapsed && <div className="px-4 text-[11px] uppercase tracking-wide text-neutral-400 font-semibold mt-4 mb-1">Tools</div>}
+            {collapsed && <div className="border-t border-neutral-100 my-1 mx-2" />}
+            <NavBtn active={savedPlansOpen} onClick={() => { closeAll(); setHomeOpen(false); setSavedPlansOpen(true); }} badge="💾" label="Saved Plans" title="Saved Plans — server-persisted full plan snapshots" />
+            <NavBtn active={compareOpen} onClick={() => { closeAll(); setHomeOpen(false); setCompareOpen(true); }} badge="⇄" label="Compare" title="Scenario Compare — side-by-side metric comparison" />
+          </>
         )}
-        {collapsed && <div className="border-t border-neutral-100 my-1 mx-2" />}
-
-        <NavBtn active={savedPlansOpen} onClick={() => { closeAll(); setHomeOpen(false); setSavedPlansOpen(true); }} badge="💾" label="Saved Plans" title="Saved Plans — server-persisted full plan snapshots" />
-        <NavBtn active={compareOpen} onClick={() => { closeAll(); setHomeOpen(false); setCompareOpen(true); }} badge="⇄" label="Compare" title="Scenario Compare — side-by-side metric comparison" />
 
         {/* Master Data header */}
-        {!collapsed && (
-          <div className="px-4 text-[11px] uppercase tracking-wide text-neutral-400 font-semibold mt-4 mb-1">Master Data</div>
+        {showProductBom && (
+          <>
+            {!collapsed && <div className="px-4 text-[11px] uppercase tracking-wide text-neutral-400 font-semibold mt-4 mb-1">Master Data</div>}
+            {collapsed && <div className="border-t border-neutral-100 my-1 mx-2" />}
+            <NavBtn active={bomOpen} onClick={() => { closeAll(); setHomeOpen(false); setBomOpen(true); }} badge="BOM" label="Product BOM" title="Product BOM" />
+          </>
         )}
-        {collapsed && <div className="border-t border-neutral-100 my-1 mx-2" />}
-
-        <NavBtn
-          active={bomOpen}
-          onClick={() => { closeAll(); setHomeOpen(false); setBomOpen(true); }}
-          badge="BOM"
-          label="Product BOM"
-          title="Product BOM"
-        />
 
         {/* Admin section */}
         <AdminOnly>

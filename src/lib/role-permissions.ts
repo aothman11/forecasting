@@ -87,6 +87,64 @@ export const ROLE_OPTIONS = [
   { value: "sap_project_manager",  label: ROLE_LABELS["sap_project_manager"] },
 ] as const;
 
+/**
+ * ROLE_VISIBLE_NAV — which sidebar nav items each role can SEE.
+ * Keys: "home" | "demand_plan" | "supply_requirements" | "reconciliation" |
+ *       "demand_driven_placement" | "cop_report" | "processing_plan" |
+ *       "broiler_intake" | "whole_carcass_balance" | "short_term_planning" |
+ *       "breeding_cycle" | "step_1"…"step_7" | "saved_plans" | "product_bom"
+ * "*" = see everything.
+ */
+export const ROLE_VISIBLE_NAV: Record<string, string[]> = {
+  admin: ["*"],
+
+  /** Sales Planner: demand side only */
+  sales_planner: [
+    "home",
+    "demand_plan",        // M1
+    "reconciliation",     // M3 – read-only view of supply vs demand
+    "cop_report",         // M5
+    "saved_plans",
+  ],
+
+  /** Processing Planner: plant / cut-room modules + relevant pipeline steps */
+  processing_planner: [
+    "home",
+    "processing_plan",        // PP
+    "broiler_intake",         // BI
+    "whole_carcass_balance",  // WC
+    "step_3",                 // Carcass Yield
+    "step_4",                 // Product Family
+    "step_5",                 // Cut Plan
+    "step_6",                 // Processing by Plant
+    "product_bom",
+    "cop_report",
+    "saved_plans",
+  ],
+
+  /** Broiler Planner: live-bird / placement / farm modules */
+  broiler_planner: [
+    "home",
+    "supply_requirements",        // M2
+    "demand_driven_placement",    // M4
+    "short_term_planning",        // ST
+    "step_1",                     // Catching Plan
+    "step_2",                     // Live Bird Forecast
+    "step_7",                     // Farm Distribution
+    "cop_report",
+    "saved_plans",
+  ],
+
+  /** SAP PM: everything except admin panel (AdminOnly handles that) */
+  sap_project_manager: ["*"],
+};
+
+/** Returns true if the given role can see this nav item in the sidebar. */
+export function canViewNav(role: string, key: string): boolean {
+  const allowed = ROLE_VISIBLE_NAV[role] ?? [];
+  return allowed.includes("*") || allowed.includes(key);
+}
+
 /** Returns true if the given role has write access to the given module. */
 export function canEdit(role: string, module: string): boolean {
   const modules = ROLE_MODULES[role] ?? [];
