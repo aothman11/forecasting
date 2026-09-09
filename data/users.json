@@ -3,7 +3,7 @@
     "id": "1",
     "name": "Admin",
     "email": "admin@awp.com",
-    "password": "$2b$10$59dRIOkCwKezxGyGWulaPOFFz/dZwDQ68gE/LT1yO4cmtbqmRrpCy",
+    "password": "$2b$10$yBEBHSJmiZsGhRh3dEtL6ue05vHvuyQlE9TM.xxfP8ewxbZjNP.qa",
     "role": "admin",
     "active": true
   },
@@ -11,7 +11,7 @@
     "id": "2",
     "name": "Sales Planner",
     "email": "sales@awp.com",
-    "password": "$2b$10$BY0mvCpmq3yXu1PgCW234OegGQ1ercpqcs71ke5pnx5NkLiHXPWC.",
+    "password": "$2b$10$yBEBHSJmiZsGhRh3dEtL6ue05vHvuyQlE9TM.xxfP8ewxbZjNP.qa",
     "role": "sales_planner",
     "active": true
   },
@@ -19,7 +19,7 @@
     "id": "3",
     "name": "Processing Planner",
     "email": "processing@awp.com",
-    "password": "$2b$10$tIOJmQX.bZbqd8sEG317y.0Ty18NyIKHp0E/fGpErR7UfFlelGR0C",
+    "password": "$2b$10$yBEBHSJmiZsGhRh3dEtL6ue05vHvuyQlE9TM.xxfP8ewxbZjNP.qa",
     "role": "processing_planner",
     "active": true
   },
@@ -27,7 +27,7 @@
     "id": "4",
     "name": "Broiler Planner",
     "email": "broiler@awp.com",
-    "password": "$2b$10$YW2MnBpoVNV6wPLu9nGrYenw/pKsVFV07BhNfgKKVJeJ/zHWoNcze",
+    "password": "$2b$10$yBEBHSJmiZsGhRh3dEtL6ue05vHvuyQlE9TM.xxfP8ewxbZjNP.qa",
     "role": "broiler_planner",
     "active": true
   },
@@ -35,7 +35,7 @@
     "id": "5",
     "name": "SAP Project Manager",
     "email": "sap.pm@awp.com",
-    "password": "$2b$10$Z/55n6lqkWY32j0v2jTfT.pvX8ufp59VbH8BKtbv6VsZT.X/.Dg4e",
+    "password": "$2b$10$yBEBHSJmiZsGhRh3dEtL6ue05vHvuyQlE9TM.xxfP8ewxbZjNP.qa",
     "role": "sap_project_manager",
     "active": true
   }
