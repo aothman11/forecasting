@@ -61,15 +61,24 @@ export default function PlanSyncProvider({ children }: { children: React.ReactNo
   }, [loadSavedPlan, collectPlanState]);
 
   // ── Subscribe to store changes → debounced save ───────────────────────────
+  // Track the last serialised planning state so UI-only mutations (opening a
+  // panel, switching steps) don't trigger a network write — only real data
+  // changes do.
+  const lastSavedJsonRef = useRef<string>("");
+
   useEffect(() => {
     const unsubscribe = usePlanStore.subscribe(() => {
+      const state = collectPlanState();
+      const json  = JSON.stringify(state);
+      if (json === lastSavedJsonRef.current) return; // planning data unchanged
+
       if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
       saveTimerRef.current = setTimeout(() => {
-        const state = collectPlanState();
+        lastSavedJsonRef.current = json;
         fetch("/api/active-plan", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(state),
+          body: json,
         }).catch((err) => {
           console.warn("[PlanSync] Could not save plan to server:", err);
         });

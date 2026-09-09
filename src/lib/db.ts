@@ -50,35 +50,42 @@ export async function sql<T = Record<string, unknown>>(
 
 /**
  * Initialise the database tables if they don't exist yet.
- * Call this at the top of every route handler before running queries.
+ * Runs at most once per serverless cold start — the promise is cached at
+ * module level so concurrent requests don't each pay the DDL round trips.
  */
-export async function getDb(): Promise<void> {
-  const db = getClient();
-  await db`
-    CREATE TABLE IF NOT EXISTS saved_plans (
-      id           TEXT PRIMARY KEY,
-      name         TEXT NOT NULL,
-      description  TEXT NOT NULL DEFAULT '',
-      saved_by_id  TEXT NOT NULL,
-      saved_by     TEXT NOT NULL,
-      saved_at     TIMESTAMPTZ NOT NULL DEFAULT now(),
-      version      INTEGER NOT NULL DEFAULT 1,
-      state        JSONB NOT NULL,
-      deleted_at   TIMESTAMPTZ
-    )
-  `;
-  await db`
-    CREATE TABLE IF NOT EXISTS active_plan (
-      id         INTEGER PRIMARY KEY DEFAULT 1,
-      data       JSONB NOT NULL,
-      updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
-    )
-  `;
-  await db`
-    INSERT INTO active_plan (id, data)
-    VALUES (1, '{}')
-    ON CONFLICT DO NOTHING
-  `;
+let _dbInitPromise: Promise<void> | null = null;
+
+export function getDb(): Promise<void> {
+  if (_dbInitPromise) return _dbInitPromise;
+  _dbInitPromise = (async () => {
+    const db = getClient();
+    await db`
+      CREATE TABLE IF NOT EXISTS saved_plans (
+        id           TEXT PRIMARY KEY,
+        name         TEXT NOT NULL,
+        description  TEXT NOT NULL DEFAULT '',
+        saved_by_id  TEXT NOT NULL,
+        saved_by     TEXT NOT NULL,
+        saved_at     TIMESTAMPTZ NOT NULL DEFAULT now(),
+        version      INTEGER NOT NULL DEFAULT 1,
+        state        JSONB NOT NULL,
+        deleted_at   TIMESTAMPTZ
+      )
+    `;
+    await db`
+      CREATE TABLE IF NOT EXISTS active_plan (
+        id         INTEGER PRIMARY KEY DEFAULT 1,
+        data       JSONB NOT NULL,
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+      )
+    `;
+    await db`
+      INSERT INTO active_plan (id, data)
+      VALUES (1, '{}')
+      ON CONFLICT DO NOTHING
+    `;
+  })();
+  return _dbInitPromise;
 }
 
 // ── Active-plan helpers (shared real-time sync) ───────────────────────────────

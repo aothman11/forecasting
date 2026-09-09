@@ -670,17 +670,14 @@ export const usePlanStore = create<PlanState>()(
         if (version >= 20) return persisted;
         // v19 → v20: add savedPlansOpen (additive; UI-only, not persisted to partialize but safe to carry).
         if (version === 19) return persisted; // no structural change needed
-        if (version >= 19) return persisted;
         // v18 → v19: add cutProductMapping (additive).
         if (version === 18) {
           return { ...(persisted as Record<string, unknown>), cutProductMapping: {} };
         }
-        if (version >= 18) return persisted;
         // v17 → v18: add archivedPlans (additive).
         if (version === 17) {
           return { ...(persisted as Record<string, unknown>), archivedPlans: [], cutProductMapping: {} };
         }
-        if (version >= 17) return persisted;
         // v16 → v17: persist salesPlanCartonRows + salesPlanCartonConfirmed.
         // The aggregated form (unique week × plant × SKU) is compact (~300 KB for a
         // typical 20-week plan) so the 40k-row serialisation concern no longer applies.
@@ -691,7 +688,6 @@ export const usePlanStore = create<PlanState>()(
             salesPlanCartonConfirmed: false,
           };
         }
-        if (version >= 16) return persisted;
         // v15 → v16: update plant capacities and shares to reflect Plant 1 offline.
         if (version === 15) {
           const s = persisted as { params?: Parameters; scenarios?: ScenarioSnapshot[] };
@@ -706,7 +702,6 @@ export const usePlanStore = create<PlanState>()(
             scenarios: (s.scenarios ?? []).map((sc) => ({ ...sc, params: patchParams(sc.params) })),
           };
         }
-        if (version >= 15) return persisted;
         // v14 → v15: patch FPP products carrying the old placeholder yieldPct values.
         if (version === 14) {
           type DP = { id: string; category: string; yieldPct?: number };
@@ -730,7 +725,6 @@ export const usePlanStore = create<PlanState>()(
             }),
           };
         }
-        if (version >= 14) return persisted;
         // v13 → v14: patch farms that still carry the buggy default values
         // (cycleLengthDays:43 total-cycle, cleaningDays:17). Only farms with exactly
         // that pair are touched; user-customised values are left unchanged.
@@ -746,13 +740,11 @@ export const usePlanStore = create<PlanState>()(
             ),
           };
         }
-        if (version >= 13) return persisted;
         // v12 → v13: additive — seed empty broiler capacity
         if (version === 12) {
           const s12 = persisted as Record<string, unknown>;
           return { ...s12, broilerCapacity: {} };
         }
-        if (version >= 12) return persisted;
         // v11 → v12: additive — seed empty sales plan carton state
         if (version === 11) {
           const s11 = persisted as Record<string, unknown>;
@@ -762,7 +754,6 @@ export const usePlanStore = create<PlanState>()(
             salesPlanCartonConfirmed: false,
           };
         }
-        if (version >= 11) return persisted;
         // v10 → v11: additive — seed bomRecords, add gradeYields to params
         if (version === 10) {
           const s = persisted as { params?: Parameters; scenarios?: ScenarioSnapshot[] };
@@ -778,7 +769,6 @@ export const usePlanStore = create<PlanState>()(
             scenarios: (s.scenarios ?? []).map((sc) => ({ ...sc, params: patchParams(sc.params) })),
           };
         }
-        if (version >= 10) return persisted;
         if (version === 9) {
           const s = persisted as { params?: Parameters & { familyAllocation?: Record<string, Record<string, number>> }; scenarios?: ScenarioSnapshot[] };
           const migrateParams = (p: Parameters): Parameters => {

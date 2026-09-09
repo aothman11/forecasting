@@ -12,15 +12,9 @@ import { getSession } from "@/lib/session";
 import { getPlan, savePlan } from "@/lib/db";
 import type { SavedPlanState } from "@/lib/types";
 
-async function requireAuth() {
-  const session = await getSession();
-  if (!session) return null;
-  return session;
-}
-
 // ── GET /api/active-plan ──────────────────────────────────────────────────────
 export async function GET() {
-  if (!(await requireAuth())) {
+  if (!(await getSession())) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
   const plan = await getPlan();
@@ -29,7 +23,7 @@ export async function GET() {
 
 // ── POST /api/active-plan ─────────────────────────────────────────────────────
 export async function POST(req: NextRequest) {
-  if (!(await requireAuth())) {
+  if (!(await getSession())) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
   try {
