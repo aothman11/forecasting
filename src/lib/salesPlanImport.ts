@@ -108,15 +108,8 @@ function readRawRows(workbook: XLSX.WorkBook): Record<string, unknown>[] {
 }
 
 /** Returns the raw column header names found in the file (for debugging). */
-export function getSalesPlanHeaders(buffer: ArrayBuffer): string[] {
-  const workbook = XLSX.read(buffer, { type: "array" });
-  const rows = readRawRows(workbook);
-  return rows.length > 0 ? Object.keys(rows[0]) : [];
-}
-
-export function parseSalesPlan(buffer: ArrayBuffer): SalesPlanRow[] {
-  const workbook = XLSX.read(buffer, { type: "array" });
-  const rawRows = readRawRows(workbook);
+/** Shared parse logic — operates on already-read raw rows to avoid double XLSX.read. */
+function parseSalesPlanFromRawRows(rawRows: Record<string, unknown>[]): SalesPlanRow[] {
   if (rawRows.length === 0) return [];
 
   const sourceKeys = Object.keys(rawRows[0]);
@@ -130,7 +123,6 @@ export function parseSalesPlan(buffer: ArrayBuffer): SalesPlanRow[] {
   const weekOfMonthKey = sourceKeys.find((k) => isWeekOfMonthColumn(k));
   let yearMonthKey = resolvedKey.yearMonth;
 
-  // If header didn't match, scan first data row for a column whose value looks like "YYYY.M" / "YYYY-M" / "YYYY/M"
   if (!yearMonthKey && weekOfMonthKey && rawRows.length > 0) {
     const firstRow = rawRows[0];
     for (const key of sourceKeys) {
@@ -155,7 +147,6 @@ export function parseSalesPlan(buffer: ArrayBuffer): SalesPlanRow[] {
         }
       });
 
-      // Fallback: derive weekOfYear from Year.Month + Week No. in Month
       if (result.weekOfYear === 0 && weekOfMonthKey && yearMonthKey) {
         const weekInMonth = toNumber(row[weekOfMonthKey]);
         const ym = String(row[yearMonthKey] ?? "").trim();
@@ -174,6 +165,32 @@ export function parseSalesPlan(buffer: ArrayBuffer): SalesPlanRow[] {
       return result;
     })
     .filter((r) => r.materialCode || r.materialDescription);
+}
+
+export function getSalesPlanHeaders(buffer: ArrayBuffer): string[] {
+  const workbook = XLSX.read(buffer, { type: "array", cellDates: false, cellNF: false, cellStyles: false });
+  const rows = readRawRows(workbook);
+  return rows.length > 0 ? Object.keys(rows[0]) : [];
+}
+
+export function parseSalesPlan(buffer: ArrayBuffer): SalesPlanRow[] {
+  const workbook = XLSX.read(buffer, { type: "array", cellDates: false, cellNF: false, cellStyles: false });
+  return parseSalesPlanFromRawRows(readRawRows(workbook));
+}
+
+export interface SalesPlanParseResult {
+  rows: SalesPlanRow[];
+  headers: string[];
+}
+
+/** Reads the workbook once and returns both parsed rows and raw column headers. */
+export function parseSalesPlanFull(buffer: ArrayBuffer): SalesPlanParseResult {
+  const workbook = XLSX.read(buffer, { type: "array", cellDates: false, cellNF: false, cellStyles: false });
+  const rawRows = readRawRows(workbook);
+  return {
+    rows: parseSalesPlanFromRawRows(rawRows),
+    headers: rawRows.length > 0 ? Object.keys(rawRows[0]) : [],
+  };
 }
 
 export function distinctValues(rows: SalesPlanRow[], field: keyof SalesPlanRow): string[] {
@@ -380,6 +397,17 @@ export function distinctRowSignatures(rows: SalesPlanRow[]): RowSignatureGroup[]
 
 /** Build a human-readable label for each file week-of-year (e.g. "Aug W1") from parsed rows. */
 export function buildFileWeekLabels(rows: SalesPlanRow[]): Map<number, string> {
+  // Pre-build sorted week lists per yearMonth to avoid O(n²) nested filter.
+  const weeksByMonth = new Map<string, number[]>();
+  rows.forEach((r) => {
+    if (r.weekOfYear <= 0) return;
+    const ym = r.yearMonth.trim();
+    if (!weeksByMonth.has(ym)) weeksByMonth.set(ym, []);
+    const arr = weeksByMonth.get(ym)!;
+    if (!arr.includes(r.weekOfYear)) arr.push(r.weekOfYear);
+  });
+  weeksByMonth.forEach((arr) => arr.sort((a, b) => a - b));
+
   const labels = new Map<number, string>();
   rows.forEach((r) => {
     if (r.weekOfYear <= 0 || labels.has(r.weekOfYear)) return;
@@ -389,13 +417,8 @@ export function buildFileWeekLabels(rows: SalesPlanRow[]): Map<number, string> {
     const year = Number(parts[0]);
     const month = Number(parts[1]);
     if (!(year > 2000 && month >= 1 && month <= 12)) return;
-    // Count weekInMonth: how many rows with this yearMonth have a weekOfYear < r.weekOfYear
-    const weekInMonth = rows
-      .filter((x) => {
-        const xparts = x.yearMonth.split(/[.\-\/]/);
-        return xparts[0] === parts[0] && xparts[1] === parts[1] && x.weekOfYear > 0 && x.weekOfYear <= r.weekOfYear;
-      })
-      .reduce((set, x) => { set.add(x.weekOfYear); return set; }, new Set<number>()).size;
+    const monthWeeks = weeksByMonth.get(ym) ?? [];
+    const weekInMonth = monthWeeks.indexOf(r.weekOfYear) + 1;
     const mmm = new Date(year, month - 1, 1).toLocaleString("en-US", { month: "short" });
     labels.set(r.weekOfYear, `${mmm} W${weekInMonth}`);
   });

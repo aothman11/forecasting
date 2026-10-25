@@ -9,21 +9,19 @@ import { CHANNEL_KEYS, CHANNEL_LABELS, PRODUCT_CATEGORY_LABELS } from "@/lib/def
 import {
   aggregateSalesPlanByProductChannelWeek,
   autoMapProduct,
-  buildFileWeekLabels,
   createProductFromRow,
   deriveProductPrices,
-  distinctRowSignatures,
-  distinctValues,
-  distinctWeeksOfYear,
-  getSalesPlanHeaders,
   isSalesPlanFile,
   normalizeChannelKey,
-  parseSalesPlan,
   rowSignature,
-  salesWeekNumber,
   type RowSignatureGroup,
   type SalesPlanRow,
 } from "@/lib/salesPlanImport";
+import type {
+  WorkerProgressMsg,
+  WorkerResultMsg,
+  WorkerErrorMsg,
+} from "@/workers/salesPlanParser.worker";
 import type { ChannelKey, DemandPlanQty } from "@/lib/types";
 
 const NONE = "none";
@@ -115,10 +113,18 @@ export function SalesPlanImportPanel({ onClose }: { onClose: () => void }) {
 
   // ── import state ────────────────────────────────────────────────────────
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const workerRef = useRef<Worker | null>(null);
   const [fileName, setFileName] = useState<string | null>(null);
   const [processing, setProcessing] = useState(false);
+  const [progress, setProgress] = useState(0);
+  const [progressStage, setProgressStage] = useState("");
+  const [parseError, setParseError] = useState<string | null>(null);
   const [rows, setRows] = useState<SalesPlanRow[] | null>(null);
   const [fileHeaders, setFileHeaders] = useState<string[]>([]);
+  const [signatures, setSignatures] = useState<RowSignatureGroup[]>([]);
+  const [channelValues, setChannelValues] = useState<string[]>([]);
+  const [weeksInFile, setWeeksInFile] = useState<number[]>([]);
+  const [fileWeekLabels, setFileWeekLabels] = useState<Map<number, string>>(new Map());
   const [productDraft, setProductDraft] = useState<Record<string, string>>({});
   const [channelDraft, setChannelDraft] = useState<Record<string, ChannelKey | typeof IGNORE>>({});
   const [weekAssignment, setWeekAssignment] = useState<Record<number, string>>({});
@@ -143,82 +149,126 @@ export function SalesPlanImportPanel({ onClose }: { onClose: () => void }) {
 
   // ── derived import values ────────────────────────────────────────────────
   const productsById = useMemo(() => new Map(demandProducts.map((p) => [p.id, p])), [demandProducts]);
-  const signatures: RowSignatureGroup[] = useMemo(() => (rows ? distinctRowSignatures(rows) : []), [rows]);
-  const channelValues = useMemo(() => (rows ? distinctValues(rows, "channel") : []), [rows]);
-  const weeksInFile = useMemo(() => (rows ? distinctWeeksOfYear(rows) : []), [rows]);
   const horizonWeeks = Array.from({ length: params.planningHorizonWeeks }, (_, i) => i + 1);
 
   const handleFile = (file: File) => {
+    // Terminate any in-flight worker before starting a new parse
+    if (workerRef.current) {
+      workerRef.current.terminate();
+      workerRef.current = null;
+    }
+
     const reader = new FileReader();
     reader.onload = () => {
       const buf = reader.result as ArrayBuffer;
       setFileName(file.name);
       setProcessing(true);
-      // Defer heavy parsing so the browser can render the loading state first
-      setTimeout(() => {
-      const parsed = parseSalesPlan(buf);
-      setRows(parsed);
-      setFileHeaders(getSalesPlanHeaders(buf));
-      setAppliedMessage(null);
-      setShowSaveForm(false);
-      setSavedConfirm(false);
+      setProgress(5);
+      setProgressStage("Reading file…");
+      setParseError(null);
 
-      const aggMap = new Map<string, { week: number; plant: string; skuCode: string; skuDescription: string; cartons: number }>();
-      for (const r of parsed) {
-        if (!r.materialCode || r.grossSalesVolumeCar <= 0) continue;
-        const key = `${r.weekOfYear}::${r.plant || "ALL"}::${r.materialCode}`;
-        const cur = aggMap.get(key);
-        if (cur) { cur.cartons += r.grossSalesVolumeCar; }
-        else { aggMap.set(key, { week: r.weekOfYear, plant: r.plant || "ALL", skuCode: r.materialCode, skuDescription: r.materialDescription, cartons: r.grossSalesVolumeCar }); }
-      }
-      setSalesPlanCartonRows([...aggMap.values()]);
-      confirmSalesPlan();
+      const worker = new Worker(
+        new URL("../workers/salesPlanParser.worker", import.meta.url)
+      );
+      workerRef.current = worker;
 
-      const prodDraft: Record<string, string> = {};
-      distinctRowSignatures(parsed).forEach((g) => {
-        if (savedProductMap[g.signature]) {
-          prodDraft[g.signature] = savedProductMap[g.signature];
-        } else {
-          const rep = parsed.find(
-            (r) =>
-              r.division === g.division &&
-              r.materialCategory === g.materialCategory &&
-              r.materialDescription === g.materialDescription &&
-              r.size === g.size &&
-              r.grading === g.grading
-          );
-          const matched = rep ? autoMapProduct(rep, demandProducts) : undefined;
-          prodDraft[g.signature] = matched?.id ?? NONE;
+      worker.onmessage = (e: MessageEvent<WorkerProgressMsg | WorkerResultMsg | WorkerErrorMsg>) => {
+        const msg = e.data;
+
+        if (msg.type === "progress") {
+          setProgress(msg.percent);
+          setProgressStage(msg.stage);
+          return;
         }
-      });
-      setProductDraft(prodDraft);
 
-      const chDraft: Record<string, ChannelKey | typeof IGNORE> = {};
-      distinctValues(parsed, "channel").forEach((v) => {
-        chDraft[v] = savedChannelMap[v] ?? normalizeChannelKey(v) ?? IGNORE;
-      });
-      setChannelDraft(chDraft);
-
-      const fileWeeks = distinctWeeksOfYear(parsed);
-      const fwLabelsMap = buildFileWeekLabels(parsed);
-      const labelToFw = new Map<string, number>();
-      fwLabelsMap.forEach((label, fw) => labelToFw.set(label, fw));
-
-      const initialAssignment: Record<number, string> = {};
-      horizonWeeks.forEach((w) => {
-        const full = weekLabel(w, params.planStartDate);
-        const parts = full.split(".");
-        const shortLabel = `${parts[1]} ${parts[2]}`;
-        const fw = labelToFw.get(shortLabel);
-        if (fw !== undefined) {
-          initialAssignment[w] = String(fw);
-        } else {
-          initialAssignment[w] = NONE;
+        if (msg.type === "error") {
+          setParseError(msg.message);
+          setProcessing(false);
+          worker.terminate();
+          workerRef.current = null;
+          return;
         }
-      });
-      setWeekAssignment(initialAssignment);
-      setProcessing(false);
-      }, 0); // end setTimeout
+
+        // type === "result"
+        const {
+          rows: parsed,
+          headers,
+          cartonRows,
+          signatures: sigs,
+          channelValues: chVals,
+          weeksInFile: wksInFile,
+          fileWeekLabels: fwLabelPairs,
+        } = msg;
+
+        const fwLabelsMap = new Map<number, string>(fwLabelPairs);
+
+        setRows(parsed);
+        setFileHeaders(headers);
+        setSignatures(sigs);
+        setChannelValues(chVals);
+        setWeeksInFile(wksInFile);
+        setFileWeekLabels(fwLabelsMap);
+        setAppliedMessage(null);
+        setShowSaveForm(false);
+        setSavedConfirm(false);
+
+        setSalesPlanCartonRows(cartonRows);
+        confirmSalesPlan();
+
+        // Auto-mapping (needs store data — runs on main thread, fast)
+        const prodDraft: Record<string, string> = {};
+        sigs.forEach((g) => {
+          if (savedProductMap[g.signature]) {
+            prodDraft[g.signature] = savedProductMap[g.signature];
+          } else {
+            const rep = parsed.find(
+              (r) =>
+                r.division === g.division &&
+                r.materialCategory === g.materialCategory &&
+                r.materialDescription === g.materialDescription &&
+                r.size === g.size &&
+                r.grading === g.grading
+            );
+            const matched = rep ? autoMapProduct(rep, demandProducts) : undefined;
+            prodDraft[g.signature] = matched?.id ?? NONE;
+          }
+        });
+        setProductDraft(prodDraft);
+
+        const chDraft: Record<string, ChannelKey | typeof IGNORE> = {};
+        chVals.forEach((v) => {
+          chDraft[v] = savedChannelMap[v] ?? normalizeChannelKey(v) ?? IGNORE;
+        });
+        setChannelDraft(chDraft);
+
+        const labelToFw = new Map<string, number>();
+        fwLabelsMap.forEach((label, fw) => labelToFw.set(label, fw));
+
+        const initialAssignment: Record<number, string> = {};
+        horizonWeeks.forEach((w) => {
+          const full = weekLabel(w, params.planStartDate);
+          const parts = full.split(".");
+          const shortLabel = `${parts[1]} ${parts[2]}`;
+          const fw = labelToFw.get(shortLabel);
+          initialAssignment[w] = fw !== undefined ? String(fw) : NONE;
+        });
+        setWeekAssignment(initialAssignment);
+
+        setProgress(100);
+        setProcessing(false);
+        worker.terminate();
+        workerRef.current = null;
+      };
+
+      worker.onerror = (err) => {
+        setParseError(err.message ?? "Worker crashed — try a different file.");
+        setProcessing(false);
+        worker.terminate();
+        workerRef.current = null;
+      };
+
+      // Transfer the ArrayBuffer to the worker (zero-copy)
+      worker.postMessage({ buffer: buf }, [buf]);
     };
     reader.readAsArrayBuffer(file);
   };
@@ -250,7 +300,6 @@ export function SalesPlanImportPanel({ onClose }: { onClose: () => void }) {
     return byWeek;
   }, [totals]);
 
-  const fileWeekLabels = useMemo(() => (rows ? buildFileWeekLabels(rows) : new Map<number, string>()), [rows]);
   const matchedCount = Object.values(weekAssignment).filter((v) => v !== NONE).length;
   const autoMappedCount = signatures.filter((g) => productDraft[g.signature] && productDraft[g.signature] !== NONE).length;
   const unmappedSignatures = signatures.filter((g) => !productDraft[g.signature] || productDraft[g.signature] === NONE);
@@ -394,12 +443,34 @@ export function SalesPlanImportPanel({ onClose }: { onClose: () => void }) {
       {activeTab === "import" && (
         <>
           {processing ? (
-            <div className="flex items-center gap-3 py-6 text-sm text-neutral-500">
-              <svg className="animate-spin h-5 w-5 text-brand-green shrink-0" viewBox="0 0 24 24" fill="none">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/>
-              </svg>
-              Processing {fileName}…
+            <div className="py-6 space-y-3">
+              <div className="flex items-center gap-3 text-sm text-neutral-600">
+                <svg className="animate-spin h-4 w-4 text-brand-green shrink-0" viewBox="0 0 24 24" fill="none">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/>
+                </svg>
+                <span className="truncate">{progressStage || `Processing ${fileName}…`}</span>
+              </div>
+              <div className="w-full bg-neutral-100 rounded-full h-1.5 overflow-hidden">
+                <div
+                  className="h-full bg-brand-green rounded-full transition-all duration-300 ease-out"
+                  style={{ width: `${progress}%` }}
+                />
+              </div>
+              <div className="text-[11px] text-neutral-400 truncate">
+                {fileName} — processing in background thread
+              </div>
+            </div>
+          ) : parseError ? (
+            <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 space-y-2">
+              <div className="text-sm font-medium text-red-700">Failed to process file</div>
+              <div className="text-xs text-red-600">{parseError}</div>
+              <button
+                onClick={() => { setParseError(null); setFileName(null); }}
+                className="text-xs font-medium px-3 py-1.5 rounded-md border border-red-300 text-red-700 hover:bg-red-100 transition-colors"
+              >
+                Try Again
+              </button>
             </div>
           ) : !rows ? (
             <div className="flex items-center gap-3 flex-wrap">
@@ -640,7 +711,20 @@ export function SalesPlanImportPanel({ onClose }: { onClose: () => void }) {
                   Apply to {matchedCount} Matched Week{matchedCount !== 1 ? "s" : ""}
                 </button>
                 <button
-                  onClick={() => { setRows(null); setFileName(null); setAppliedMessage(null); setShowSaveForm(false); setSavedConfirm(false); }}
+                  onClick={() => {
+                    if (workerRef.current) { workerRef.current.terminate(); workerRef.current = null; }
+                    setRows(null);
+                    setFileName(null);
+                    setAppliedMessage(null);
+                    setShowSaveForm(false);
+                    setSavedConfirm(false);
+                    setParseError(null);
+                    setProgress(0);
+                    setSignatures([]);
+                    setChannelValues([]);
+                    setWeeksInFile([]);
+                    setFileWeekLabels(new Map());
+                  }}
                   className="text-xs font-medium px-3 py-1.5 rounded-md border border-[var(--border-subtle)] hover:border-brand-green hover:text-brand-green transition-colors"
                 >
                   Load Different File
