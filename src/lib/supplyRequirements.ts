@@ -28,21 +28,30 @@ function cutsAllocFromCarcass(params: Parameters): number {
   return g.A * A.cuts + g.B * B.cuts + g.C * C.cuts;
 }
 
+/** FPP raw meat produced per kg of carcass sent to the cutting line. */
+export function fppPerCutsInput(params: Parameters): number {
+  return activeCutKeys(params.legSplitMode).reduce(
+    (s, k) => s + params.cutYields[k] * (params.fppFromCuts[k] ?? 0),
+    0
+  );
+}
+
+/** Saleable cuts (after the FPP draw) produced per kg of carcass sent to the cutting line. */
+export function netCutsPerInput(params: Parameters): number {
+  return activeCutKeys(params.legSplitMode).reduce(
+    (s, k) => s + params.cutYields[k] * (1 - (params.fppFromCuts[k] ?? 0)),
+    0
+  );
+}
+
 /** Fraction of carcass kg that ends up as FPP (Cuts → FPP: cut output × per-cut FPP routing share). */
 export function fppYieldFromCarcass(params: Parameters): number {
-  const keys = activeCutKeys(params.legSplitMode);
-  const fppPerCutsInput = keys.reduce((s, k) => s + params.cutYields[k] * (params.fppFromCuts[k] ?? 0), 0);
-  return cutsAllocFromCarcass(params) * fppPerCutsInput;
+  return cutsAllocFromCarcass(params) * fppPerCutsInput(params);
 }
 
 /** Fraction of carcass kg that becomes saleable cuts (after the FPP draw). */
 export function cutsYieldFromCarcass(params: Parameters): number {
-  const keys = activeCutKeys(params.legSplitMode);
-  const netCutsPerInput = keys.reduce(
-    (s, k) => s + params.cutYields[k] * (1 - (params.fppFromCuts[k] ?? 0)),
-    0
-  );
-  return cutsAllocFromCarcass(params) * netCutsPerInput;
+  return cutsAllocFromCarcass(params) * netCutsPerInput(params);
 }
 
 /**

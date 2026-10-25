@@ -5,6 +5,7 @@ import { usePlanStore } from "@/lib/store";
 import { DEFAULT_PARAMETERS, MAX_HORIZON_WEEKS, MIN_HORIZON_WEEKS, SIZE_KEYS, SIZE_LABELS } from "@/lib/defaults";
 import { carcassSizeDistributionSum, carcassYieldPct, fullCycleDays } from "@/lib/calculations";
 import type { Parameters } from "@/lib/types";
+import { FamilyAllocationSource } from "./FamilyAllocationSource";
 
 function horizonRange(planStartDate: string, horizonWeeks: number): string {
   const start = new Date(planStartDate);
@@ -92,6 +93,7 @@ export function ParameterPanel() {
 
   const patchFamily = (grade: "A" | "B" | "C", key: "wcFresh" | "wcFrozen" | "cuts", v: number) => {
     setParam({
+      familyAllocationSource: "manual",
       familyAllocation: {
         ...params.familyAllocation,
         [grade]: { ...params.familyAllocation[grade], [key]: v },
@@ -290,6 +292,7 @@ export function ParameterPanel() {
       </Section>
 
       <Section title="Product Family Allocation">
+        <FamilyAllocationSource />
         {(["A", "B", "C"] as const).map((grade) => (
           <div key={grade} className="mb-2">
             <div className="text-[11px] font-semibold text-neutral-500 mt-1">Grade {grade}</div>

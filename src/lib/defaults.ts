@@ -48,6 +48,7 @@ export const DEFAULT_PARAMETERS: Parameters = {
     B: { wcFresh: 0.1, wcFrozen: 0.3, cuts: 0.6 },
     C: { wcFresh: 0, wcFrozen: 0, cuts: 1 },
   },
+  familyAllocationSource: "salesPlan",
   cutYields: {
     breastBoneIn: 0.22,
     breastBoneless: 0.18,

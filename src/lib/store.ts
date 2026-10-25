@@ -28,6 +28,7 @@ import type { BreedingCycleView, BreedingScenario } from "./breedingCycleTypes";
 import type { SalesPlanCartonRow } from "./processingPlanTypes";
 import { DEFAULT_DEMAND_PRODUCTS, DEFAULT_FARMS, DEFAULT_MONTHLY_PLAN_CONFIG, DEFAULT_PARAMETERS } from "./defaults";
 import { ensurePlacementDaysHorizon, isFridayDate, quickFillPlacementDays } from "./calculations";
+import { deriveFamilyAllocation } from "./deriveFamilyAllocation";
 import { bulkAdjustDemand, copyDemandWeekForward, demandCellKey, type BulkAdjustOptions } from "./demandPlan";
 
 export const STEPS = [
@@ -149,6 +150,7 @@ interface PlanState {
     productMap: Record<string, string>;
     channelMap: Record<string, ChannelKey>;
   }) => void;
+  applySalesPlanAllocation: () => void;
   bulkAdjustDemandPlan: (opts: BulkAdjustOptions) => void;
   copyDemandWeekForwardAction: (channel: ChannelKey | "ALL", fromWeek: number, toWeek: number) => void;
   clearDemandPlan: () => void;
@@ -345,14 +347,36 @@ export const usePlanStore = create<PlanState>()(
 
       // One set() so persist and subscribers run once, not once per cell.
       applySalesPlanImport: ({ demandCells, prices, productMap, channelMap }) =>
-        set((s) => ({
-          demandQty: { ...s.demandQty, ...demandCells },
-          demandProducts: s.demandProducts.map((p) =>
+        set((s) => {
+          const demandQty = { ...s.demandQty, ...demandCells };
+          const demandProducts = s.demandProducts.map((p) =>
             prices[p.id] !== undefined ? { ...p, pricePerUnit: prices[p.id] } : p
-          ),
-          salesPlanProductMap: { ...s.salesPlanProductMap, ...productMap },
-          salesPlanChannelMap: { ...s.salesPlanChannelMap, ...channelMap },
-        })),
+          );
+          let params = s.params;
+          if (params.familyAllocationSource === "salesPlan") {
+            const derived = deriveFamilyAllocation(demandProducts, demandQty, params);
+            if (derived.hasData) params = { ...params, familyAllocation: derived.allocation };
+          }
+          return {
+            demandQty,
+            demandProducts,
+            params,
+            salesPlanProductMap: { ...s.salesPlanProductMap, ...productMap },
+            salesPlanChannelMap: { ...s.salesPlanChannelMap, ...channelMap },
+          };
+        }),
+
+      applySalesPlanAllocation: () =>
+        set((s) => {
+          const derived = deriveFamilyAllocation(s.demandProducts, s.demandQty, s.params);
+          return {
+            params: {
+              ...s.params,
+              familyAllocationSource: "salesPlan",
+              familyAllocation: derived.hasData ? derived.allocation : s.params.familyAllocation,
+            },
+          };
+        }),
 
       bulkAdjustDemandPlan: (opts) => set((s) => ({ demandQty: bulkAdjustDemand(s.demandQty, opts) })),
 

@@ -6,6 +6,7 @@ import { usePlanStore } from "@/lib/store";
 import { DataTable, type DataTableColumn } from "../shared/DataTable";
 import { SummaryCard } from "../shared/SummaryCard";
 import { FamilyDonut } from "../charts/FamilyDonut";
+import { FamilyAllocationSource } from "../FamilyAllocationSource";
 import type { ProductFamilyWeek } from "@/lib/types";
 
 function pct(v: number) {
@@ -93,6 +94,9 @@ export function ProductFamily() {
         <div className="text-xs font-semibold text-brand-green-dark mb-2 uppercase tracking-wide">
           Allocation Matrix
         </div>
+        <div className="max-w-xl">
+          <FamilyAllocationSource />
+        </div>
         <table className="text-xs">
           <thead>
             <tr className="text-neutral-500">
@@ -136,6 +140,7 @@ export function ProductFamily() {
                                 ? { wcFresh: 0, wcFrozen: 0, cuts: newVal }
                                 : { ...row, [key]: newVal };
                               setParam({
+                                familyAllocationSource: "manual",
                                 familyAllocation: {
                                   ...params.familyAllocation,
                                   [grade]: updated,

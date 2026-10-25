@@ -101,6 +101,8 @@ export interface Parameters {
   plantCapacities: PlantCapacities;
   gradeSplit: GradeSplit;
   familyAllocation: FamilyAllocation;
+  /** Where familyAllocation comes from. Missing (older saved plans) means "manual". */
+  familyAllocationSource?: "salesPlan" | "manual";
   cutYields: CutYields;
   /** Share of each cut's output routed into FPP production (Cuts → FPP). 0..1 per cut. */
   fppFromCuts: CutYields;
