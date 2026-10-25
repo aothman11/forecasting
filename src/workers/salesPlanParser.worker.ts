@@ -10,6 +10,7 @@ import {
   distinctValues,
   distinctWeeksOfYear,
   buildFileWeekLabels,
+  rowSignature,
 } from "@/lib/salesPlanImport";
 import type { RowSignatureGroup, SalesPlanRow } from "@/lib/salesPlanImport";
 
@@ -33,6 +34,8 @@ export interface WorkerResultMsg {
   headers: string[];
   cartonRows: CartonRow[];
   signatures: RowSignatureGroup[];
+  /** First row seen for each signature — used for auto-mapping and product creation */
+  repRows: Record<string, SalesPlanRow>;
   channelValues: string[];
   weeksInFile: number[];
   /** Serialised Map<number,string> as [week, label] pairs */
@@ -76,6 +79,11 @@ self.onmessage = (e: MessageEvent<{ buffer: ArrayBuffer }>) => {
     self.postMessage({ type: "progress", stage: "Computing mappings…", percent: 75 } satisfies WorkerProgressMsg);
 
     const signatures = distinctRowSignatures(rows);
+    const repRows: Record<string, SalesPlanRow> = {};
+    for (const r of rows) {
+      const sig = rowSignature(r);
+      if (!repRows[sig]) repRows[sig] = r;
+    }
     const channelValues = distinctValues(rows, "channel");
     const weeksInFile = distinctWeeksOfYear(rows);
     const fileWeekLabels = buildFileWeekLabels(rows);
@@ -88,6 +96,7 @@ self.onmessage = (e: MessageEvent<{ buffer: ArrayBuffer }>) => {
       headers,
       cartonRows: [...aggMap.values()],
       signatures,
+      repRows,
       channelValues,
       weeksInFile,
       fileWeekLabels: [...fileWeekLabels.entries()],

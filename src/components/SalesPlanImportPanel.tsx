@@ -13,7 +13,6 @@ import {
   deriveProductPrices,
   isSalesPlanFile,
   normalizeChannelKey,
-  rowSignature,
   type RowSignatureGroup,
   type SalesPlanRow,
 } from "@/lib/salesPlanImport";
@@ -22,7 +21,7 @@ import type {
   WorkerResultMsg,
   WorkerErrorMsg,
 } from "@/workers/salesPlanParser.worker";
-import type { ChannelKey, DemandPlanQty } from "@/lib/types";
+import type { ChannelKey, DemandPlanQty, DemandProduct } from "@/lib/types";
 
 const NONE = "none";
 const IGNORE = "ignore";
@@ -95,15 +94,11 @@ const CH_COLOR_MAP = [
 export function SalesPlanImportPanel({ onClose }: { onClose: () => void }) {
   const params = usePlanStore((s) => s.params);
   const demandProducts = usePlanStore((s) => s.demandProducts);
-  const setDemandCell = usePlanStore((s) => s.setDemandCell);
+  const applySalesPlanImport = usePlanStore((s) => s.applySalesPlanImport);
   const savedProductMap = usePlanStore((s) => s.salesPlanProductMap);
   const savedChannelMap = usePlanStore((s) => s.salesPlanChannelMap);
-  const addDemandProduct = usePlanStore((s) => s.addDemandProduct);
-  const updateDemandProduct = usePlanStore((s) => s.updateDemandProduct);
-  const setSalesPlanProductMap = usePlanStore((s) => s.setSalesPlanProductMap);
-  const setSalesPlanChannelMap = usePlanStore((s) => s.setSalesPlanChannelMap);
+  const addDemandProducts = usePlanStore((s) => s.addDemandProducts);
   const setSalesPlanCartonRows = usePlanStore((s) => s.setSalesPlanCartonRows);
-  const confirmSalesPlan = usePlanStore((s) => s.confirmSalesPlan);
   const archivedPlans = usePlanStore((s) => s.archivedPlans);
   const saveCurrentPlanToArchive = usePlanStore((s) => s.saveCurrentPlanToArchive);
   const deleteArchivedPlan = usePlanStore((s) => s.deleteArchivedPlan);
@@ -122,6 +117,7 @@ export function SalesPlanImportPanel({ onClose }: { onClose: () => void }) {
   const [rows, setRows] = useState<SalesPlanRow[] | null>(null);
   const [fileHeaders, setFileHeaders] = useState<string[]>([]);
   const [signatures, setSignatures] = useState<RowSignatureGroup[]>([]);
+  const [repRows, setRepRows] = useState<Record<string, SalesPlanRow>>({});
   const [channelValues, setChannelValues] = useState<string[]>([]);
   const [weeksInFile, setWeeksInFile] = useState<number[]>([]);
   const [fileWeekLabels, setFileWeekLabels] = useState<Map<number, string>>(new Map());
@@ -195,6 +191,7 @@ export function SalesPlanImportPanel({ onClose }: { onClose: () => void }) {
           headers,
           cartonRows,
           signatures: sigs,
+          repRows: reps,
           channelValues: chVals,
           weeksInFile: wksInFile,
           fileWeekLabels: fwLabelPairs,
@@ -205,6 +202,7 @@ export function SalesPlanImportPanel({ onClose }: { onClose: () => void }) {
         setRows(parsed);
         setFileHeaders(headers);
         setSignatures(sigs);
+        setRepRows(reps);
         setChannelValues(chVals);
         setWeeksInFile(wksInFile);
         setFileWeekLabels(fwLabelsMap);
@@ -212,8 +210,7 @@ export function SalesPlanImportPanel({ onClose }: { onClose: () => void }) {
         setShowSaveForm(false);
         setSavedConfirm(false);
 
-        setSalesPlanCartonRows(cartonRows);
-        confirmSalesPlan();
+        setSalesPlanCartonRows(cartonRows, true);
 
         // Auto-mapping (needs store data — runs on main thread, fast)
         const prodDraft: Record<string, string> = {};
@@ -221,14 +218,7 @@ export function SalesPlanImportPanel({ onClose }: { onClose: () => void }) {
           if (savedProductMap[g.signature]) {
             prodDraft[g.signature] = savedProductMap[g.signature];
           } else {
-            const rep = parsed.find(
-              (r) =>
-                r.division === g.division &&
-                r.materialCategory === g.materialCategory &&
-                r.materialDescription === g.materialDescription &&
-                r.size === g.size &&
-                r.grading === g.grading
-            );
+            const rep = reps[g.signature];
             const matched = rep ? autoMapProduct(rep, demandProducts) : undefined;
             prodDraft[g.signature] = matched?.id ?? NONE;
           }
@@ -308,13 +298,15 @@ export function SalesPlanImportPanel({ onClose }: { onClose: () => void }) {
   const handleCreateMissingProducts = () => {
     if (!rows) return;
     const newProductDraft = { ...productDraft };
+    const newProducts: DemandProduct[] = [];
     unmappedSignatures.forEach((g) => {
-      const rep = rows.find((r) => rowSignature(r) === g.signature);
+      const rep = repRows[g.signature];
       if (!rep) return;
       const product = createProductFromRow(rep, Date.now().toString(36) + Math.random().toString(36).slice(2, 5));
-      addDemandProduct(product);
+      newProducts.push(product);
       newProductDraft[g.signature] = product.id;
     });
+    addDemandProducts(newProducts);
     setProductDraft(newProductDraft);
   };
 
@@ -353,22 +345,16 @@ export function SalesPlanImportPanel({ onClose }: { onClose: () => void }) {
       planCellTotals.set(planKey, (planCellTotals.get(planKey) ?? 0) + qty);
     });
 
-    let appliedCells = 0;
+    const demandCells: DemandPlanQty = {};
     planCellTotals.forEach((qty, planKey) => {
-      const [productId, channel, planWeekStr] = planKey.split("::");
-      setDemandCell(productId, channel as ChannelKey, Number(planWeekStr), Math.round(qty * 100) / 100);
-      appliedCells++;
+      demandCells[planKey] = Math.round(qty * 100) / 100;
     });
+    const appliedCells = planCellTotals.size;
 
     const derivedPrices = rows ? deriveProductPrices(rows, productMap, productsById) : {};
-    let pricedProducts = 0;
-    Object.entries(derivedPrices).forEach(([productId, price]) => {
-      updateDemandProduct(productId, { pricePerUnit: price });
-      pricedProducts++;
-    });
+    const pricedProducts = Object.keys(derivedPrices).length;
 
-    setSalesPlanProductMap({ ...savedProductMap, ...productMap });
-    setSalesPlanChannelMap({ ...savedChannelMap, ...channelMap });
+    applySalesPlanImport({ demandCells, prices: derivedPrices, productMap, channelMap });
     setAppliedMessage(
       `Applied ${appliedCells} product/channel/week cells across ${fileWeekToPlanWeek.size} matched weeks.` +
         (pricedProducts > 0 ? ` Prices updated for ${pricedProducts} products from Gross Sales Value (SAR).` : "")
@@ -721,6 +707,7 @@ export function SalesPlanImportPanel({ onClose }: { onClose: () => void }) {
                     setParseError(null);
                     setProgress(0);
                     setSignatures([]);
+                    setRepRows({});
                     setChannelValues([]);
                     setWeeksInFile([]);
                     setFileWeekLabels(new Map());

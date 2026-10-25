@@ -139,9 +139,16 @@ interface PlanState {
   quickFillPlacementPlan: () => void;
   applyDemandDrivenPlacement: (rows: SupplyRequirementsWeek[]) => void;
   addDemandProduct: (product: DemandProduct) => void;
+  addDemandProducts: (products: DemandProduct[]) => void;
   updateDemandProduct: (id: string, patch: Partial<DemandProduct>) => void;
   removeDemandProduct: (id: string) => void;
   setDemandCell: (productId: string, channel: ChannelKey, week: number, qty: number) => void;
+  applySalesPlanImport: (opts: {
+    demandCells: DemandPlanQty;
+    prices: Record<string, number>;
+    productMap: Record<string, string>;
+    channelMap: Record<string, ChannelKey>;
+  }) => void;
   bulkAdjustDemandPlan: (opts: BulkAdjustOptions) => void;
   copyDemandWeekForwardAction: (channel: ChannelKey | "ALL", fromWeek: number, toWeek: number) => void;
   clearDemandPlan: () => void;
@@ -167,7 +174,7 @@ interface PlanState {
   setSelectedStep: (step: number) => void;
   setSelectedPlant: (plant: PlantFilter) => void;
   toggleAssumptions: () => void;
-  setSalesPlanCartonRows: (rows: SalesPlanCartonRow[]) => void;
+  setSalesPlanCartonRows: (rows: SalesPlanCartonRow[], confirmed?: boolean) => void;
   confirmSalesPlan: () => void;
   clearSalesPlan: () => void;
   setProcessingPlanOpen: (open: boolean) => void;
@@ -315,6 +322,7 @@ export const usePlanStore = create<PlanState>()(
       setPlacementDays: (rows) => set({ placementDays: rows }),
 
       addDemandProduct: (product) => set((s) => ({ demandProducts: [...s.demandProducts, product] })),
+      addDemandProducts: (products) => set((s) => ({ demandProducts: [...s.demandProducts, ...products] })),
 
       updateDemandProduct: (id, patch) =>
         set((s) => ({
@@ -333,6 +341,17 @@ export const usePlanStore = create<PlanState>()(
       setDemandCell: (productId, channel, week, qty) =>
         set((s) => ({
           demandQty: { ...s.demandQty, [demandCellKey(productId, channel, week)]: qty },
+        })),
+
+      // One set() so persist and subscribers run once, not once per cell.
+      applySalesPlanImport: ({ demandCells, prices, productMap, channelMap }) =>
+        set((s) => ({
+          demandQty: { ...s.demandQty, ...demandCells },
+          demandProducts: s.demandProducts.map((p) =>
+            prices[p.id] !== undefined ? { ...p, pricePerUnit: prices[p.id] } : p
+          ),
+          salesPlanProductMap: { ...s.salesPlanProductMap, ...productMap },
+          salesPlanChannelMap: { ...s.salesPlanChannelMap, ...channelMap },
         })),
 
       bulkAdjustDemandPlan: (opts) => set((s) => ({ demandQty: bulkAdjustDemand(s.demandQty, opts) })),
@@ -504,7 +523,7 @@ export const usePlanStore = create<PlanState>()(
       setSelectedStep: (step) => set({ selectedStep: step }),
       setSelectedPlant: (plant) => set({ selectedPlant: plant }),
       toggleAssumptions: () => set((s) => ({ assumptionsOpen: !s.assumptionsOpen })),
-      setSalesPlanCartonRows: (rows) => set({ salesPlanCartonRows: rows, salesPlanCartonConfirmed: false }),
+      setSalesPlanCartonRows: (rows, confirmed = false) => set({ salesPlanCartonRows: rows, salesPlanCartonConfirmed: confirmed }),
       confirmSalesPlan: () => set({ salesPlanCartonConfirmed: true }),
       clearSalesPlan: () => set({ salesPlanCartonRows: [], salesPlanCartonConfirmed: false }),
       setProcessingPlanOpen: (open) => set({ processingPlanOpen: open }),

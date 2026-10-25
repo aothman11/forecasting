@@ -26,6 +26,7 @@ export default function PlanSyncProvider({ children }: { children: React.ReactNo
   const collectPlanState = usePlanStore((s) => s.collectPlanState);
   const saveTimerRef   = useRef<ReturnType<typeof setTimeout> | null>(null);
   const initializedRef = useRef(false);
+  const lastSavedJsonRef = useRef<string>("");
 
   // ── Initial load / first-time upload ──────────────────────────────────────
   useEffect(() => {
@@ -43,6 +44,7 @@ export default function PlanSyncProvider({ children }: { children: React.ReactNo
         // Only restore from server if it contains real plan data
         if (plan && plan.params) {
           loadSavedPlan(plan);
+          lastSavedJsonRef.current = JSON.stringify(collectPlanState());
           console.info("[PlanSync] Plan loaded from server.");
         } else {
           // Server is empty — upload whatever this PC has in localStorage
@@ -61,19 +63,21 @@ export default function PlanSyncProvider({ children }: { children: React.ReactNo
   }, [loadSavedPlan, collectPlanState]);
 
   // ── Subscribe to store changes → debounced save ───────────────────────────
-  // Track the last serialised planning state so UI-only mutations (opening a
-  // panel, switching steps) don't trigger a network write — only real data
-  // changes do.
-  const lastSavedJsonRef = useRef<string>("");
-
+  // The subscriber runs on every store update, so it only does a cheap
+  // reference check; serialisation happens once, after the debounce.
   useEffect(() => {
+    let lastSnapshot = collectPlanState() as unknown as Record<string, unknown>;
+
     const unsubscribe = usePlanStore.subscribe(() => {
-      const state = collectPlanState();
-      const json  = JSON.stringify(state);
-      if (json === lastSavedJsonRef.current) return; // planning data unchanged
+      const snapshot = collectPlanState() as unknown as Record<string, unknown>;
+      const changed = Object.keys(snapshot).some((k) => snapshot[k] !== lastSnapshot[k]);
+      lastSnapshot = snapshot;
+      if (!changed) return; // UI-only change (panel toggles, step switches)
 
       if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
       saveTimerRef.current = setTimeout(() => {
+        const json = JSON.stringify(collectPlanState());
+        if (json === lastSavedJsonRef.current) return;
         lastSavedJsonRef.current = json;
         fetch("/api/active-plan", {
           method: "POST",
