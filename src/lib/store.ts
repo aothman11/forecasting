@@ -26,6 +26,8 @@ import { DEFAULT_BOM_RECORDS } from "./bomDefaults";
 import type { BomRecord } from "./bomTypes";
 import type { BreedingCycleView, BreedingScenario } from "./breedingCycleTypes";
 import type { SalesPlanCartonRow } from "./processingPlanTypes";
+
+export type CLayerView = "placements" | "purchase" | "inventory" | "eggs" | "spent" | "settings";
 import { DEFAULT_DEMAND_PRODUCTS, DEFAULT_FARMS, DEFAULT_MONTHLY_PLAN_CONFIG, DEFAULT_PARAMETERS } from "./defaults";
 import { ensurePlacementDaysHorizon, isFridayDate, quickFillPlacementDays } from "./calculations";
 import { deriveFamilyAllocation } from "./deriveFamilyAllocation";
@@ -198,6 +200,12 @@ interface PlanState {
   setShortTermPlanningOpen: (open: boolean) => void;
   setBreedingPyramidOpen: (open: boolean) => void;
 
+  // ── C.Layer (UI state only — the plan data lives in the layer_* tables) ───
+  cLayerOpen: boolean;
+  setCLayerOpen: (open: boolean) => void;
+  cLayerView: CLayerView;
+  setCLayerView: (view: CLayerView) => void;
+
   // ── Breeding Pyramid setters ──────────────────────────────────────────────
   addGpFlock: (flock: GpFlock) => void;
   updateGpFlock: (id: string, patch: Partial<GpFlock>) => void;
@@ -253,6 +261,10 @@ export const usePlanStore = create<PlanState>()(
       cutBalanceOpen: false,
       shortTermPlanningOpen: false,
       breedingPyramidOpen: false,
+      cLayerOpen: false,
+      setCLayerOpen: (open) => set({ cLayerOpen: open }),
+      cLayerView: "placements",
+      setCLayerView: (view) => set({ cLayerView: view }),
       breedingCycleView: "overview",
       setBrCycleView: (v) => set({ breedingCycleView: v }),
       bpOverrides: {},

@@ -36,6 +36,8 @@ import { BreedingCyclePage } from "@/components/BreedingCycle/BreedingCyclePage"
 import { SavePlanButton } from "@/components/SavePlanButton";
 import { SavedPlansPanel } from "@/components/SavedPlansPanel";
 import { BookGuideModal } from "@/components/BookGuideModal";
+import { CLayerPage } from "@/components/CLayer/CLayerPage";
+import { useCanViewNav } from "@/hooks/useCanViewNav";
 import { buildPlanContext } from "@/lib/buildPlanContext";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
 import { logoutAction } from "@/app/actions/logout";
@@ -79,6 +81,11 @@ export default function Home() {
   const shortTermPlanningOpen = usePlanStore((s) => s.shortTermPlanningOpen);
   const breedingPyramidOpen = usePlanStore((s) => s.breedingPyramidOpen);
   const savedPlansOpen = usePlanStore((s) => s.savedPlansOpen);
+  const cLayerOpen = usePlanStore((s) => s.cLayerOpen);
+  const showHome = useCanViewNav("home");
+  const showCLayer = useCanViewNav("c_layer");
+  // Roles without broiler access (Layer Planner) land straight on C.Layer.
+  const inCLayer = cLayerOpen || (!showHome && showCLayer);
   const assumptionsOpen = usePlanStore((s) => s.assumptionsOpen);
   const toggleAssumptions = usePlanStore((s) => s.toggleAssumptions);
   const { result, params, issues } = usePipeline();
@@ -95,11 +102,11 @@ export default function Home() {
         <div className="flex-1 flex flex-col min-w-0">
           <header className="h-14 border-b border-[var(--border-subtle)] bg-white flex items-center justify-between px-6 shrink-0">
             <div className="text-sm font-semibold text-neutral-700">
-              {homeOpen ? "Home" : savedPlansOpen ? "Saved Plans" : compareOpen ? "Scenario Compare" : demandOpen ? "Demand Plan" : supplyOpen ? "Supply Requirements" : reconcileOpen ? "Reconciliation" : ddpOpen ? "Demand-Driven Placement" : reportOpen ? "COP Report" : bomOpen ? "Product BOM" : processingPlanOpen ? "Processing Plan" : broilerIntakeOpen ? "Broiler Intake Plan" : cutBalanceOpen ? "Whole Carcass Balance" : shortTermPlanningOpen ? "Short-Term Planning" : breedingPyramidOpen ? "Breeding Cycle" : currentLabel}
+              {inCLayer ? "C.Layer Plan" : homeOpen ? "Home" : savedPlansOpen ? "Saved Plans" : compareOpen ? "Scenario Compare" : demandOpen ? "Demand Plan" : supplyOpen ? "Supply Requirements" : reconcileOpen ? "Reconciliation" : ddpOpen ? "Demand-Driven Placement" : reportOpen ? "COP Report" : bomOpen ? "Product BOM" : processingPlanOpen ? "Processing Plan" : broilerIntakeOpen ? "Broiler Intake Plan" : cutBalanceOpen ? "Whole Carcass Balance" : shortTermPlanningOpen ? "Short-Term Planning" : breedingPyramidOpen ? "Breeding Cycle" : currentLabel}
             </div>
             <div className="flex items-center gap-3">
-              <SavePlanButton />
-              <ExportButtons />
+              {!inCLayer && <SavePlanButton />}
+              {!inCLayer && <ExportButtons />}
               <button
                 onClick={() => setBookGuideOpen(true)}
                 className="text-xs font-medium px-3 py-1.5 rounded-md border border-[var(--border-subtle)] hover:border-brand-green hover:text-brand-green transition-colors flex items-center gap-1.5"
@@ -108,7 +115,7 @@ export default function Home() {
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
                 Guide
               </button>
-              <button
+              {!inCLayer && <button
                 onClick={toggleAssumptions}
                 className={`text-xs font-medium px-3 py-1.5 rounded-md border transition-colors ${
                   assumptionsOpen
@@ -117,16 +124,18 @@ export default function Home() {
                 }`}
               >
                 Assumptions
-              </button>
+              </button>}
               <div className="w-px h-5 bg-[var(--border-subtle)]" />
               <HeaderUserMenu />
             </div>
           </header>
 
-          <ValidationBanner issues={issues} />
+          {!inCLayer && <ValidationBanner issues={issues} />}
 
           <main className="workbench-bg flex-1 overflow-y-auto p-6">
-            {homeOpen ? (
+            {inCLayer ? (
+              <CLayerPage />
+            ) : homeOpen ? (
               <HomeDashboard />
             ) : savedPlansOpen ? (
               <SavedPlansPanel />
@@ -160,7 +169,7 @@ export default function Home() {
           </main>
         </div>
 
-        <ParameterPanel />
+        {!inCLayer && <ParameterPanel />}
       </div>
 
       {/* Mobile fallback */}
@@ -185,7 +194,7 @@ export default function Home() {
       </div>
 
       {/* AI planning assistant — floating bottom-right */}
-      <PlanningAssistant planContext={buildPlanContext(m, result)} />
+      {!inCLayer && <PlanningAssistant planContext={buildPlanContext(m, result)} />}
 
       {/* Book Guide — full-screen overlay */}
       {bookGuideOpen && <BookGuideModal onClose={() => setBookGuideOpen(false)} />}

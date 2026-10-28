@@ -63,6 +63,13 @@ export const ROLE_MODULES: Record<string, string[]> = {
     "live_bird_forecast",
     "farm_distribution",
     "short_term_planning",
+    // C.Layer (table-egg layers)
+    "c_layer_placements",
+  ],
+
+  /** Layer Planner owns the C.Layer placement plan (separate value stream from broilers). */
+  layer_planner: [
+    "c_layer_placements",
   ],
 };
 
@@ -76,12 +83,14 @@ export const ROLE_LABELS: Record<string, string> = {
   processing_planner: "Processing Planner",
   broiler_planner: "Broiler Planner",
   sap_project_manager: "SAP Project Manager",
+  layer_planner: "Layer Planner",
 };
 
 /** Ordered list for dropdowns — admin first, then alphabetical. */
 export const ROLE_OPTIONS = [
   { value: "admin",                label: ROLE_LABELS["admin"] },
   { value: "broiler_planner",      label: ROLE_LABELS["broiler_planner"] },
+  { value: "layer_planner",        label: ROLE_LABELS["layer_planner"] },
   { value: "processing_planner",   label: ROLE_LABELS["processing_planner"] },
   { value: "sales_planner",        label: ROLE_LABELS["sales_planner"] },
   { value: "sap_project_manager",  label: ROLE_LABELS["sap_project_manager"] },
@@ -89,7 +98,7 @@ export const ROLE_OPTIONS = [
 
 /**
  * ROLE_VISIBLE_NAV — which sidebar nav items each role can SEE.
- * Keys: "home" | "demand_plan" | "supply_requirements" | "reconciliation" |
+ * Keys: "home" | "c_layer" | "demand_plan" | "supply_requirements" | "reconciliation" |
  *       "demand_driven_placement" | "cop_report" | "processing_plan" |
  *       "broiler_intake" | "whole_carcass_balance" | "short_term_planning" |
  *       "breeding_cycle" | "step_1"…"step_7" | "saved_plans" | "product_bom"
@@ -105,6 +114,7 @@ export const ROLE_VISIBLE_NAV: Record<string, string[]> = {
     "reconciliation",     // M3 – read-only view of supply vs demand
     "cop_report",         // M5
     "saved_plans",
+    "c_layer",            // C.Layer — egg output view only (enforced by C_LAYER_ACCESS)
   ],
 
   /** Processing Planner: plant / cut-room modules + relevant pipeline steps */
@@ -137,7 +147,30 @@ export const ROLE_VISIBLE_NAV: Record<string, string[]> = {
 
   /** SAP PM: everything except admin panel (AdminOnly handles that) */
   sap_project_manager: ["*"],
+
+  /** Layer Planner: C.Layer only — no broiler-chain modules. */
+  layer_planner: ["c_layer"],
 };
+
+/**
+ * C.Layer data-layer access, enforced by the /api/c-layer routes.
+ * read_data         — raw placements, breeds, standards, farms, settings
+ * write_placements  — create / edit / delete planned placements
+ * write_master      — breeds, weekly standards, farms, settings
+ * view_egg_output   — the computed egg-output report only
+ */
+export type CLayerAction = "read_data" | "write_placements" | "write_master" | "view_egg_output";
+
+export const C_LAYER_ACCESS: Record<CLayerAction, string[]> = {
+  read_data:        ["admin", "layer_planner", "sap_project_manager"],
+  write_placements: ["admin", "layer_planner", "sap_project_manager"],
+  write_master:     ["admin"],
+  view_egg_output:  ["admin", "layer_planner", "sap_project_manager", "sales_planner"],
+};
+
+export function canCLayer(role: string, action: CLayerAction): boolean {
+  return C_LAYER_ACCESS[action].includes(role);
+}
 
 /** Returns true if the given role can see this nav item in the sidebar. */
 export function canViewNav(role: string, key: string): boolean {

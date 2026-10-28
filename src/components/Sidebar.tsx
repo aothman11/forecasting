@@ -45,9 +45,13 @@ export function Sidebar() {
   const setBreedingPyramidOpen = usePlanStore((s) => s.setBreedingPyramidOpen);
   const savedPlansOpen = usePlanStore((s) => s.savedPlansOpen);
   const setSavedPlansOpen = usePlanStore((s) => s.setSavedPlansOpen);
+  const cLayerOpen = usePlanStore((s) => s.cLayerOpen);
+  const setCLayerOpen = usePlanStore((s) => s.setCLayerOpen);
 
   // Nav visibility — each returns false for roles that shouldn't see the item
-  const showDemandPlan        = useCanViewNav("demand_plan");
+  const showHome              = useCanViewNav("home");
+  const showCLayer            = useCanViewNav("c_layer");
+  const showDemandPlan       = useCanViewNav("demand_plan");
   const showSupplyReq         = useCanViewNav("supply_requirements");
   const showReconciliation    = useCanViewNav("reconciliation");
   const showDDP               = useCanViewNav("demand_driven_placement");
@@ -74,7 +78,7 @@ export function Sidebar() {
     setReconcileOpen(false); setDdpOpen(false); setReportOpen(false);
     setBomOpen(false); setProcessingPlanOpen(false); setBroilerIntakeOpen(false);
     setCutBalanceOpen(false); setShortTermPlanningOpen(false);
-    setBreedingPyramidOpen(false); setSavedPlansOpen(false);
+    setBreedingPyramidOpen(false); setSavedPlansOpen(false); setCLayerOpen(false);
   };
 
   const btnBase = "w-full text-left flex items-center transition-colors text-sm";
@@ -142,15 +146,17 @@ export function Sidebar() {
       <nav className="flex-1 py-3 overflow-y-auto overflow-x-hidden">
 
         {/* Home */}
-        <div className={collapsed ? "" : "mb-2"}>
-          <NavBtn
-            active={homeOpen}
-            onClick={() => { closeAll(); setHomeOpen(true); }}
-            badge="🏠"
-            label="Home"
-            title="Home"
-          />
-        </div>
+        {showHome && (
+          <div className={collapsed ? "" : "mb-2"}>
+            <NavBtn
+              active={homeOpen}
+              onClick={() => { closeAll(); setHomeOpen(true); }}
+              badge="🏠"
+              label="Home"
+              title="Home"
+            />
+          </div>
+        )}
 
         {/* COP Modules header — only if at least one item is visible */}
         {(showDemandPlan || showSupplyReq || showReconciliation || showDDP || showCopReport) && (
@@ -207,7 +213,7 @@ export function Sidebar() {
 
         {STEPS.map((step, idx) => {
           if (!showSteps[idx]) return null;
-          const active = !compareOpen && !demandOpen && !supplyOpen && !reconcileOpen && !ddpOpen && !reportOpen && !homeOpen && !bomOpen && !processingPlanOpen && !broilerIntakeOpen && !cutBalanceOpen && !shortTermPlanningOpen && !breedingPyramidOpen && selectedStep === step.id;
+          const active = !compareOpen && !demandOpen && !supplyOpen && !reconcileOpen && !ddpOpen && !reportOpen && !homeOpen && !bomOpen && !processingPlanOpen && !broilerIntakeOpen && !cutBalanceOpen && !shortTermPlanningOpen && !breedingPyramidOpen && !cLayerOpen && selectedStep === step.id;
           return (
             <NavBtn
               key={step.id}
@@ -219,6 +225,15 @@ export function Sidebar() {
             />
           );
         })}
+
+        {/* C.Layer — table-egg layers, a separate value stream from the broiler chain */}
+        {showCLayer && (
+          <>
+            {!collapsed && <div className="px-4 text-[11px] uppercase tracking-wide text-neutral-400 font-semibold mt-4 mb-1">C.Layer · Table Eggs</div>}
+            {collapsed && <div className="border-t border-neutral-100 my-1 mx-2" />}
+            <NavBtn active={cLayerOpen} onClick={() => { closeAll(); setHomeOpen(false); setCLayerOpen(true); }} badge="CL" label="C.Layer Plan" title="C.Layer Plan — commercial layer placements, birds, eggs and spent hens" />
+          </>
+        )}
 
         {/* Tools header */}
         {showSavedPlans && (
@@ -329,7 +344,7 @@ function UserFooter({ collapsed }: { collapsed: boolean }) {
             <span
               className="inline-block px-1.5 py-0.5 text-[9px] font-bold rounded-full mt-0.5 leading-tight"
               style={{
-                background: user.role === "admin" ? "#047836" : user.role === "sales_planner" ? "#C49A1A" : user.role === "broiler_planner" ? "#1a6fc4" : "#6b2fc4",
+                background: user.role === "admin" ? "#047836" : user.role === "sales_planner" ? "#C49A1A" : user.role === "broiler_planner" ? "#1a6fc4" : user.role === "layer_planner" ? "#D24918" : "#6b2fc4",
                 color: "#fff",
               }}
             >

@@ -29,7 +29,7 @@
 import { neon } from "@neondatabase/serverless";
 import type { SavedPlanState } from "./types";
 
-function getClient() {
+export function getClient() {
   const url = process.env.POSTGRES_URL ?? process.env.DATABASE_URL;
   if (!url) throw new Error("POSTGRES_URL is not set");
   return neon(url);
