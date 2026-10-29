@@ -90,6 +90,9 @@ export function ensureCLayerSchema(): Promise<void> {
 
     // ── v2: business-process alignment (additive) ──
     await db`ALTER TABLE layer_breeds ADD COLUMN IF NOT EXISTS egg_material_no TEXT NOT NULL DEFAULT ''`;
+    await db`ALTER TABLE layer_breeds ADD COLUMN IF NOT EXISTS doc_material_no TEXT NOT NULL DEFAULT ''`;
+    await db`ALTER TABLE layer_breeds ADD COLUMN IF NOT EXISTS pullet14_material_no TEXT NOT NULL DEFAULT ''`;
+    await db`ALTER TABLE layer_breeds ADD COLUMN IF NOT EXISTS laying_pullet19_material_no TEXT NOT NULL DEFAULT ''`;
     await db`
       DO $$ BEGIN
         ALTER TABLE layer_breed_standards ADD CONSTRAINT layer_breed_standards_age_max CHECK (age_week <= 100);
@@ -205,6 +208,9 @@ function toBreed(r: Row): LayerBreed {
     id: String(r.id),
     name: String(r.name),
     eggMaterialNo: String(r.egg_material_no ?? ""),
+    docMaterialNo: String(r.doc_material_no ?? ""),
+    pullet14MaterialNo: String(r.pullet14_material_no ?? ""),
+    layingPullet19MaterialNo: String(r.laying_pullet19_material_no ?? ""),
     active: Boolean(r.active),
     createdAt: iso(r.created_at),
     updatedAt: iso(r.updated_at),
@@ -308,8 +314,10 @@ export async function getBreed(id: string): Promise<LayerBreed | null> {
 
 export async function createBreed(input: LayerBreedInput): Promise<LayerBreed> {
   const rows = await getClient()`
-    INSERT INTO layer_breeds (id, name, egg_material_no, active)
-    VALUES (${crypto.randomUUID()}, ${input.name}, ${input.eggMaterialNo}, ${input.active})
+    INSERT INTO layer_breeds
+      (id, name, egg_material_no, doc_material_no, pullet14_material_no, laying_pullet19_material_no, active)
+    VALUES (${crypto.randomUUID()}, ${input.name}, ${input.eggMaterialNo}, ${input.docMaterialNo},
+            ${input.pullet14MaterialNo}, ${input.layingPullet19MaterialNo}, ${input.active})
     RETURNING *
   `;
   return toBreed((rows as Row[])[0]);
@@ -318,7 +326,9 @@ export async function createBreed(input: LayerBreedInput): Promise<LayerBreed> {
 export async function updateBreed(id: string, input: LayerBreedInput): Promise<LayerBreed | null> {
   const rows = await getClient()`
     UPDATE layer_breeds
-    SET name = ${input.name}, egg_material_no = ${input.eggMaterialNo}, active = ${input.active}, updated_at = now()
+    SET name = ${input.name}, egg_material_no = ${input.eggMaterialNo}, doc_material_no = ${input.docMaterialNo},
+        pullet14_material_no = ${input.pullet14MaterialNo}, laying_pullet19_material_no = ${input.layingPullet19MaterialNo},
+        active = ${input.active}, updated_at = now()
     WHERE id = ${id} RETURNING *
   `;
   const r = (rows as Row[])[0];

@@ -87,8 +87,12 @@ export function validateBreedInput(body: unknown): Validation<LayerBreedInput> {
   const errors: string[] = [];
   const name = requiredText(body.name, "name", MAX_NAME, errors);
   const eggMaterialNo = requiredText(body.eggMaterialNo, "eggMaterialNo", 20, errors);
+  const docMaterialNo = optionalText(body.docMaterialNo, "DOC material no.", 20, errors);
+  const pullet14MaterialNo = optionalText(body.pullet14MaterialNo, "Pullet 14WK material no.", 20, errors);
+  const layingPullet19MaterialNo = optionalText(body.layingPullet19MaterialNo, "Laying Pullet 19WK material no.", 20, errors);
   const active = optionalBoolean(body.active, "active", true, errors);
-  return errors.length ? { ok: false, errors } : { ok: true, value: { name, eggMaterialNo, active } };
+  if (errors.length) return { ok: false, errors };
+  return { ok: true, value: { name, eggMaterialNo, docMaterialNo, pullet14MaterialNo, layingPullet19MaterialNo, active } };
 }
 
 export function validateFarmInput(body: unknown): Validation<LayerFarmInput> {

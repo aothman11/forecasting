@@ -23,6 +23,9 @@ export async function PATCH(req: Request, ctx: Ctx) {
     const v = validateBreedInput({
       name: existing.name,
       eggMaterialNo: existing.eggMaterialNo,
+      docMaterialNo: existing.docMaterialNo,
+      pullet14MaterialNo: existing.pullet14MaterialNo,
+      layingPullet19MaterialNo: existing.layingPullet19MaterialNo,
       active: existing.active,
       ...parsed.body,
     });

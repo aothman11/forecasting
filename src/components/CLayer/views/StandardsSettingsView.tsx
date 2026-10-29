@@ -5,6 +5,7 @@ import { cLayerApi, errorLines } from "@/lib/cLayer/api";
 import { FEED_STAGE_WEEK_OFFSET, breedStandardNotes, firstLayAgeWeek } from "@/lib/cLayer/calc";
 import { exportStandards, parseStandardsFile } from "@/lib/cLayer/excel";
 import {
+  BREED_MATERIAL_FIELDS,
   GRADED_MATERIALS,
   LAYER_PLANTS,
   type LayerBreed,
@@ -104,7 +105,7 @@ function BreedsCard({ data, reload, canEdit }: { data: CLayerViewProps["data"]; 
   const [selectedId, setSelectedId] = useState<string | null>(breeds[0]?.id ?? null);
   const [newName, setNewName] = useState("");
   const [newMaterial, setNewMaterial] = useState("");
-  const [renaming, setRenaming] = useState<{ id: string; name: string; eggMaterialNo: string } | null>(null);
+  const [renaming, setRenaming] = useState<BreedDraft | null>(null);
   const [confirmId, setConfirmId] = useState<string | null>(null);
   const [msg, setMsg] = useState<Msg>(null);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -180,15 +181,33 @@ function BreedsCard({ data, reload, canEdit }: { data: CLayerViewProps["data"]; 
                     <tr key={b.id} className={b.id === selectedId ? "bg-brand-green-tint" : "cursor-pointer"} onClick={() => setSelectedId(b.id)}>
                       <td>
                         {renaming?.id === b.id ? (
-                          <div className="flex gap-1" onClick={(e) => e.stopPropagation()}>
-                            <input className={`${input} flex-1 min-w-0`} value={renaming.name} autoFocus onChange={(e) => setRenaming({ ...renaming, name: e.target.value })} />
-                            <input className={`${input} w-24`} value={renaming.eggMaterialNo} onChange={(e) => setRenaming({ ...renaming, eggMaterialNo: e.target.value })} />
+                          <div className="flex flex-col gap-1" onClick={(e) => e.stopPropagation()}>
+                            <input className={`${input} w-full`} value={renaming.name} autoFocus onChange={(e) => setRenaming({ ...renaming, name: e.target.value })} />
+                            <div className="grid grid-cols-2 gap-1">
+                              {BREED_MATERIAL_FIELDS.map((f) => (
+                                <label key={f.key} className="flex flex-col">
+                                  <span className="text-[9px] font-semibold uppercase tracking-wider text-neutral-500">{f.label}</span>
+                                  <input
+                                    className={`${input} w-full tabular-nums`}
+                                    value={renaming[f.key]}
+                                    placeholder={f.key === "eggMaterialNo" ? "required" : "material no."}
+                                    onChange={(e) => setRenaming({ ...renaming, [f.key]: e.target.value })}
+                                  />
+                                </label>
+                              ))}
+                            </div>
                           </div>
                         ) : (
                           <>
                             <span className="font-medium">{b.name}</span>
-                            <span className="ml-2 text-[11px] text-neutral-500 tabular-nums">{b.eggMaterialNo || "no egg material"}</span>
                             {!b.active && <span className="ml-2 text-[10px] uppercase text-neutral-400">inactive</span>}
+                            <div className="flex flex-wrap gap-x-3 text-[11px] text-neutral-500 tabular-nums">
+                              {BREED_MATERIAL_FIELDS.map((f) => (
+                                <span key={f.key}>
+                                  {f.label}: {b[f.key] || <span className="text-neutral-400">—</span>}
+                                </span>
+                              ))}
+                            </div>
                           </>
                         )}
                       </td>
@@ -198,7 +217,10 @@ function BreedsCard({ data, reload, canEdit }: { data: CLayerViewProps["data"]; 
                         <td className="text-right whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
                           {renaming?.id === b.id ? (
                             <>
-                              <button className={btnText} onClick={async () => (await run(() => cLayerApi("PATCH", `/breeds/${b.id}`, { name: renaming.name, eggMaterialNo: renaming.eggMaterialNo }), "Breed updated.")) && setRenaming(null)}>Save</button>
+                              <button className={btnText} onClick={async () => {
+                                const { id, ...patch } = renaming;
+                                if (await run(() => cLayerApi("PATCH", `/breeds/${id}`, patch), "Breed updated.")) setRenaming(null);
+                              }}>Save</button>
                               <button className={btnMuted} onClick={() => setRenaming(null)}>Cancel</button>
                             </>
                           ) : confirmId === b.id ? (
@@ -209,7 +231,14 @@ function BreedsCard({ data, reload, canEdit }: { data: CLayerViewProps["data"]; 
                             </>
                           ) : (
                             <>
-                              <button className={btnText} onClick={() => setRenaming({ id: b.id, name: b.name, eggMaterialNo: b.eggMaterialNo })}>Edit</button>
+                              <button className={btnText} onClick={() => setRenaming({
+                                id: b.id,
+                                name: b.name,
+                                eggMaterialNo: b.eggMaterialNo,
+                                docMaterialNo: b.docMaterialNo,
+                                pullet14MaterialNo: b.pullet14MaterialNo,
+                                layingPullet19MaterialNo: b.layingPullet19MaterialNo,
+                              })}>Edit</button>
                               <button className={btnText} onClick={() => run(() => cLayerApi("PATCH", `/breeds/${b.id}`, { active: !b.active }), b.active ? "Breed deactivated." : "Breed activated.")}>
                                 {b.active ? "Deactivate" : "Activate"}
                               </button>
@@ -380,7 +409,9 @@ function FarmsCard({ farms, reload, canEdit }: { farms: LayerFarm[]; reload: () 
   );
 }
 
-type StageDraft = { id?: string; name: string; phase: "rearing" | "laying"; fromWeek: string; toWeek: string; materialNo: string };
+type BreedDraft = Pick<LayerBreed, "id" | "name" | "eggMaterialNo" | "docMaterialNo" | "pullet14MaterialNo" | "layingPullet19MaterialNo">;
+
+type StageDraft ={ id?: string; name: string; phase: "rearing" | "laying"; fromWeek: string; toWeek: string; materialNo: string };
 
 function FeedStagesCard({ stages, reload, canEdit }: { stages: LayerFeedStage[]; reload: () => void; canEdit: boolean }) {
   const [rows, setRows] = useState<StageDraft[]>(() =>

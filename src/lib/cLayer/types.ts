@@ -20,10 +20,21 @@ export interface LayerBreed {
   name: string;
   /** Plant-1250 egg material for this breed's eggs, e.g. 60001 CL EGG HISEX-WHITE. */
   eggMaterialNo: string;
+  /** SAP materials the flock carries before it becomes an egg-producing asset ("" = not entered). */
+  docMaterialNo: string;
+  pullet14MaterialNo: string;
+  layingPullet19MaterialNo: string;
   active: boolean;
   createdAt: string;
   updatedAt: string;
 }
+
+export const BREED_MATERIAL_FIELDS = [
+  { key: "docMaterialNo", label: "DOC" },
+  { key: "pullet14MaterialNo", label: "Pullet 14WK" },
+  { key: "layingPullet19MaterialNo", label: "Laying Pullet 19WK" },
+  { key: "eggMaterialNo", label: "Eggs" },
+] as const;
 
 /** One row of a breed's weekly standard. ageWeek 1 = placement week. Percentages are 0–100. */
 export interface LayerBreedStandardRow {
@@ -135,6 +146,9 @@ export interface LayerPlacementInput {
 export interface LayerBreedInput {
   name: string;
   eggMaterialNo: string;
+  docMaterialNo: string;
+  pullet14MaterialNo: string;
+  layingPullet19MaterialNo: string;
   active: boolean;
 }
 
