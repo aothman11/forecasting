@@ -182,7 +182,20 @@ export function validateSettingsInput(body: unknown): Validation<LayerSettingsIn
     rejectPct: rejectPct as number | null,
     gradeTablePct,
     gradeCPct,
+    pulletFromAge: null,
+    layingPulletFromAge: null,
+    assetFromAge: null,
   };
+  const stageAges = [
+    optionalIntRange(body.pulletFromAge, "pulletFromAge", 2, MAX_STANDARD_AGE_WEEK, errors),
+    optionalIntRange(body.layingPulletFromAge, "layingPulletFromAge", 2, MAX_STANDARD_AGE_WEEK, errors),
+    optionalIntRange(body.assetFromAge, "assetFromAge", 2, MAX_STANDARD_AGE_WEEK, errors),
+  ] as const;
+  [value.pulletFromAge, value.layingPulletFromAge, value.assetFromAge] = stageAges;
+  const [p, lp, a] = stageAges;
+  if (p !== null && lp !== null && a !== null && !(p < lp && lp < a)) {
+    errors.push("Material stage ages must increase: Pullet 14WK < Laying Pullet 19WK < asset.");
+  }
   if (value.defaultTransferAge !== null && value.defaultDepletionAge !== null && value.defaultDepletionAge <= value.defaultTransferAge) {
     errors.push("The default depletion age must be after the default transfer age.");
   }

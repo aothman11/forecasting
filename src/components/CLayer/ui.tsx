@@ -1,6 +1,14 @@
 "use client";
 
-import { addWeeksIso, isoWeekLabel, mondayOf, type CalendarWeekTotals, type ProjectionFilter } from "@/lib/cLayer/calc";
+import {
+  MATERIAL_STAGE_LABELS,
+  addWeeksIso,
+  isoWeekLabel,
+  mondayOf,
+  type CalendarWeekTotals,
+  type MaterialStage,
+  type ProjectionFilter,
+} from "@/lib/cLayer/calc";
 import { LAYER_PLANTS, type LayerBreed, type LayerFarm, type LayerPlant } from "@/lib/cLayer/types";
 
 export const fmtInt = (n: number) => Math.round(n).toLocaleString();
@@ -116,15 +124,31 @@ export function weekTooltip(
   farmCode: Map<string, string>,
   breedName: Map<string, string>,
   flockNo: Map<string, number | null> = new Map(),
+  breedMaterials: Map<string, BreedMaterials> = new Map(),
 ): string {
   if (!week.flocks.length) return `${week.isoWeek} · Mon ${week.weekStart}\nNo flocks this week`;
   return [
     `${week.isoWeek} · Mon ${week.weekStart}`,
-    ...week.flocks.map(
-      (f) =>
-        `Flock ${flockNo.get(f.placementId) ?? "?"} · ${f.plant ?? "plant ?"} · ${(f.farmId && farmCode.get(f.farmId)) || "?"} · ${breedName.get(f.breedId) ?? "?"} · age wk ${f.ageWeek}${f.feedStage ? ` · ${f.feedStage}` : ""}`,
-    ),
+    ...week.flocks.map((f) => {
+      const material = f.materialStage ? ` · ${materialLabel(f.materialStage, breedMaterials.get(f.breedId))}` : "";
+      return `Flock ${flockNo.get(f.placementId) ?? "?"} · ${f.plant ?? "plant ?"} · ${(f.farmId && farmCode.get(f.farmId)) || "?"} · ${breedName.get(f.breedId) ?? "?"} · age wk ${f.ageWeek}${f.feedStage ? ` · ${f.feedStage}` : ""}${material}`;
+    }),
   ].join("\n");
+}
+
+export type BreedMaterials = Pick<LayerBreed, "docMaterialNo" | "pullet14MaterialNo" | "layingPullet19MaterialNo" | "eggMaterialNo">;
+
+const STAGE_FIELD: Record<MaterialStage, keyof BreedMaterials> = {
+  doc: "docMaterialNo",
+  pullet14: "pullet14MaterialNo",
+  layingPullet19: "layingPullet19MaterialNo",
+  asset: "eggMaterialNo",
+};
+
+/** "Pullet 14WK 1234567" — or "(no code)" while the breed's material number is not entered yet. */
+export function materialLabel(stage: MaterialStage, breed?: BreedMaterials): string {
+  const code = breed?.[STAGE_FIELD[stage]];
+  return `${MATERIAL_STAGE_LABELS[stage]} ${code || "(no code)"}`;
 }
 
 export interface RangeState {

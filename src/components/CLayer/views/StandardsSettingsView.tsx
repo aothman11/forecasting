@@ -30,6 +30,9 @@ const SETTING_FIELDS: { key: EditableSettingKey; label: string; unit: string; st
   { key: "rejectPct", label: "Reject % at grading", unit: "%", step: 0.1 },
   { key: "gradeTablePct", label: "Graded → 90001 table egg", unit: "%", step: 0.1 },
   { key: "gradeCPct", label: "Graded → 90002 Grade C", unit: "%", step: 0.1 },
+  { key: "pulletFromAge", label: "Material: Pullet 14WK from", unit: "age wk", step: 1 },
+  { key: "layingPulletFromAge", label: "Material: Laying Pullet 19WK from", unit: "age wk", step: 1 },
+  { key: "assetFromAge", label: "Asset (egg material) from", unit: "age wk", step: 1 },
 ];
 
 export function StandardsSettingsView({ data, reload, canWriteMaster }: CLayerViewProps) {
@@ -82,7 +85,7 @@ function SettingsCard({ data, reload, canEdit }: { data: CLayerViewProps["data"]
             {canEdit ? (
               <div className="flex items-center gap-2">
                 <input type="number" min={0} step={step} className={`${input} w-28`} value={draft[k]} placeholder="not set" onChange={(e) => setDraft({ ...draft, [k]: e.target.value })} />
-                <span className="text-xs text-neutral-500">{unit}</span>
+                <span className="text-xs text-neutral-500 whitespace-nowrap">{unit}</span>
               </div>
             ) : (
               <span className="text-sm font-semibold">
@@ -183,14 +186,14 @@ function BreedsCard({ data, reload, canEdit }: { data: CLayerViewProps["data"]; 
                         {renaming?.id === b.id ? (
                           <div className="flex flex-col gap-1" onClick={(e) => e.stopPropagation()}>
                             <input className={`${input} w-full`} value={renaming.name} autoFocus onChange={(e) => setRenaming({ ...renaming, name: e.target.value })} />
-                            <div className="grid grid-cols-2 gap-1">
+                            <div className="flex flex-col gap-1.5 mt-1">
                               {BREED_MATERIAL_FIELDS.map((f) => (
-                                <label key={f.key} className="flex flex-col">
-                                  <span className="text-[9px] font-semibold uppercase tracking-wider text-neutral-500">{f.label}</span>
+                                <label key={f.key} className="grid grid-cols-[minmax(0,9rem)_minmax(0,1fr)] items-center gap-2">
+                                  <span className="text-[10px] font-semibold uppercase tracking-wider text-neutral-500 leading-tight">{f.label}</span>
                                   <input
-                                    className={`${input} w-full tabular-nums`}
+                                    className={`${input} w-full min-w-0 tabular-nums`}
                                     value={renaming[f.key]}
-                                    placeholder={f.key === "eggMaterialNo" ? "required" : "material no."}
+                                    placeholder={f.key === "eggMaterialNo" ? "required" : "code"}
                                     onChange={(e) => setRenaming({ ...renaming, [f.key]: e.target.value })}
                                   />
                                 </label>

@@ -115,6 +115,10 @@ export function ensureCLayerSchema(): Promise<void> {
     await db`ALTER TABLE layer_settings ADD COLUMN IF NOT EXISTS grade_table_pct NUMERIC CHECK (grade_table_pct IS NULL OR grade_table_pct BETWEEN 0 AND 100)`;
     await db`ALTER TABLE layer_settings ADD COLUMN IF NOT EXISTS grade_c_pct NUMERIC CHECK (grade_c_pct IS NULL OR grade_c_pct BETWEEN 0 AND 100)`;
     await db`ALTER TABLE layer_settings ADD COLUMN IF NOT EXISTS seed_version INTEGER NOT NULL DEFAULT 0`;
+    // Material stage switch ages given by AWP (2026-10-29): DOC until 14, pullet until 19, asset from 20.
+    await db`ALTER TABLE layer_settings ADD COLUMN IF NOT EXISTS pullet_from_age INTEGER DEFAULT 14 CHECK (pullet_from_age IS NULL OR pullet_from_age BETWEEN 2 AND 100)`;
+    await db`ALTER TABLE layer_settings ADD COLUMN IF NOT EXISTS laying_pullet_from_age INTEGER DEFAULT 19 CHECK (laying_pullet_from_age IS NULL OR laying_pullet_from_age BETWEEN 2 AND 100)`;
+    await db`ALTER TABLE layer_settings ADD COLUMN IF NOT EXISTS asset_from_age INTEGER DEFAULT 20 CHECK (asset_from_age IS NULL OR asset_from_age BETWEEN 2 AND 100)`;
     await db`
       CREATE TABLE IF NOT EXISTS layer_feed_stages (
         id           TEXT PRIMARY KEY,
@@ -269,6 +273,9 @@ function toSettings(r: Row | undefined): LayerSettings {
     rejectPct: numOrNull(r?.reject_pct),
     gradeTablePct: numOrNull(r?.grade_table_pct),
     gradeCPct: numOrNull(r?.grade_c_pct),
+    pulletFromAge: numOrNull(r?.pullet_from_age),
+    layingPulletFromAge: numOrNull(r?.laying_pullet_from_age),
+    assetFromAge: numOrNull(r?.asset_from_age),
     updatedBy: r?.updated_by ? String(r.updated_by) : null,
     updatedAt: r?.updated_at ? iso(r.updated_at) : null,
   };
@@ -610,6 +617,9 @@ export async function updateSettings(input: LayerSettingsInput, user: string): P
       reject_pct            = ${input.rejectPct},
       grade_table_pct       = ${input.gradeTablePct},
       grade_c_pct           = ${input.gradeCPct},
+      pullet_from_age       = ${input.pulletFromAge},
+      laying_pullet_from_age = ${input.layingPulletFromAge},
+      asset_from_age        = ${input.assetFromAge},
       updated_by            = ${user},
       updated_at            = now()
     WHERE id = 1 RETURNING *

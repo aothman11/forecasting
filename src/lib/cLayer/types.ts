@@ -91,6 +91,10 @@ export interface LayerSettings {
   /** Split of graded eggs: 90001 table egg vs 90002 Grade C. Both set and summing to 100, or both null. */
   gradeTablePct: number | null;
   gradeCPct: number | null;
+  /** Age weeks at which the flock's SAP material changes: DOC → Pullet 14WK → Laying Pullet 19WK → asset (egg material). */
+  pulletFromAge: number | null;
+  layingPulletFromAge: number | null;
+  assetFromAge: number | null;
   updatedBy: string | null;
   updatedAt: string | null;
 }

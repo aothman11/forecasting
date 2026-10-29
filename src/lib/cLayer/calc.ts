@@ -84,6 +84,31 @@ export function feedStageFor(ageWeek: number, stages: Pick<LayerFeedStage, "name
   return stages.find((s) => docWeek >= s.fromWeek && docWeek <= s.toWeek)?.name ?? null;
 }
 
+/** SAP material stage of a flock: DOC → Pullet 14WK → Laying Pullet 19WK → asset (takes the breed's egg material). */
+export type MaterialStage = "doc" | "pullet14" | "layingPullet19" | "asset";
+
+export const MATERIAL_STAGE_LABELS: Record<MaterialStage, string> = {
+  doc: "DOC",
+  pullet14: "Pullet 14WK",
+  layingPullet19: "Laying Pullet 19WK",
+  asset: "Asset (eggs)",
+};
+
+export interface MaterialStageAges {
+  pulletFromAge: number | null;
+  layingPulletFromAge: number | null;
+  assetFromAge: number | null;
+}
+
+/** Stage for an age week; null when the switch ages are not all set. */
+export function materialStageFor(ageWeek: number, s: MaterialStageAges): MaterialStage | null {
+  if (s.pulletFromAge === null || s.layingPulletFromAge === null || s.assetFromAge === null) return null;
+  if (ageWeek >= s.assetFromAge) return "asset";
+  if (ageWeek >= s.layingPulletFromAge) return "layingPullet19";
+  if (ageWeek >= s.pulletFromAge) return "pullet14";
+  return "doc";
+}
+
 /** First age week with hen-day % above 0; null when the standard never lays. */
 export function firstLayAgeWeek(standards: LayerBreedStandardRow[]): number | null {
   const sorted = [...standards].sort((a, b) => a.ageWeek - b.ageWeek);
@@ -120,6 +145,7 @@ export interface ProjectionContext {
   defaultTransferAge: number | null;
   defaultDepletionAge: number | null;
   feedStages?: Pick<LayerFeedStage, "name" | "fromWeek" | "toWeek">[];
+  materialStageAges?: MaterialStageAges;
   henDayBase?: HenDayBase;
 }
 
@@ -133,6 +159,8 @@ export interface FlockWeek {
   phase: LayerPhase;
   farmId: string | null;
   feedStage: string | null;
+  /** null when the material stage ages are not set. */
+  materialStage: MaterialStage | null;
   birdsStart: number;
   birdsEnd: number;
   avgBirds: number;
@@ -246,6 +274,7 @@ export function projectFlock(flock: FlockInput, standards: LayerBreedStandardRow
       phase,
       farmId: plant === "1250" ? flock.layingFarmId : plant === "1260" ? flock.rearingFarmId : null,
       feedStage: ctx.feedStages ? feedStageFor(age, ctx.feedStages) : null,
+      materialStage: ctx.materialStageAges ? materialStageFor(age, ctx.materialStageAges) : null,
       birdsStart,
       birdsEnd,
       avgBirds,
@@ -409,6 +438,7 @@ export interface FlockAge {
   plant: LayerPlant | null;
   ageWeek: number;
   feedStage: string | null;
+  materialStage: MaterialStage | null;
 }
 
 export interface CalendarWeekTotals {
@@ -419,6 +449,8 @@ export interface CalendarWeekTotals {
   birds1250: number;
   /** Birds of flocks without a known transfer age (plant unknown). */
   birdsUnassigned: number;
+  /** Birds alive at the start of the week by SAP material stage (empty when the stage ages are not set). */
+  birdsByStage: Partial<Record<MaterialStage, number>>;
   eggs: number;
   /** Eggs keyed by the breed's egg material (60001 / 60002 / 60005); "?" when the breed has none. */
   eggsByMaterial: Record<string, number>;
@@ -456,6 +488,7 @@ export function weeklyTotals(
       birds1260: 0,
       birds1250: 0,
       birdsUnassigned: 0,
+      birdsByStage: {},
       eggs: 0,
       eggsByMaterial: {},
       transferBirds: 0,
@@ -471,9 +504,18 @@ export function weeklyTotals(
       if (wk.plant === "1260") t.birds1260 += wk.birdsStart;
       else if (wk.plant === "1250") t.birds1250 += wk.birdsStart;
       else t.birdsUnassigned += wk.birdsStart;
+      if (wk.materialStage) t.birdsByStage[wk.materialStage] = (t.birdsByStage[wk.materialStage] ?? 0) + wk.birdsStart;
       t.eggs += wk.eggs;
       if (wk.eggs > 0) t.eggsByMaterial[material] = (t.eggsByMaterial[material] ?? 0) + wk.eggs;
-      t.flocks.push({ placementId: p.placementId, breedId: p.breedId, farmId: wk.farmId, plant: wk.plant, ageWeek: wk.ageWeek, feedStage: wk.feedStage });
+      t.flocks.push({
+        placementId: p.placementId,
+        breedId: p.breedId,
+        farmId: wk.farmId,
+        plant: wk.plant,
+        ageWeek: wk.ageWeek,
+        feedStage: wk.feedStage,
+        materialStage: wk.materialStage,
+      });
     }
     const tt = p.transferWeekStart ? totals.get(p.transferWeekStart) : undefined;
     if (tt && p.transferBirds !== null && (!filter.farmId || filter.farmId === p.rearingFarmId || filter.farmId === p.layingFarmId)) {

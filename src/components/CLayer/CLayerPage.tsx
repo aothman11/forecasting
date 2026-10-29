@@ -45,6 +45,7 @@ export function CLayerPage() {
             defaultTransferAge: data.settings.defaultTransferAge,
             defaultDepletionAge: data.settings.defaultDepletionAge,
             feedStages: data.feedStages,
+            materialStageAges: data.settings,
           })
         : [],
     [data],

@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import { weeklyTotals, type CalendarWeekTotals } from "@/lib/cLayer/calc";
+import { MATERIAL_STAGE_LABELS, weeklyTotals, type CalendarWeekTotals, type MaterialStage } from "@/lib/cLayer/calc";
 import type { CLayerViewProps } from "../CLayerPage";
 import {
   Card,
@@ -32,7 +32,8 @@ export function BirdInventoryView({ data, projections }: CLayerViewProps) {
   const farmCode = new Map(data.farms.map((f) => [f.id, f.code]));
   const breedName = new Map(data.breeds.map((b) => [b.id, b.name]));
   const flockNo = new Map(data.placements.map((p) => [p.id, p.flockNo]));
-  const tip = (w: CalendarWeekTotals) => weekTooltip(w, farmCode, breedName, flockNo);
+  const breedMaterials = new Map(data.breeds.map((b) => [b.id, b]));
+  const tip = (w: CalendarWeekTotals) => weekTooltip(w, farmCode, breedName, flockNo, breedMaterials);
   const peak = weeks.reduce((best, w) => (total(w) > total(best) ? w : best), weeks[0]);
   const unprojected = projections.filter((p) => p.weeks.length === 0).length;
   const unassigned = weeks.some((w) => w.birdsUnassigned > 0);
@@ -51,6 +52,11 @@ export function BirdInventoryView({ data, projections }: CLayerViewProps) {
     ["1250 · Laying", (w) => w.birds1250],
     ...(unassigned ? [["Plant unknown", (w: CalendarWeekTotals) => w.birdsUnassigned] as [string, (w: CalendarWeekTotals) => number]] : []),
     ["Total live birds", total, "font-semibold"],
+    ...(weeks.some((w) => Object.keys(w.birdsByStage).length)
+      ? (Object.keys(MATERIAL_STAGE_LABELS) as MaterialStage[]).map(
+          (s) => [`Material · ${MATERIAL_STAGE_LABELS[s]}`, (w: CalendarWeekTotals) => w.birdsByStage[s] ?? 0, "text-neutral-600"] as [string, (w: CalendarWeekTotals) => number, string],
+        )
+      : []),
     ["Transfer 1260 → 1250", (w) => w.transferBirds, "text-neutral-500"],
     ["Depleted (leaving)", (w) => w.depletedBirds, "text-neutral-500"],
   ];

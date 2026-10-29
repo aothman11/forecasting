@@ -3,6 +3,7 @@ import { test, describe } from "node:test";
 import assert from "node:assert/strict";
 import {
   assignFlockNumbers,
+  materialStageFor,
   nextFlockNumber,
   ageWeekToCalendarWeek,
   breedStandardNotes,
@@ -319,6 +320,33 @@ describe("multiple flocks in the same calendar week", () => {
     assert.equal(tr.length, 3);
     assert.equal(tr[0].fromFarmId, "R1");
     assert.equal(eggCells(projections, material).filter((c) => c.weekStart === at(19)).length, 3);
+  });
+});
+
+describe("SAP material stages", () => {
+  const ages = { pulletFromAge: 14, layingPulletFromAge: 19, assetFromAge: 20 };
+
+  test("DOC until 14, pullet until 19, laying pullet in 19, asset from 20", () => {
+    assert.equal(materialStageFor(1, ages), "doc");
+    assert.equal(materialStageFor(13, ages), "doc");
+    assert.equal(materialStageFor(14, ages), "pullet14");
+    assert.equal(materialStageFor(18, ages), "pullet14");
+    assert.equal(materialStageFor(19, ages), "layingPullet19");
+    assert.equal(materialStageFor(20, ages), "asset");
+    assert.equal(materialStageFor(100, ages), "asset");
+  });
+
+  test("no stage when an age is not set", () => {
+    assert.equal(materialStageFor(20, { ...ages, assetFromAge: null }), null);
+  });
+
+  test("projected weeks and weekly totals carry the stage", () => {
+    const p = projectFlock(flock(), flat(100), ctx({ materialStageAges: ages }));
+    assert.equal(p.weeks[12].materialStage, "doc");
+    assert.equal(p.weeks[18].materialStage, "layingPullet19");
+    const t = weeklyTotals([p]).find((w) => w.weekStart === ageWeekToCalendarWeek("2026-11-02", 15));
+    close(t.birdsByStage.pullet14, 1000, "pullet birds");
+    assert.equal(t.flocks[0].materialStage, "pullet14");
   });
 });
 
