@@ -1,7 +1,15 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import type { LayerBreed, LayerBreedStandardRow, LayerFarm, LayerPlacement, LayerSettings } from "./types";
+import type {
+  LayerBreed,
+  LayerBreedStandardRow,
+  LayerFarm,
+  LayerFeedStage,
+  LayerPlacement,
+  LayerSettings,
+  LayerSku,
+} from "./types";
 
 export class ApiError extends Error {
   constructor(message: string, readonly details: string[] = []) {
@@ -32,17 +40,29 @@ export interface CLayerData {
   placements: LayerPlacement[];
   settings: LayerSettings;
   standards: Record<string, LayerBreedStandardRow[]>;
+  feedStages: LayerFeedStage[];
+  skus: LayerSku[];
 }
 
 async function loadAll(): Promise<CLayerData> {
-  const [b, f, p, s, st] = await Promise.all([
+  const [b, f, p, s, st, fs, sk] = await Promise.all([
     cLayerApi<{ breeds: LayerBreed[] }>("GET", "/breeds"),
     cLayerApi<{ farms: LayerFarm[] }>("GET", "/farms"),
     cLayerApi<{ placements: LayerPlacement[] }>("GET", "/placements"),
     cLayerApi<{ settings: LayerSettings }>("GET", "/settings"),
     cLayerApi<{ standards: Record<string, LayerBreedStandardRow[]> }>("GET", "/standards"),
+    cLayerApi<{ feedStages: LayerFeedStage[] }>("GET", "/feed-stages"),
+    cLayerApi<{ skus: LayerSku[] }>("GET", "/skus"),
   ]);
-  return { breeds: b.breeds, farms: f.farms, placements: p.placements, settings: s.settings, standards: st.standards };
+  return {
+    breeds: b.breeds,
+    farms: f.farms,
+    placements: p.placements,
+    settings: s.settings,
+    standards: st.standards,
+    feedStages: fs.feedStages,
+    skus: sk.skus,
+  };
 }
 
 /** Loads all C.Layer master and plan data. `reload()` refetches after a write. */

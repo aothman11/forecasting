@@ -23,6 +23,8 @@ export async function PATCH(req: Request, ctx: Ctx) {
     const v = validateFarmInput({
       code: existing.code,
       name: existing.name,
+      plant: existing.plant,
+      houses: existing.houses,
       active: existing.active,
       ...parsed.body,
     });

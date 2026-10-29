@@ -20,7 +20,12 @@ export async function PATCH(req: Request, ctx: Ctx) {
     await ensureCLayerSchema();
     const existing = await getBreed(id);
     if (!existing) return notFound();
-    const v = validateBreedInput({ name: existing.name, active: existing.active, ...parsed.body });
+    const v = validateBreedInput({
+      name: existing.name,
+      eggMaterialNo: existing.eggMaterialNo,
+      active: existing.active,
+      ...parsed.body,
+    });
     if (!v.ok) return badRequest(v.errors);
     const breed = await updateBreed(id, v.value);
     return breed ? NextResponse.json({ breed }) : notFound();

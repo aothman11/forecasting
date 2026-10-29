@@ -25,13 +25,13 @@ export function PurchaseScheduleView({ data }: CLayerViewProps) {
           { label: "Purchases planned", value: String(lines.length), tone: "green" },
           { label: "PR date passed", value: String(overdue), sub: "raise PR now", tone: overdue ? "alert" : "neutral" },
           { label: "PR due in 30 days", value: String(dueSoon), tone: dueSoon ? "gold" : "neutral" },
-          { label: "Chicks to buy", value: fmtInt(lines.reduce((s, l) => s + l.chicks, 0)) },
+          { label: "DOC to buy", value: fmtInt(lines.reduce((s, l) => s + l.chicks, 0)) },
         ]}
       />
       <Notice lines={warnings} />
       <Card
-        title="Chick purchase schedule"
-        subtitle="PO date = placement Monday − PO→delivery lead time · PR date = PO date − PR→PO lead time. Sorted by PR date."
+        title="DOC purchase schedule"
+        subtitle="PO date = placement Monday − PO→DOC delivery lead time · PR date = PO date − PR→PO lead time. Sorted by PR date. DOC are delivered to the rearing farm (plant 1260)."
       >
         {lines.length === 0 ? (
           <p className="text-sm text-neutral-500 py-6 text-center">No planned placements yet.</p>
@@ -43,14 +43,14 @@ export function PurchaseScheduleView({ data }: CLayerViewProps) {
                   <th className="text-left">PR date</th>
                   <th className="text-left">PO date</th>
                   <th className="text-left">Placement week</th>
-                  <th className="text-right">Chicks</th>
+                  <th className="text-right">DOC</th>
                   <th className="text-left">Breed</th>
-                  <th className="text-left">Farm</th>
+                  <th className="text-left">Rearing farm · 1260</th>
                 </tr>
               </thead>
               <tbody>
                 {lines.map((l) => {
-                  const f = farm.get(l.farmId);
+                  const f = farm.get(l.rearingFarmId);
                   return (
                     <tr key={l.placementId} className={l.prInPast ? "bg-red-50" : undefined}>
                       <td className={l.prInPast ? "text-brand-alert font-semibold" : undefined}>

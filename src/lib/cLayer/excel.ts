@@ -1,16 +1,20 @@
 import * as XLSX from "xlsx";
 import { format } from "date-fns";
-import { isoWeekLabel, isoWeekToMonday, mondayOf } from "./calc";
+import { ageWeekToCalendarWeek, isoWeekLabel, isoWeekToMonday, mondayOf, type FlockProjection } from "./calc";
 import type { LayerBreed, LayerBreedStandardRow, LayerFarm, LayerPlacement, LayerPlacementInput } from "./types";
 
 const PLACEMENT_HEADERS = [
-  "ID",
+  "Flock No",
   "Placement Week",
   "Week Start (Mon)",
-  "Chicks",
+  "DOC Chicks",
   "Breed",
-  "Farm Code",
-  "End of Lay Week",
+  "Rearing Farm (1260)",
+  "Rearing Houses",
+  "Laying Farm (1250)",
+  "Laying Houses",
+  "Transfer Age Week",
+  "Depletion Age Week",
   "Notes",
 ] as const;
 
@@ -26,26 +30,60 @@ function writeBook(sheetName: string, rows: (string | number | null)[][], widths
   XLSX.writeFile(wb, fileName);
 }
 
-/** Current placements (or an empty template). Keep the ID column to update rows; clear it to add new ones. */
-export function exportPlacements(placements: LayerPlacement[], breeds: LayerBreed[], farms: LayerFarm[]) {
+/** Projected weeks written for reference only; the upload ignores these columns. */
+const READ_ONLY_HEADERS = ["Transfer Week (projected)", "Depletion Week (projected)"] as const;
+
+/**
+ * Current flock plan (or an empty template). On upload, a known Flock No updates that flock, a new
+ * number adds it, and a blank number adds a flock with the next running number. The projected
+ * transfer / depletion weeks are appended for reference and ignored on upload.
+ */
+export function exportPlacements(
+  placements: LayerPlacement[],
+  breeds: LayerBreed[],
+  farms: LayerFarm[],
+  projections: Map<string, Pick<FlockProjection, "transferWeekStart" | "depletionAge">> = new Map(),
+) {
   const breedName = new Map(breeds.map((b) => [b.id, b.name]));
   const farmCode = new Map(farms.map((f) => [f.id, f.code]));
-  const rows = placements.map((p) => [
-    p.id,
+  const rows = placements.map((p) => {
+    const proj = projections.get(p.id);
+    const depletionWeek = proj?.depletionAge ? isoWeekLabel(ageWeekToCalendarWeek(p.placementWeekStart, proj.depletionAge)) : "";
+    return [
+    p.flockNo ?? "",
     isoWeekLabel(p.placementWeekStart),
     p.placementWeekStart,
     p.chicks,
     breedName.get(p.breedId) ?? "",
-    farmCode.get(p.farmId) ?? "",
-    p.endOfLayWeek ?? "",
+    farmCode.get(p.rearingFarmId) ?? "",
+    p.rearingHouses ?? "",
+    farmCode.get(p.layingFarmId) ?? "",
+    p.layingHouses ?? "",
+    p.transferAgeWeek ?? "",
+    p.depletionAgeWeek ?? "",
     p.notes,
-  ]);
-  writeBook("Placements", [[...PLACEMENT_HEADERS], ...rows], [38, 15, 17, 10, 22, 12, 16, 30], "awp-c-layer-placements.xlsx");
+    proj?.transferWeekStart ? isoWeekLabel(proj.transferWeekStart) : "",
+    depletionWeek,
+    ];
+  });
+  writeBook(
+    "Flock Plan",
+    [[...PLACEMENT_HEADERS, ...READ_ONLY_HEADERS], ...rows],
+    [10, 15, 17, 11, 16, 18, 14, 18, 14, 17, 18, 30, 24, 25],
+    "awp-c-layer-flock-plan.xlsx",
+  );
 }
 
-export interface PlacementImportRow extends LayerPlacementInput {
-  id?: string;
+/** Blank → null; otherwise must be a whole number ≥ 1 (range checks happen on the server). */
+function optionalWhole(raw: unknown, field: string, label: string, errors: string[]): number | null {
+  const s = String(raw ?? "").trim();
+  if (s === "") return null;
+  const n = Number(s);
+  if (!Number.isInteger(n) || n < 1) errors.push(`${label}: ${field} must be blank or a whole number.`);
+  return n;
 }
+
+export type PlacementImportRow = LayerPlacementInput;
 
 function cellDate(v: unknown): string {
   if (v instanceof Date) return format(v, "yyyy-MM-dd");
@@ -90,30 +128,39 @@ export function parsePlacementsFile(
     const monday = mondayOf(weekStart);
     if (monday !== weekStart) notes.push(`${label}: ${weekStart} moved to the Monday of its week, ${monday}.`);
 
+    const errorsBefore = errors.length;
+    const flockNo = optionalWhole(get("Flock No"), "flock no. (blank = next number)", label, errors);
     const breed = breedByName.get(norm(get("Breed")));
-    const farm = farmByCode.get(norm(get("Farm Code")));
+    const rearing = farmByCode.get(norm(get("Rearing Farm (1260)")));
+    const laying = farmByCode.get(norm(get("Laying Farm (1250)")));
     if (!breed) errors.push(`${label}: breed "${get("Breed")}" is not in the breed list.`);
-    if (!farm) errors.push(`${label}: farm code "${get("Farm Code")}" is not in the farm list.`);
+    if (!rearing) errors.push(`${label}: rearing farm "${get("Rearing Farm (1260)")}" is not in the farm list.`);
+    if (!laying) errors.push(`${label}: laying farm "${get("Laying Farm (1250)")}" is not in the farm list.`);
 
-    const chicks = Number(get("Chicks"));
-    if (!Number.isInteger(chicks) || chicks <= 0) errors.push(`${label}: chicks must be a whole number greater than 0.`);
-    const eolRaw = String(get("End of Lay Week")).trim();
-    if (eolRaw !== "" && !(Number.isInteger(Number(eolRaw)) && Number(eolRaw) >= 1)) {
-      errors.push(`${label}: end of lay week must be blank (breed default) or a whole number.`);
-    }
-    if (!breed || !farm || errors.some((e) => e.startsWith(`${label}:`))) return;
+    const chicks = Number(get("DOC Chicks"));
+    if (!Number.isInteger(chicks) || chicks <= 0) errors.push(`${label}: DOC chicks must be a whole number greater than 0.`);
+    const rearingHouses = optionalWhole(get("Rearing Houses"), "rearing houses", label, errors);
+    const layingHouses = optionalWhole(get("Laying Houses"), "laying houses", label, errors);
+    const transferAgeWeek = optionalWhole(get("Transfer Age Week"), "transfer age (blank = default)", label, errors);
+    const depletionAgeWeek = optionalWhole(get("Depletion Age Week"), "depletion age (blank = default)", label, errors);
+    if (errors.length > errorsBefore || !breed || !rearing || !laying) return;
+
     rows.push({
-      id: String(get("ID")).trim() || undefined,
+      flockNo,
       placementWeekStart: monday,
       chicks,
       breedId: breed.id,
-      farmId: farm.id,
-      endOfLayWeek: eolRaw === "" ? null : Number(eolRaw),
+      rearingFarmId: rearing.id,
+      rearingHouses,
+      layingFarmId: laying.id,
+      layingHouses,
+      transferAgeWeek,
+      depletionAgeWeek,
       notes: String(get("Notes")).trim(),
     });
   });
 
-  if (!errors.length && rows.length === 0) errors.push("The file contains no placement rows.");
+  if (!errors.length && rows.length === 0) errors.push("The file contains no flock rows.");
   return { rows, errors, notes };
 }
 

@@ -1,7 +1,7 @@
 "use client";
 
-import { addWeeksIso, isoWeekLabel, mondayOf } from "@/lib/cLayer/calc";
-import type { LayerBreed, LayerFarm } from "@/lib/cLayer/types";
+import { addWeeksIso, isoWeekLabel, mondayOf, type CalendarWeekTotals, type ProjectionFilter } from "@/lib/cLayer/calc";
+import { LAYER_PLANTS, type LayerBreed, type LayerFarm, type LayerPlant } from "@/lib/cLayer/types";
 
 export const fmtInt = (n: number) => Math.round(n).toLocaleString();
 export const fmtDec = (n: number, dp = 1) => n.toLocaleString(undefined, { maximumFractionDigits: dp, minimumFractionDigits: dp });
@@ -59,32 +59,72 @@ export const label = "text-[10px] font-semibold uppercase tracking-wider text-ne
 export interface FilterState {
   farmId: string;
   breedId: string;
+  plant: "" | LayerPlant;
 }
 
-export function FilterBar({ farms, breeds, value, onChange }: {
-  farms: Pick<LayerFarm, "id" | "code" | "name">[];
-  breeds: Pick<LayerBreed, "id" | "name">[];
+export const emptyFilter = (): FilterState => ({ farmId: "", breedId: "", plant: "" });
+
+export function toProjectionFilter(f: FilterState): ProjectionFilter {
+  return { farmId: f.farmId || undefined, breedId: f.breedId || undefined, plant: f.plant || undefined };
+}
+
+type FarmOption = Pick<LayerFarm, "id" | "code" | "name"> & { plant?: LayerPlant | null };
+type BreedOption = Pick<LayerBreed, "id" | "name"> & { eggMaterialNo?: string };
+
+export function FilterBar({ farms, breeds, value, onChange, showPlant = false, onlyPlant }: {
+  farms: FarmOption[];
+  breeds: BreedOption[];
   value: FilterState;
   onChange: (v: FilterState) => void;
+  showPlant?: boolean;
+  /** Restrict the farm list to one plant (e.g. depletion happens only on 1250 laying farms). */
+  onlyPlant?: LayerPlant;
 }) {
+  const farmList = farms.filter((f) => (!onlyPlant || f.plant === onlyPlant) && (!value.plant || f.plant === value.plant));
   return (
     <div className="flex flex-wrap items-end gap-3">
+      {showPlant && (
+        <label className="flex flex-col gap-1">
+          <span className={label}>Plant</span>
+          <select className={input} value={value.plant} onChange={(e) => onChange({ ...value, plant: e.target.value as FilterState["plant"], farmId: "" })}>
+            <option value="">1260 + 1250</option>
+            {(Object.keys(LAYER_PLANTS) as LayerPlant[]).map((p) => <option key={p} value={p}>{p} · {LAYER_PLANTS[p]}</option>)}
+          </select>
+        </label>
+      )}
       <label className="flex flex-col gap-1">
         <span className={label}>Farm</span>
         <select className={input} value={value.farmId} onChange={(e) => onChange({ ...value, farmId: e.target.value })}>
           <option value="">All farms</option>
-          {farms.map((f) => <option key={f.id} value={f.id}>{f.code} · {f.name}</option>)}
+          {farmList.map((f) => <option key={f.id} value={f.id}>{f.code} · {f.plant ?? "?"} · {f.name}</option>)}
         </select>
       </label>
       <label className="flex flex-col gap-1">
         <span className={label}>Breed</span>
         <select className={input} value={value.breedId} onChange={(e) => onChange({ ...value, breedId: e.target.value })}>
           <option value="">All breeds</option>
-          {breeds.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
+          {breeds.map((b) => <option key={b.id} value={b.id}>{b.name}{b.eggMaterialNo ? ` · ${b.eggMaterialNo}` : ""}</option>)}
         </select>
       </label>
     </div>
   );
+}
+
+/** Week-column tooltip: calendar week, then each flock's plant, farm, breed, age and feed stage. */
+export function weekTooltip(
+  week: Pick<CalendarWeekTotals, "isoWeek" | "weekStart" | "flocks">,
+  farmCode: Map<string, string>,
+  breedName: Map<string, string>,
+  flockNo: Map<string, number | null> = new Map(),
+): string {
+  if (!week.flocks.length) return `${week.isoWeek} · Mon ${week.weekStart}\nNo flocks this week`;
+  return [
+    `${week.isoWeek} · Mon ${week.weekStart}`,
+    ...week.flocks.map(
+      (f) =>
+        `Flock ${flockNo.get(f.placementId) ?? "?"} · ${f.plant ?? "plant ?"} · ${(f.farmId && farmCode.get(f.farmId)) || "?"} · ${breedName.get(f.breedId) ?? "?"} · age wk ${f.ageWeek}${f.feedStage ? ` · ${f.feedStage}` : ""}`,
+    ),
+  ].join("\n");
 }
 
 export interface RangeState {

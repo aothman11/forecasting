@@ -10,17 +10,21 @@ import { Notice } from "./ui";
 import { PlacementsView } from "./views/PlacementsView";
 import { PurchaseScheduleView } from "./views/PurchaseScheduleView";
 import { BirdInventoryView } from "./views/BirdInventoryView";
+import { TransferPlanView } from "./views/TransferPlanView";
 import { EggOutputView } from "./views/EggOutputView";
-import { SpentHensView } from "./views/SpentHensView";
+import { DepletionView } from "./views/DepletionView";
+import { KpiView } from "./views/KpiView";
 import { StandardsSettingsView } from "./views/StandardsSettingsView";
 
 const TABS: { key: CLayerView; label: string; needs: CLayerAction }[] = [
-  { key: "placements", label: "Placements",              needs: "read_data" },
-  { key: "purchase",   label: "Chick Purchase Schedule", needs: "read_data" },
-  { key: "inventory",  label: "Bird Inventory",          needs: "read_data" },
-  { key: "eggs",       label: "Egg Output",              needs: "view_egg_output" },
-  { key: "spent",      label: "Spent Hens",              needs: "read_data" },
-  { key: "settings",   label: "Standards & Settings",    needs: "read_data" },
+  { key: "placements", label: "Flock Plan",            needs: "read_data" },
+  { key: "purchase",   label: "DOC Purchase Schedule", needs: "read_data" },
+  { key: "inventory",  label: "Bird Inventory",        needs: "read_data" },
+  { key: "transfer",   label: "Transfer Plan",         needs: "read_data" },
+  { key: "eggs",       label: "Egg Output",            needs: "view_egg_output" },
+  { key: "spent",      label: "Depletion",             needs: "read_data" },
+  { key: "kpis",       label: "KPIs",                  needs: "read_data" },
+  { key: "settings",   label: "Standards & Settings",  needs: "read_data" },
 ];
 
 export function CLayerPage() {
@@ -35,7 +39,14 @@ export function CLayerPage() {
   const { data, error, reload } = useCLayerData(canRead);
 
   const projections = useMemo(
-    () => (data ? projectAll(data.placements, data.standards) : []),
+    () =>
+      data
+        ? projectAll(data.placements, data.standards, {
+            defaultTransferAge: data.settings.defaultTransferAge,
+            defaultDepletionAge: data.settings.defaultDepletionAge,
+            feedStages: data.feedStages,
+          })
+        : [],
     [data],
   );
 
@@ -54,7 +65,7 @@ export function CLayerPage() {
       <div>
         <h1 className="section-title text-xl text-brand-green-dark">C.Layer Plan</h1>
         <p className="text-xs text-neutral-500 mt-1">
-          Commercial table-egg layers · planned placements projected forward: PR → PO → chick placement → rearing → laying → spent hens.
+          Commercial table-egg layers · planning only. Planned DOC placements projected forward: PR → PO → rearing (plant 1260) → transfer → laying (plant 1250) → depletion.
         </p>
       </div>
 
@@ -87,7 +98,9 @@ export function CLayerPage() {
           {view === "placements" && <PlacementsView {...shared} />}
           {view === "purchase" && <PurchaseScheduleView {...shared} />}
           {view === "inventory" && <BirdInventoryView {...shared} />}
-          {view === "spent" && <SpentHensView {...shared} />}
+          {view === "transfer" && <TransferPlanView {...shared} />}
+          {view === "spent" && <DepletionView {...shared} />}
+          {view === "kpis" && <KpiView {...shared} />}
           {view === "settings" && <StandardsSettingsView {...shared} />}
         </>
       )}

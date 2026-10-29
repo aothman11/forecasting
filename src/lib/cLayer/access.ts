@@ -33,7 +33,10 @@ export async function readJson(req: Request): Promise<{ ok: true; body: unknown 
 
 /** Maps Postgres constraint errors to client responses; anything else is logged and returned as 500. */
 export function dbErrorResponse(err: unknown, context: string): NextResponse {
-  const code = (err as { code?: string } | null)?.code;
+  const { code, constraint } = (err as { code?: string; constraint?: string } | null) ?? {};
+  if (code === "23505" && constraint === "layer_placements_flock_no_key") {
+    return NextResponse.json({ error: "This flock number is already used by another flock." }, { status: 409 });
+  }
   if (code === "23505") {
     return NextResponse.json({ error: "A record with this name or code already exists." }, { status: 409 });
   }

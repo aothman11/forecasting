@@ -85,7 +85,7 @@ export default function Home() {
   const showHome = useCanViewNav("home");
   const showCLayer = useCanViewNav("c_layer");
   // Roles without broiler access (Layer Planner) land straight on C.Layer.
-  const inCLayer = cLayerOpen || (!showHome && showCLayer);
+  const inCLayer = showCLayer && (cLayerOpen || !showHome);
   const assumptionsOpen = usePlanStore((s) => s.assumptionsOpen);
   const toggleAssumptions = usePlanStore((s) => s.toggleAssumptions);
   const { result, params, issues } = usePipeline();

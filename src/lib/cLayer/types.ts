@@ -1,8 +1,25 @@
-// C.Layer Plan — commercial table-egg layer planning. Separate value stream from the broiler chain.
+// C.Layer Plan — commercial table-egg layers. Separate value stream from the broiler chain.
+// Planning only: plant codes and material numbers are labels for matching to SAP, never postings.
+
+/** 1260 = Commercial Layer – Rearing, 1250 = Commercial Layer – Laying. */
+export type LayerPlant = "1260" | "1250";
+
+export const LAYER_PLANTS: Record<LayerPlant, string> = {
+  "1260": "Commercial Layer – Rearing",
+  "1250": "Commercial Layer – Laying",
+};
+
+/** Graded (unpacked) egg materials in plant 1250. */
+export const GRADED_MATERIALS = {
+  table: { materialNo: "90001", description: "Unpacked table egg" },
+  gradeC: { materialNo: "90002", description: "Unpacked Grade C egg" },
+} as const;
 
 export interface LayerBreed {
   id: string;
   name: string;
+  /** Plant-1250 egg material for this breed's eggs, e.g. 60001 CL EGG HISEX-WHITE. */
+  eggMaterialNo: string;
   active: boolean;
   createdAt: string;
   updatedAt: string;
@@ -20,20 +37,31 @@ export interface LayerFarm {
   id: string;
   code: string;
   name: string;
+  /** null only for rows created before plants were introduced. */
+  plant: LayerPlant | null;
+  houses: number | null;
   active: boolean;
   createdAt: string;
   updatedAt: string;
 }
 
+/** One planned DOC placement: rearing stage in 1260, then laying stage in 1250 from the transfer week. */
 export interface LayerPlacement {
   id: string;
-  /** ISO yyyy-mm-dd, always the Monday of the ISO placement week. */
+  /** AWP running flock number (e.g. 101). null only for rows created before flock numbers existed. */
+  flockNo: number | null;
+  /** ISO yyyy-mm-dd, always the Monday of the ISO placement week — the anchor. */
   placementWeekStart: string;
   chicks: number;
   breedId: string;
-  farmId: string;
-  /** null = use the breed default (last age week in its standard table). */
-  endOfLayWeek: number | null;
+  rearingFarmId: string;
+  rearingHouses: number | null;
+  layingFarmId: string;
+  layingHouses: number | null;
+  /** null = use the default transfer age from settings. */
+  transferAgeWeek: number | null;
+  /** null = use the default depletion age from settings. */
+  depletionAgeWeek: number | null;
   notes: string;
   createdBy: string;
   createdAt: string;
@@ -41,34 +69,79 @@ export interface LayerPlacement {
   updatedAt: string;
 }
 
-/** Every value is null until an Admin sets it — there are deliberately no defaults. */
+/** Admin settings. Values are null until set — only the transfer default is seeded (17). */
 export interface LayerSettings {
   prToPoDays: number | null;
   poToDeliveryDays: number | null;
-  eggsPerTray: number | null;
-  traysPerCase: number | null;
+  defaultTransferAge: number | null;
+  defaultDepletionAge: number | null;
+  /** Thin shell, broken and dirty eggs removed at collection / grading. */
+  rejectPct: number | null;
+  /** Split of graded eggs: 90001 table egg vs 90002 Grade C. Both set and summing to 100, or both null. */
+  gradeTablePct: number | null;
+  gradeCPct: number | null;
   updatedBy: string | null;
   updatedAt: string | null;
 }
 
-export type LayerSettingsInput = Pick<LayerSettings, "prToPoDays" | "poToDeliveryDays" | "eggsPerTray" | "traysPerCase">;
+export type LayerSettingsInput = Omit<LayerSettings, "updatedBy" | "updatedAt">;
+
+export type LayerPhase = "rearing" | "laying";
+
+/** Feed stage reference row. Weeks use the business-process document's numbering (starts at 0). */
+export interface LayerFeedStage {
+  id: string;
+  name: string;
+  phase: LayerPhase;
+  fromWeek: number;
+  toWeek: number;
+  materialNo: string;
+  sortOrder: number;
+}
+
+export type SkuGrade = "table" | "grade_c";
+
+/** Packed finished good in plant 1250. Table-grade SKUs share 90001 by packMixPct; Grade C SKUs share 90002. */
+export interface LayerSku {
+  materialNo: string;
+  description: string;
+  grade: SkuGrade;
+  piecesPerPack: number;
+  traysPerPack: number;
+  eggsPerTray: number;
+  packMixPct: number | null;
+  sortOrder: number;
+}
+
+export type LayerSkuUpdate = Pick<LayerSku, "materialNo" | "piecesPerPack" | "traysPerPack" | "eggsPerTray" | "packMixPct">;
+
+export type LayerFeedStageInput = Omit<LayerFeedStage, "id"> & { id?: string };
 
 export interface LayerPlacementInput {
+  /** null = assign the next running number on create / keep the current number on update. */
+  flockNo: number | null;
   placementWeekStart: string;
   chicks: number;
   breedId: string;
-  farmId: string;
-  endOfLayWeek: number | null;
+  rearingFarmId: string;
+  rearingHouses: number | null;
+  layingFarmId: string;
+  layingHouses: number | null;
+  transferAgeWeek: number | null;
+  depletionAgeWeek: number | null;
   notes: string;
 }
 
 export interface LayerBreedInput {
   name: string;
+  eggMaterialNo: string;
   active: boolean;
 }
 
 export interface LayerFarmInput {
   code: string;
   name: string;
+  plant: LayerPlant;
+  houses: number | null;
   active: boolean;
 }

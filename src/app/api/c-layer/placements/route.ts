@@ -1,6 +1,12 @@
 import { NextResponse } from "next/server";
 import { badRequest, dbErrorResponse, readJson, requireCLayer } from "@/lib/cLayer/access";
-import { createPlacement, ensureCLayerSchema, listPlacements, placementReferenceErrors } from "@/lib/cLayer/db";
+import {
+  createPlacement,
+  ensureCLayerSchema,
+  listPlacements,
+  loadPlacementRefContext,
+  placementReferenceErrors,
+} from "@/lib/cLayer/db";
 import { validatePlacementInput } from "@/lib/cLayer/validate";
 
 export async function GET() {
@@ -23,7 +29,7 @@ export async function POST(req: Request) {
   if (!v.ok) return badRequest(v.errors);
   try {
     await ensureCLayerSchema();
-    const refErrors = await placementReferenceErrors(v.value);
+    const refErrors = placementReferenceErrors(await loadPlacementRefContext(), v.value);
     if (refErrors.length) return badRequest(refErrors);
     const placement = await createPlacement(v.value, access.session.name);
     return NextResponse.json({ placement }, { status: 201 });

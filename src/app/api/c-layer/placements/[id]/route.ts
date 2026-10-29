@@ -4,6 +4,7 @@ import {
   deletePlacement,
   ensureCLayerSchema,
   getPlacement,
+  loadPlacementRefContext,
   placementReferenceErrors,
   updatePlacement,
 } from "@/lib/cLayer/db";
@@ -27,16 +28,21 @@ export async function PATCH(req: Request, ctx: Ctx) {
     const existing = await getPlacement(id);
     if (!existing) return notFound();
     const v = validatePlacementInput({
+      flockNo: existing.flockNo,
       placementWeekStart: existing.placementWeekStart,
       chicks: existing.chicks,
       breedId: existing.breedId,
-      farmId: existing.farmId,
-      endOfLayWeek: existing.endOfLayWeek,
+      rearingFarmId: existing.rearingFarmId,
+      rearingHouses: existing.rearingHouses,
+      layingFarmId: existing.layingFarmId,
+      layingHouses: existing.layingHouses,
+      transferAgeWeek: existing.transferAgeWeek,
+      depletionAgeWeek: existing.depletionAgeWeek,
       notes: existing.notes,
       ...parsed.body,
     });
     if (!v.ok) return badRequest(v.errors);
-    const refErrors = await placementReferenceErrors(v.value, existing);
+    const refErrors = placementReferenceErrors(await loadPlacementRefContext(), v.value, existing);
     if (refErrors.length) return badRequest(refErrors);
     const placement = await updatePlacement(id, v.value, access.session.name);
     return placement ? NextResponse.json({ placement }) : notFound();
