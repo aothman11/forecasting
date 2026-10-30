@@ -2,8 +2,16 @@
 import { test, describe } from "node:test";
 import assert from "node:assert/strict";
 import {
+  addWeeksIso,
   assignFlockNumbers,
+  farmAvailability,
+  farmStays,
   materialStageFor,
+  nextMondayOnOrAfter,
+  prepPhases,
+  prepPlansByPlant,
+  prepStepOn,
+  prepWindow,
   nextFlockNumber,
   ageWeekToCalendarWeek,
   breedStandardNotes,
@@ -378,6 +386,80 @@ describe("flock numbers", () => {
   });
 });
 
+describe("house preparation (Cage House Prepared)", () => {
+  const ops = [
+    ...Array.from({ length: 67 }, (_, i) => ({ group: "LR01", opCode: `PRE${String(i + 1).padStart(3, "0")}`, text: i === 0 ? "Rodent control" : "Rest period", day: i + 1 })),
+    { group: "LR01", opCode: "PRE067", text: "Lab", day: 67 },
+    ...Array.from({ length: 68 }, (_, i) => ({ group: "LL01", opCode: `PRE${String(i + 1).padStart(3, "0")}`, text: "Rest period", day: i + 1 })),
+  ];
+  const plans = prepPlansByPlant(ops, { LR01: "1260", LL01: "1250" });
+  const s = { B1: flat(100, 21, 90) };
+  const c = ctx({ defaultTransferAge: 16, defaultDepletionAge: 90 });
+
+  test("routing gives 67 days for rearing and 68 for laying; shared days join their steps", () => {
+    assert.equal(plans["1260"].days, 67);
+    assert.equal(plans["1250"].days, 68);
+    assert.equal(prepStepOn(plans["1260"], 67), "Rest period · Lab");
+  });
+
+  test("one operation per day from the Monday the flock leaves; free from the next Monday after", () => {
+    assert.deepEqual(prepWindow("2026-11-02", 67), { start: "2026-11-02", lastDay: "2027-01-07", freeFrom: "2027-01-11" });
+    assert.deepEqual(prepWindow("2026-11-02", 68), { start: "2026-11-02", lastDay: "2027-01-08", freeFrom: "2027-01-11" });
+    assert.equal(nextMondayOnOrAfter("2027-01-11"), "2027-01-11");
+  });
+
+  test("rearing farm is prepared from the transfer week, laying farm from the week after depletion", () => {
+    const p = projectAll([flock()], s, c);
+    const stays = farmStays([flock()], p, plans);
+    const rearPrep = stays.find((x) => x.kind === "preparation" && x.plant === "1260");
+    const layPrep = stays.find((x) => x.kind === "preparation" && x.plant === "1250");
+    assert.equal(rearPrep.from, p[0].transferWeekStart);
+    assert.equal(layPrep.from, p[0].depletionWeekStart);
+    assert.equal(rearPrep.prep.freeFrom, addWeeksIso(p[0].transferWeekStart, 10));
+  });
+
+  test("a flock placed on a farm still in preparation is an overlap; after it is free, none", () => {
+    const a = flock({ id: "a" });
+    const transfer = projectFlock(a, s.B1, c).transferWeekStart;
+    const during = flock({ id: "b", placementWeekStart: addWeeksIso(transfer, 4), layingFarmId: "L2" });
+    const after = flock({ id: "c", placementWeekStart: addWeeksIso(transfer, 10), layingFarmId: "L3" });
+    const o1 = farmOverlaps([a, during], projectAll([a, during], s, c), {}, plans);
+    assert.equal(o1.length, 1);
+    assert.equal(o1[0].kind, "preparation");
+    assert.deepEqual(o1[0].placementIds, ["a", "b"]);
+    assert.equal(farmOverlaps([a, after], projectAll([a, after], s, c), {}, plans).length, 0);
+    assert.equal(farmOverlaps([a, during], projectAll([a, during], s, c), {}).length, 0, "no routing → no preparation block");
+  });
+
+  test("farm availability: occupied → preparation (with steps) → free", () => {
+    const a = flock({ id: "a" });
+    const p = projectAll([a], s, c);
+    const t = p[0].transferWeekStart;
+    const [r1] = farmAvailability(["R1"], farmStays([a], p, plans), plans, { from: "2026-11-02", to: addWeeksIso(t, 11) });
+    const at = (iso) => r1.weeks.find((w) => w.weekStart === iso);
+    assert.equal(at("2026-11-02").status, "occupied");
+    assert.equal(at(t).status, "preparation");
+    assert.deepEqual(at(t).prepDays, [1, 7]);
+    assert.match(at(t).prepSteps, /Rodent control/);
+    assert.equal(at(addWeeksIso(t, 9)).status, "preparation");
+    assert.equal(at(addWeeksIso(t, 10)).status, "free");
+    assert.equal(r1.freeFrom, addWeeksIso(t, 10));
+  });
+
+  test("farm availability: a flock arriving during preparation is flagged as a conflict", () => {
+    const a = flock({ id: "a" });
+    const t = projectFlock(a, s.B1, c).transferWeekStart;
+    const b = flock({ id: "b", placementWeekStart: addWeeksIso(t, 4), layingFarmId: "L2" });
+    const p = projectAll([a, b], s, c);
+    const [r1] = farmAvailability(["R1"], farmStays([a, b], p, plans), plans, { from: t, to: addWeeksIso(t, 12) });
+    const at = (iso) => r1.weeks.find((w) => w.weekStart === iso);
+    assert.equal(at(addWeeksIso(t, 3)).status, "preparation");
+    assert.equal(at(addWeeksIso(t, 4)).status, "occupied");
+    assert.equal(at(addWeeksIso(t, 4)).prepConflict, true);
+    assert.equal(at(addWeeksIso(t, 10)).prepConflict, undefined);
+  });
+});
+
 describe("farm overlap", () => {
   const s = { B1: flat(100) };
 
@@ -392,5 +474,20 @@ describe("farm overlap", () => {
     const flocks = [flock({ id: "a", layingHouses: 3 }), flock({ id: "b", layingHouses: 3, placementWeekStart: "2027-03-01" })];
     assert.equal(farmOverlaps(flocks, projectAll(flocks, s, ctx()), { L1: 6 }).length, 0);
     assert.equal(farmOverlaps(flocks, projectAll(flocks, s, ctx()), { L1: 5 }).length, 1);
+  });
+});
+
+describe("preparation phases", () => {
+  test("consecutive days with the same operation text form one phase", () => {
+    const ops = [["PRE001", "Rodent control", 1], ["PRE002", "Dry cleaning", 2], ["PRE003", "Dry cleaning", 3], ["PRE004", "Rest period", 4], ["PRE005", "Dry cleaning", 5]]
+      .map(([opCode, text, day]) => ({ opCode, text, day }));
+    const p = prepPhases(ops);
+    assert.deepEqual(p.map((x) => [x.text, x.fromDay, x.toDay]), [["Rodent control", 1, 1], ["Dry cleaning", 2, 3], ["Rest period", 4, 4], ["Dry cleaning", 5, 5]]);
+    assert.deepEqual(p[1].opCodes, ["PRE002", "PRE003"]);
+  });
+
+  test("different operations on the same day share one phase", () => {
+    const p = prepPhases([{ opCode: "PRE066", text: "Rest period", day: 66 }, { opCode: "PRE067", text: "Lab", day: 67 }, { opCode: "PRE067", text: "Rest period - Last Day", day: 67 }]);
+    assert.deepEqual(p.map((x) => [x.text, x.fromDay, x.toDay]), [["Rest period", 66, 66], ["Lab · Rest period - Last Day", 67, 67]]);
   });
 });

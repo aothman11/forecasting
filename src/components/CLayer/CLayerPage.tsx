@@ -5,12 +5,14 @@ import { usePlanStore, type CLayerView } from "@/lib/store";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { canCLayer, type CLayerAction } from "@/lib/role-permissions";
 import { useCLayerData } from "@/lib/cLayer/api";
-import { projectAll } from "@/lib/cLayer/calc";
+import { prepPlansByPlant, projectAll, type PrepPlan } from "@/lib/cLayer/calc";
+import { PREP_GROUP_PLANT, type LayerPlant } from "@/lib/cLayer/types";
 import { Notice } from "./ui";
 import { PlacementsView } from "./views/PlacementsView";
 import { PurchaseScheduleView } from "./views/PurchaseScheduleView";
 import { BirdInventoryView } from "./views/BirdInventoryView";
 import { TransferPlanView } from "./views/TransferPlanView";
+import { FarmAvailabilityView } from "./views/FarmAvailabilityView";
 import { EggOutputView } from "./views/EggOutputView";
 import { DepletionView } from "./views/DepletionView";
 import { KpiView } from "./views/KpiView";
@@ -21,6 +23,7 @@ const TABS: { key: CLayerView; label: string; needs: CLayerAction }[] = [
   { key: "purchase",   label: "DOC Purchase Schedule", needs: "read_data" },
   { key: "inventory",  label: "Bird Inventory",        needs: "read_data" },
   { key: "transfer",   label: "Transfer Plan",         needs: "read_data" },
+  { key: "availability", label: "Farm Availability",   needs: "read_data" },
   { key: "eggs",       label: "Egg Output",            needs: "view_egg_output" },
   { key: "spent",      label: "Depletion",             needs: "read_data" },
   { key: "kpis",       label: "KPIs",                  needs: "read_data" },
@@ -50,12 +53,14 @@ export function CLayerPage() {
         : [],
     [data],
   );
+  const prepPlans = useMemo(() => (data ? prepPlansByPlant(data.prepOperations, PREP_GROUP_PLANT) : {}), [data]);
 
   if (!tabs.length) return <Notice tone="error" lines={["Your role does not have access to the C.Layer Plan."]} />;
 
   const shared = data && {
     data,
     projections,
+    prepPlans,
     reload,
     canWritePlacements: canCLayer(role, "write_placements"),
     canWriteMaster: canCLayer(role, "write_master"),
@@ -66,7 +71,7 @@ export function CLayerPage() {
       <div>
         <h1 className="section-title text-xl text-brand-green-dark">C.Layer Plan</h1>
         <p className="text-xs text-neutral-500 mt-1">
-          Commercial table-egg layers · planning only. Planned DOC placements projected forward: PR → PO → rearing (plant 1260) → transfer → laying (plant 1250) → depletion.
+          Commercial table-egg layers · planning only. Planned DOC placements projected forward: PR → PO → rearing (plant 1260) → transfer → laying (plant 1250) → depletion → house preparation.
         </p>
       </div>
 
@@ -100,6 +105,7 @@ export function CLayerPage() {
           {view === "purchase" && <PurchaseScheduleView {...shared} />}
           {view === "inventory" && <BirdInventoryView {...shared} />}
           {view === "transfer" && <TransferPlanView {...shared} />}
+          {view === "availability" && <FarmAvailabilityView {...shared} />}
           {view === "spent" && <DepletionView {...shared} />}
           {view === "kpis" && <KpiView {...shared} />}
           {view === "settings" && <StandardsSettingsView {...shared} />}
@@ -112,6 +118,8 @@ export function CLayerPage() {
 export type CLayerViewProps = {
   data: import("@/lib/cLayer/api").CLayerData;
   projections: import("@/lib/cLayer/calc").FlockProjection[];
+  /** House preparation routing per plant ("Cage House Prepared"). */
+  prepPlans: Partial<Record<LayerPlant, PrepPlan>>;
   reload: () => void;
   canWritePlacements: boolean;
   canWriteMaster: boolean;

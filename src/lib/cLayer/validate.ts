@@ -5,9 +5,11 @@ import type {
   LayerFarmInput,
   LayerFeedStageInput,
   LayerPlacementInput,
+  LayerPrepOperation,
   LayerSettingsInput,
   LayerSku,
   LayerSkuUpdate,
+  PrepGroup,
 } from "./types";
 
 export type Validation<T> = { ok: true; value: T } | { ok: false; errors: string[] };
@@ -330,4 +332,33 @@ export function validateSkuSet(skus: Pick<LayerSku, "materialNo" | "grade" | "pa
     if (Math.abs(total - 100) > SUM_TOLERANCE) errors.push(`${label}: must total 100% (now ${total}%).`);
   }
   return errors;
+}
+
+const MAX_PREP_DAY = 365;
+
+/** A preparation routing upload: per group, operations with a code, a text and a day (1–365). */
+export function validatePrepRouting(input: unknown): Validation<Partial<Record<PrepGroup, Omit<LayerPrepOperation, "group" | "seq">[]>>> {
+  if (!isObject(input)) return { ok: false, errors: ["Routing must be an object keyed by group (LR01, LL01)."] };
+  const errors: string[] = [];
+  const out: Partial<Record<PrepGroup, Omit<LayerPrepOperation, "group" | "seq">[]>> = {};
+  for (const [group, ops] of Object.entries(input)) {
+    if (group !== "LR01" && group !== "LL01") {
+      errors.push(`Unknown group "${group}" — use LR01 (rearing) or LL01 (laying).`);
+      continue;
+    }
+    if (!Array.isArray(ops) || ops.length === 0) {
+      errors.push(`${group}: add at least one operation.`);
+      continue;
+    }
+    out[group] = ops.map((raw, i) => {
+      const label = `${group} row ${i + 1}`;
+      const o = isObject(raw) ? raw : {};
+      const opCode = requiredText(o.opCode, `${label} operation code`, 20, errors);
+      const text = requiredText(o.text, `${label} text`, 120, errors);
+      if (!isIntInRange(o.day, 1, MAX_PREP_DAY)) errors.push(`${label}: day must be a whole number from 1 to ${MAX_PREP_DAY}.`);
+      return { opCode, text, day: o.day as number };
+    });
+  }
+  if (!errors.length && Object.keys(out).length === 0) errors.push("No routing groups given.");
+  return errors.length ? { ok: false, errors } : { ok: true, value: out };
 }

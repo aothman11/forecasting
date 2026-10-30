@@ -2,7 +2,15 @@
 // unchanged in the browser, in route handlers, and under `node --test`.
 // Planning only: every quantity here is a projection from planned flocks and breed standards.
 import { addDays, format, getISOWeek, getISOWeekYear, parseISO } from "date-fns";
-import type { LayerBreedStandardRow, LayerFeedStage, LayerPlacement, LayerPlant, LayerSettings, LayerSku } from "./types";
+import type {
+  LayerBreedStandardRow,
+  LayerFeedStage,
+  LayerPlacement,
+  LayerPlant,
+  LayerPrepOperation,
+  LayerSettings,
+  LayerSku,
+} from "./types";
 
 // ── Business rules (C.Layer Business Process document) ────────────────────────
 
@@ -720,56 +728,244 @@ export function nextFlockNumber(existing: (number | null)[]): number {
   return Math.max(0, ...existing.filter((n): n is number => n !== null)) + 1;
 }
 
+// ── House preparation ("Cage House Prepared") ─────────────────────────────────
+
+export interface PrepPlan {
+  group: string;
+  /** Length of the preparation order in days (highest operation day). */
+  days: number;
+  operations: Pick<LayerPrepOperation, "opCode" | "text" | "day">[];
+}
+
+/** Preparation plan per plant from the routing: LR01 → rearing farms (1260), LL01 → laying farms (1250). */
+export function prepPlansByPlant(
+  ops: Pick<LayerPrepOperation, "group" | "opCode" | "text" | "day">[],
+  groupPlant: Record<string, LayerPlant>,
+): Partial<Record<LayerPlant, PrepPlan>> {
+  const out: Partial<Record<LayerPlant, PrepPlan>> = {};
+  for (const op of ops) {
+    const plant = groupPlant[op.group];
+    if (!plant) continue;
+    const plan = (out[plant] ??= { group: op.group, days: 0, operations: [] });
+    plan.operations.push({ opCode: op.opCode, text: op.text, day: op.day });
+    plan.days = Math.max(plan.days, op.day);
+  }
+  for (const plan of Object.values(out)) plan!.operations.sort((a, b) => a.day - b.day || a.opCode.localeCompare(b.opCode));
+  return out;
+}
+
+/** Operation text(s) on a preparation day, e.g. "Rest period" or "Lab · Rest period - Last Day". */
+export function prepStepOn(plan: PrepPlan, day: number): string {
+  return [...new Set(plan.operations.filter((o) => o.day === day).map((o) => o.text))].join(" · ");
+}
+
+const dayDiff = (from: string, to: string) => Math.round((parseISO(to).getTime() - parseISO(from).getTime()) / 86_400_000);
+const addDaysIso = (iso: string, days: number) => format(addDays(parseISO(iso), days), "yyyy-MM-dd");
+
+/** First Monday on or after a date. */
+export function nextMondayOnOrAfter(dateIso: string): string {
+  const monday = mondayOf(dateIso);
+  return monday === dateIso ? monday : addWeeksIso(monday, 1);
+}
+
+export interface PrepWindow {
+  /** Day 1 of preparation (the Monday the flock leaves the farm). */
+  start: string;
+  /** Date of the last preparation day. */
+  lastDay: string;
+  /** The farm can take its next flock from this Monday. */
+  freeFrom: string;
+}
+
+/** Preparation runs `days` days from the Monday the flock leaves; the farm is free from the next Monday after. */
+export function prepWindow(leaveMonday: string, days: number): PrepWindow {
+  const lastDay = addDaysIso(leaveMonday, days - 1);
+  return { start: leaveMonday, lastDay, freeFrom: nextMondayOnOrAfter(addDaysIso(lastDay, 1)) };
+}
+
 // ── Farm occupancy ────────────────────────────────────────────────────────────
+
+export type StayKind = "flock" | "preparation";
+
+/** A farm is busy with a flock (Monday to Monday, inclusive weeks) or with its preparation order. */
+export interface FarmStay {
+  kind: StayKind;
+  placementId: string;
+  farmId: string;
+  plant: LayerPlant;
+  houses: number | null;
+  /** First and last Monday of the busy period (inclusive). */
+  from: string;
+  to: string;
+  /** Preparation only: exact days and the Monday the farm is free again. */
+  prep?: PrepWindow;
+}
+
+/**
+ * Busy periods per farm: the rearing farm holds the flock from placement until the week before
+ * transfer, then is prepared (LR01) from the transfer week; the laying farm holds it from the
+ * transfer week through depletion, then is prepared (LL01) from the week after depletion.
+ */
+export function farmStays(
+  flocks: Pick<FlockInput, "id" | "rearingHouses" | "layingHouses">[],
+  projections: FlockProjection[],
+  prepPlans: Partial<Record<LayerPlant, PrepPlan>> = {},
+): FarmStay[] {
+  const housesById = new Map(flocks.map((f) => [f.id, f]));
+  const stays: FarmStay[] = [];
+  const addPrep = (p: FlockProjection, farmId: string, plant: LayerPlant, leave: string) => {
+    const plan = prepPlans[plant];
+    if (!plan || plan.days <= 0) return;
+    const w = prepWindow(leave, plan.days);
+    stays.push({ kind: "preparation", placementId: p.placementId, farmId, plant, houses: null, from: w.start, to: mondayOf(w.lastDay), prep: w });
+  };
+  for (const p of projections) {
+    if (!p.weeks.length || p.transferAge === null || !p.transferWeekStart) continue;
+    const f = housesById.get(p.placementId);
+    stays.push({
+      kind: "flock",
+      placementId: p.placementId,
+      farmId: p.rearingFarmId,
+      plant: "1260",
+      houses: f?.rearingHouses ?? null,
+      from: p.weeks[0].weekStart,
+      to: p.weeks[p.transferAge - 2].weekStart,
+    });
+    addPrep(p, p.rearingFarmId, "1260", p.transferWeekStart);
+    stays.push({
+      kind: "flock",
+      placementId: p.placementId,
+      farmId: p.layingFarmId,
+      plant: "1250",
+      houses: f?.layingHouses ?? null,
+      from: p.transferWeekStart,
+      to: p.weeks[p.weeks.length - 1].weekStart,
+    });
+    if (p.depletionWeekStart) addPrep(p, p.layingFarmId, "1250", p.depletionWeekStart);
+  }
+  return stays;
+}
 
 export interface FarmOverlap {
   farmId: string;
   placementIds: [string, string];
   fromWeek: string;
   toWeek: string;
-}
-
-interface Stay {
-  placementId: string;
-  farmId: string;
-  houses: number | null;
-  from: string;
-  to: string;
+  /** "occupied": two flocks on the farm; "preparation": a flock while the farm is being prepared after another. */
+  kind: "occupied" | "preparation";
 }
 
 /**
- * Two flocks overlap when they occupy the same farm in the same week: the rearing farm from
- * placement until the week before transfer, the laying farm from transfer through the last
- * projected week. When both flocks give house counts that fit the farm's houses together, they can
- * share it and no overlap is reported.
+ * Two flocks overlap when they occupy the same farm in the same week, unless both give house counts
+ * that fit the farm together. A flock on a farm that is still being prepared after another flock is
+ * always an overlap: preparation blocks the whole farm.
  */
 export function farmOverlaps(
   flocks: Pick<FlockInput, "id" | "rearingHouses" | "layingHouses">[],
   projections: FlockProjection[],
   farmHouses: Record<string, number | null>,
+  prepPlans: Partial<Record<LayerPlant, PrepPlan>> = {},
 ): FarmOverlap[] {
-  const housesById = new Map(flocks.map((f) => [f.id, f]));
-  const stays: Stay[] = [];
-  for (const p of projections) {
-    if (!p.weeks.length || p.transferAge === null || !p.transferWeekStart) continue;
-    const f = housesById.get(p.placementId);
-    const lastRearing = p.weeks[p.transferAge - 2];
-    stays.push({ placementId: p.placementId, farmId: p.rearingFarmId, houses: f?.rearingHouses ?? null, from: p.weeks[0].weekStart, to: lastRearing.weekStart });
-    stays.push({ placementId: p.placementId, farmId: p.layingFarmId, houses: f?.layingHouses ?? null, from: p.transferWeekStart, to: p.weeks[p.weeks.length - 1].weekStart });
-  }
+  const stays = farmStays(flocks, projections, prepPlans);
   const out: FarmOverlap[] = [];
   for (let i = 0; i < stays.length; i++) {
     for (let j = i + 1; j < stays.length; j++) {
       const a = stays[i];
       const b = stays[j];
       if (a.farmId !== b.farmId || a.placementId === b.placementId) continue;
+      if (a.kind === "preparation" && b.kind === "preparation") continue;
       const from = a.from > b.from ? a.from : b.from;
       const to = a.to < b.to ? a.to : b.to;
       if (from > to) continue;
-      const cap = farmHouses[a.farmId] ?? null;
-      if (a.houses !== null && b.houses !== null && cap !== null && a.houses + b.houses <= cap) continue;
-      out.push({ farmId: a.farmId, placementIds: [a.placementId, b.placementId], fromWeek: from, toWeek: to });
+      if (a.kind === "flock" && b.kind === "flock") {
+        const cap = farmHouses[a.farmId] ?? null;
+        if (a.houses !== null && b.houses !== null && cap !== null && a.houses + b.houses <= cap) continue;
+      }
+      const kind = a.kind === "preparation" || b.kind === "preparation" ? "preparation" : "occupied";
+      const order: [string, string] = a.kind === "preparation" ? [a.placementId, b.placementId] : [b.placementId, a.placementId];
+      out.push({ farmId: a.farmId, placementIds: kind === "preparation" ? order : [a.placementId, b.placementId], fromWeek: from, toWeek: to, kind });
     }
   }
   return out;
+}
+
+export interface FarmWeekStatus {
+  weekStart: string;
+  status: "free" | "occupied" | "preparation";
+  /** Flocks on the farm (occupied) or the flock whose departure is being prepared for (preparation). */
+  placementIds: string[];
+  /** Preparation only: day range and operation(s) in this week. */
+  prepDays?: [number, number];
+  prepSteps?: string;
+  /** Occupied only: the farm should still be in preparation this week (a flock arrived too early). */
+  prepConflict?: boolean;
+}
+
+export interface FarmAvailability {
+  farmId: string;
+  weeks: FarmWeekStatus[];
+  /** First Monday from which the farm has no planned flock or preparation left; null = free throughout. */
+  freeFrom: string | null;
+}
+
+/** Week-by-week status of each farm in a range, and when it is free for its next flock. */
+export function farmAvailability(
+  farmIds: string[],
+  stays: FarmStay[],
+  prepPlans: Partial<Record<LayerPlant, PrepPlan>>,
+  range: { from: string; to: string },
+): FarmAvailability[] {
+  const weeks = weekRange(range.from, range.to);
+  return farmIds.map((farmId) => {
+    const mine = stays.filter((s) => s.farmId === farmId);
+    const freeFrom = mine.length
+      ? mine.map((s) => (s.kind === "preparation" ? s.prep!.freeFrom : addWeeksIso(s.to, 1))).sort().at(-1)!
+      : null;
+    return {
+      farmId,
+      freeFrom,
+      weeks: weeks.map((w): FarmWeekStatus => {
+        const flocks = mine.filter((s) => s.kind === "flock" && s.from <= w && w <= s.to);
+        const prep = mine.find((s) => s.kind === "preparation" && s.from <= w && w <= s.to);
+        if (flocks.length) {
+          return { weekStart: w, status: "occupied", placementIds: flocks.map((s) => s.placementId), ...(prep ? { prepConflict: true } : {}) };
+        }
+        if (!prep) return { weekStart: w, status: "free", placementIds: [] };
+        const plan = prepPlans[prep.plant]!;
+        const first = Math.max(1, dayDiff(prep.prep!.start, w) + 1);
+        const last = Math.min(plan.days, first + 6);
+        const steps = [...new Set(Array.from({ length: last - first + 1 }, (_, i) => prepStepOn(plan, first + i)).filter(Boolean))].join(" → ");
+        return { weekStart: w, status: "preparation", placementIds: [prep.placementId], prepDays: [first, last], prepSteps: steps };
+      }),
+    };
+  });
+}
+
+export interface PrepPhase {
+  text: string;
+  fromDay: number;
+  toDay: number;
+  /** Operation codes in this phase, in routing order. */
+  opCodes: string[];
+}
+
+/**
+ * Consecutive operations with the same text form one phase, e.g. "Rest period" days 11–41. Different
+ * operations on the same single day share one phase ("Lab · Rest period - Last Day").
+ */
+export function prepPhases(ops: Pick<LayerPrepOperation, "opCode" | "text" | "day">[]): PrepPhase[] {
+  const phases: PrepPhase[] = [];
+  for (const o of [...ops].sort((a, b) => a.day - b.day)) {
+    const last = phases.at(-1);
+    if (last && last.text === o.text && o.day <= last.toDay + 1) {
+      last.toDay = Math.max(last.toDay, o.day);
+      last.opCodes.push(o.opCode);
+    } else if (last && o.day === last.fromDay && o.day === last.toDay) {
+      last.text = `${last.text} · ${o.text}`;
+      last.opCodes.push(o.opCode);
+    } else {
+      phases.push({ text: o.text, fromDay: o.day, toDay: o.day, opCodes: [o.opCode] });
+    }
+  }
+  return phases;
 }

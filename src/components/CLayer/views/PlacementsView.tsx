@@ -40,7 +40,7 @@ const emptyDraft = (): Draft => ({
 const numOrNull = (s: string) => (s.trim() === "" ? null : Number(s));
 const str = (n: number | null) => (n === null ? "" : String(n));
 
-export function PlacementsView({ data, projections, reload, canWritePlacements }: CLayerViewProps) {
+export function PlacementsView({ data, projections, prepPlans, reload, canWritePlacements }: CLayerViewProps) {
   const { breeds, farms, placements } = data;
   const [draft, setDraft] = useState<Draft | null>(null);
   const [formErrors, setFormErrors] = useState<string[]>([]);
@@ -149,8 +149,8 @@ export function PlacementsView({ data, projections, reload, canWritePlacements }
     farms.filter((f) => f.plant === plant && (f.active || f.id === currentId));
 
   const overlaps = useMemo(
-    () => farmOverlaps(placements, projections, Object.fromEntries(farms.map((f) => [f.id, f.houses]))),
-    [placements, projections, farms],
+    () => farmOverlaps(placements, projections, Object.fromEntries(farms.map((f) => [f.id, f.houses])), prepPlans),
+    [placements, projections, farms, prepPlans],
   );
   const overlapIds = new Set(overlaps.flatMap((o) => o.placementIds));
   const nextNo = nextFlockNumber(placements.map((p) => p.flockNo));
@@ -161,6 +161,9 @@ export function PlacementsView({ data, projections, reload, canWritePlacements }
   const overlapLines = overlaps.map((o) => {
     const farm = farmById.get(o.farmId);
     const houses = farm?.houses ? ` (${farm.houses} houses)` : "";
+    if (o.kind === "preparation") {
+      return `${farm?.code ?? "?"} · ${farm?.plant ?? ""}: flock ${flockLabel(o.placementIds[1])} arrives while the house is still being prepared after flock ${flockLabel(o.placementIds[0])} (${isoWeekLabel(o.fromWeek)} to ${isoWeekLabel(o.toWeek)}). Move it to the farm's free-from week or later.`;
+    }
     return `${farm?.code ?? "?"} · ${farm?.plant ?? ""}${houses}: flock ${flockLabel(o.placementIds[0])} and flock ${flockLabel(o.placementIds[1])} are both on this farm from ${isoWeekLabel(o.fromWeek)} to ${isoWeekLabel(o.toWeek)}.`;
   });
   const missing = [...new Set(projections.flatMap((p) => p.missingSettings))];
@@ -197,7 +200,7 @@ export function PlacementsView({ data, projections, reload, canWritePlacements }
       {missing.length > 0 && (
         <Notice lines={[`Missing setting: ${missing.join(", ")}. Weeks and quantities that depend on it are blank until an Admin sets it (or each flock sets its own value).`]} />
       )}
-      {overlapLines.length > 0 && <Notice tone="warn" lines={["Farm overlap — check the house assignment:", ...overlapLines]} />}
+      {overlapLines.length > 0 && <Notice tone="warn" lines={["Farm overlap — check the house assignment and the house preparation period:", ...overlapLines]} />}
       {message && <Notice tone={message.tone} lines={message.lines} />}
 
       {draft && (
@@ -338,7 +341,7 @@ export function PlacementsView({ data, projections, reload, canWritePlacements }
                   const breed = breedById.get(p.breedId);
                   const notSet = <span className="text-brand-alert">not set</span>;
                   const isDefault = <span className="text-[10px] text-neutral-400"> · default</span>;
-                  const issues = [...(proj?.warnings ?? []), ...(overlapIds.has(p.id) ? ["Shares a farm with another flock in the same weeks."] : [])];
+                  const issues = [...(proj?.warnings ?? []), ...(overlapIds.has(p.id) ? ["Shares a farm with another flock, or arrives during house preparation."] : [])];
                   return (
                     <tr key={p.id} className={overlapIds.has(p.id) ? "bg-amber-50" : undefined}>
                       <td className="text-right tabular-nums font-semibold">{p.flockNo ?? "—"}</td>

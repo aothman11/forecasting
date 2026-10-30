@@ -3,19 +3,23 @@
 import { useRef, useState } from "react";
 import { cLayerApi, errorLines } from "@/lib/cLayer/api";
 import { FEED_STAGE_WEEK_OFFSET, breedStandardNotes, firstLayAgeWeek } from "@/lib/cLayer/calc";
-import { exportStandards, parseStandardsFile } from "@/lib/cLayer/excel";
+import { exportPrepRouting, exportStandards, parsePrepRoutingFile, parseStandardsFile } from "@/lib/cLayer/excel";
 import {
   BREED_MATERIAL_FIELDS,
   GRADED_MATERIALS,
   LAYER_PLANTS,
+  PREP_GROUP_PLANT,
+  PREP_MATERIAL,
   type LayerBreed,
   type LayerFarm,
   type LayerFeedStage,
   type LayerPlant,
+  type LayerPrepOperation,
   type LayerSettingsInput,
   type LayerSku,
 } from "@/lib/cLayer/types";
 import type { CLayerViewProps } from "../CLayerPage";
+import { PrepTimeline } from "../PrepTimeline";
 import { Card, Notice, btn, btnDanger, btnMuted, btnPrimary, btnText, fmtDec, input, label } from "../ui";
 
 type Msg = { tone: "ok" | "error" | "warn"; lines: string[] } | null;
@@ -44,6 +48,7 @@ export function StandardsSettingsView({ data, reload, canWriteMaster }: CLayerVi
       <FarmsCard farms={data.farms} reload={reload} canEdit={canWriteMaster} />
       <FeedStagesCard key={JSON.stringify(data.feedStages)} stages={data.feedStages} reload={reload} canEdit={canWriteMaster} />
       <SkusCard key={JSON.stringify(data.skus)} skus={data.skus} reload={reload} canEdit={canWriteMaster} />
+      <PrepRoutingCard operations={data.prepOperations} reload={reload} canEdit={canWriteMaster} />
     </div>
   );
 }
@@ -585,6 +590,61 @@ function SkusCard({ skus, reload, canEdit }: { skus: LayerSku[]; reload: () => v
         Table-egg pack mix total: {tableMix}%{tableMix === 0 ? " (not set)" : ""}
       </p>
       {msg && <div className="mt-3"><Notice tone={msg.tone} lines={msg.lines} /></div>}
+    </Card>
+  );
+}
+
+function PrepRoutingCard({ operations, reload, canEdit }: { operations: LayerPrepOperation[]; reload: () => void; canEdit: boolean }) {
+  const [msg, setMsg] = useState<Msg>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
+  const groups = Object.keys(PREP_GROUP_PLANT) as (keyof typeof PREP_GROUP_PLANT)[];
+
+  const upload = async (file: File) => {
+    setMsg(null);
+    try {
+      const parsed = parsePrepRoutingFile(await file.arrayBuffer());
+      if (parsed.errors.length) {
+        setMsg({ tone: "error", lines: ["Nothing was saved:", ...parsed.errors] });
+        return;
+      }
+      await cLayerApi("PUT", "/prep-routing", { routing: parsed.routing });
+      const summary = Object.entries(parsed.routing).map(([g, ops]) => `${g}: ${ops.length} operations`);
+      setMsg({ tone: "ok", lines: [`Routing replaced — ${summary.join(", ")}. Groups not in the file were kept.`] });
+      reload();
+    } catch (err) {
+      setMsg({ tone: "error", lines: ["Nothing was saved:", ...errorLines(err)] });
+    } finally {
+      if (fileRef.current) fileRef.current.value = "";
+    }
+  };
+
+  return (
+    <Card
+      title={`House preparation · ${PREP_MATERIAL}`}
+      subtitle="After a flock leaves a farm, the house is prepared before the next flock: LR01 on rearing farms (1260) from the transfer week, LL01 on laying farms (1250) from the depletion week. Each operation is one day; the farm is free from the Monday after the last day."
+      actions={
+        <div className="flex gap-2">
+          <button className={btn} onClick={() => exportPrepRouting(operations)}>Download Excel</button>
+          {canEdit && (
+            <>
+              <button className={btn} onClick={() => fileRef.current?.click()}>Upload Excel</button>
+              <input ref={fileRef} type="file" accept=".xlsx,.xls" className="hidden" onChange={(e) => e.target.files?.[0] && upload(e.target.files[0])} />
+            </>
+          )}
+        </div>
+      }
+    >
+      {msg && <Notice tone={msg.tone} lines={msg.lines} />}
+      {canEdit && (
+        <p className="text-[11px] text-neutral-500 mb-3">
+          Upload the SAP task-list export (columns Material Number, Group, Operation short text, e.g. PRE001-Rodent control). The day is the number in the operation code. Uploading replaces only the groups in the file.
+        </p>
+      )}
+      <div className="flex flex-col gap-4">
+        {groups.map((g) => (
+          <PrepTimeline key={g} group={g} operations={operations.filter((o) => o.group === g)} />
+        ))}
+      </div>
     </Card>
   );
 }

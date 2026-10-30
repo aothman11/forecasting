@@ -7,6 +7,7 @@ import type {
   LayerFarm,
   LayerFeedStage,
   LayerPlacement,
+  LayerPrepOperation,
   LayerSettings,
   LayerSku,
 } from "./types";
@@ -42,10 +43,11 @@ export interface CLayerData {
   standards: Record<string, LayerBreedStandardRow[]>;
   feedStages: LayerFeedStage[];
   skus: LayerSku[];
+  prepOperations: LayerPrepOperation[];
 }
 
 async function loadAll(): Promise<CLayerData> {
-  const [b, f, p, s, st, fs, sk] = await Promise.all([
+  const [b, f, p, s, st, fs, sk, pr] = await Promise.all([
     cLayerApi<{ breeds: LayerBreed[] }>("GET", "/breeds"),
     cLayerApi<{ farms: LayerFarm[] }>("GET", "/farms"),
     cLayerApi<{ placements: LayerPlacement[] }>("GET", "/placements"),
@@ -53,6 +55,7 @@ async function loadAll(): Promise<CLayerData> {
     cLayerApi<{ standards: Record<string, LayerBreedStandardRow[]> }>("GET", "/standards"),
     cLayerApi<{ feedStages: LayerFeedStage[] }>("GET", "/feed-stages"),
     cLayerApi<{ skus: LayerSku[] }>("GET", "/skus"),
+    cLayerApi<{ operations: LayerPrepOperation[] }>("GET", "/prep-routing"),
   ]);
   return {
     breeds: b.breeds,
@@ -62,6 +65,7 @@ async function loadAll(): Promise<CLayerData> {
     standards: st.standards,
     feedStages: fs.feedStages,
     skus: sk.skus,
+    prepOperations: pr.operations,
   };
 }
 

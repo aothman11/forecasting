@@ -9,6 +9,20 @@ export const LAYER_PLANTS: Record<LayerPlant, string> = {
   "1250": "Commercial Layer – Laying",
 };
 
+/** House preparation order "Cage House Prepared": SAP task-list group per plant. */
+export type PrepGroup = "LR01" | "LL01";
+export const PREP_MATERIAL = "Cage House Prepared";
+export const PREP_GROUP_PLANT: Record<PrepGroup, LayerPlant> = { LR01: "1260", LL01: "1250" };
+
+/** One operation of the preparation routing; one operation per day (several may share a day). */
+export interface LayerPrepOperation {
+  group: PrepGroup;
+  seq: number;
+  opCode: string;
+  text: string;
+  day: number;
+}
+
 /** Graded (unpacked) egg materials in plant 1250. */
 export const GRADED_MATERIALS = {
   table: { materialNo: "90001", description: "Unpacked table egg" },

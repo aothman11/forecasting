@@ -1,6 +1,7 @@
 import "server-only";
 import { getClient } from "@/lib/db";
 import { GUIDE_STANDARDS } from "./guideStandards";
+import { DEFAULT_PREP_ROUTING } from "./prepRoutingDefaults";
 import type {
   LayerBreed,
   LayerBreedInput,
@@ -11,7 +12,9 @@ import type {
   LayerFeedStageInput,
   LayerPlacement,
   LayerPlacementInput,
+  LayerPrepOperation,
   LayerSettings,
+  PrepGroup,
   LayerSettingsInput,
   LayerSku,
   LayerSkuUpdate,
@@ -146,11 +149,22 @@ export function ensureCLayerSchema(): Promise<void> {
         sort_order       INTEGER NOT NULL DEFAULT 0
       )
     `;
+    await db`
+      CREATE TABLE IF NOT EXISTS layer_prep_operations (
+        group_code  TEXT NOT NULL CHECK (group_code IN ('LR01', 'LL01')),
+        seq         INTEGER NOT NULL,
+        op_code     TEXT NOT NULL,
+        op_text     TEXT NOT NULL,
+        day         INTEGER NOT NULL CHECK (day BETWEEN 1 AND 365),
+        PRIMARY KEY (group_code, seq)
+      )
+    `;
     await seedV2();
     await seedGuideStandards();
     await seedPhaseAges();
     await seedExampleFlock();
     await seedExampleSettings();
+    await seedPrepRouting();
   })().catch((err) => {
     schemaPromise = null;
     throw err;
@@ -305,6 +319,26 @@ async function seedExampleSettings(): Promise<void> {
     `,
     tx`UPDATE layer_settings SET seed_version = 5 WHERE id = 1 AND seed_version = 4`,
   ]);
+}
+
+/**
+ * Seeds the "Cage House Prepared" routing (SAP export 2026-10-30) into any group that has no
+ * operations yet, so a routing an Admin uploaded later is never replaced.
+ */
+async function seedPrepRouting(): Promise<void> {
+  const db = getClient();
+  await db.transaction((tx) =>
+    Object.entries(DEFAULT_PREP_ROUTING).map(([group, rows]) => {
+      const json = JSON.stringify(rows.map(([c, t, d], i) => ({ s: i + 1, c, t, d })));
+      return tx`
+        INSERT INTO layer_prep_operations (group_code, seq, op_code, op_text, day)
+        SELECT ${group}, r.s, r.c, r.t, r.d
+        FROM jsonb_to_recordset(${json}::jsonb) AS r(s integer, c text, t text, d integer)
+        WHERE NOT EXISTS (SELECT 1 FROM layer_prep_operations WHERE group_code = ${group})
+        ON CONFLICT DO NOTHING
+      `;
+    }),
+  );
 }
 
 // ── Row mappers (NUMERIC arrives as string, timestamps as Date or string) ─────
@@ -754,6 +788,35 @@ export async function replaceFeedStages(stages: LayerFeedStageInput[]): Promise<
       `,
     ),
   ]);
+}
+
+// ── House preparation routing ─────────────────────────────────────────────────
+
+export async function listPrepOperations(): Promise<LayerPrepOperation[]> {
+  const rows = await getClient()`SELECT * FROM layer_prep_operations ORDER BY group_code, seq`;
+  return (rows as Row[]).map((r) => ({
+    group: r.group_code === "LL01" ? "LL01" : "LR01",
+    seq: Number(r.seq),
+    opCode: String(r.op_code),
+    text: String(r.op_text),
+    day: Number(r.day),
+  }));
+}
+
+/** Replaces the operations of the given groups in one transaction; groups not given are untouched. */
+export async function replacePrepRouting(groups: Partial<Record<PrepGroup, Omit<LayerPrepOperation, "group" | "seq">[]>>): Promise<void> {
+  const db = getClient();
+  await db.transaction((tx) =>
+    Object.entries(groups).flatMap(([group, ops]) => [
+      tx`DELETE FROM layer_prep_operations WHERE group_code = ${group}`,
+      ...ops!.map(
+        (o, i) => tx`
+          INSERT INTO layer_prep_operations (group_code, seq, op_code, op_text, day)
+          VALUES (${group}, ${i + 1}, ${o.opCode}, ${o.text}, ${o.day})
+        `,
+      ),
+    ]),
+  );
 }
 
 // ── SKUs ──────────────────────────────────────────────────────────────────────

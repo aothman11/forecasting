@@ -1,7 +1,7 @@
 import * as XLSX from "xlsx";
 import { format } from "date-fns";
 import { ageWeekToCalendarWeek, isoWeekLabel, isoWeekToMonday, mondayOf, type FlockProjection } from "./calc";
-import type { LayerBreed, LayerBreedStandardRow, LayerFarm, LayerPlacement, LayerPlacementInput } from "./types";
+import { PREP_MATERIAL, type LayerBreed, type LayerBreedStandardRow, type LayerFarm, type LayerPlacement, type LayerPlacementInput, type LayerPrepOperation } from "./types";
 
 const PLACEMENT_HEADERS = [
   "Flock No",
@@ -219,4 +219,47 @@ export function parseStandardsFile(buffer: ArrayBuffer): { rows: unknown[]; erro
     });
   }
   return { rows, errors: rows.length ? [] : ["No filled rows found under the headers."] };
+}
+
+// ── House preparation routing (SAP task-list export layout) ───────────────────
+
+const PREP_HEADERS = ["Material Number", "Group", "Operation short text"] as const;
+
+/** The routing in the SAP export layout: "PRE001-Rodent control" = operation code, then text. */
+export function exportPrepRouting(ops: LayerPrepOperation[]) {
+  const body = ops.map((o) => [PREP_MATERIAL, o.group, `${o.opCode}-${o.text}`]);
+  writeBook("Data", [[...PREP_HEADERS], ...body], [22, 8, 48], "awp-c-layer-cage-house-prepared.xlsx");
+}
+
+/**
+ * Reads a "Cage House Prepared" routing export. Each operation is one day; the day is the number in
+ * the operation code (PRE012 → day 12), so two lines with the same number share a day.
+ */
+export function parsePrepRoutingFile(buffer: ArrayBuffer): { routing: Record<string, unknown[]>; errors: string[] } {
+  const wb = XLSX.read(buffer, { type: "array" });
+  const sheet = wb.Sheets[wb.SheetNames[0]];
+  if (!sheet) return { routing: {}, errors: ["The workbook has no data."] };
+  const rows = XLSX.utils.sheet_to_json<unknown[]>(sheet, { header: 1, blankrows: false });
+  const head = (rows[0] ?? []).map(norm);
+  const col = PREP_HEADERS.map((h) => head.indexOf(norm(h)));
+  const missing = PREP_HEADERS.filter((_, i) => col[i] < 0 && i > 0);
+  if (missing.length) return { routing: {}, errors: [`Missing column(s): ${missing.join(", ")}.`] };
+
+  const routing: Record<string, unknown[]> = {};
+  const errors: string[] = [];
+  rows.slice(1).forEach((r, i) => {
+    const material = col[0] >= 0 ? String(r[col[0]] ?? "").trim() : PREP_MATERIAL;
+    if (material && material.toLowerCase() !== PREP_MATERIAL.toLowerCase()) return;
+    const group = String(r[col[1]] ?? "").trim().toUpperCase();
+    const full = String(r[col[2]] ?? "").trim();
+    if (!group && !full) return;
+    const m = /^([A-Za-z]*0*(\d+)[A-Za-z]*)\s*-\s*(.+)$/.exec(full);
+    if (!m) {
+      errors.push(`Row ${i + 2}: "${full}" is not "CODE-Text" with a day number in the code (e.g. PRE001-Rodent control).`);
+      return;
+    }
+    (routing[group] ??= []).push({ opCode: m[1], text: m[3].trim(), day: Number(m[2]) });
+  });
+  if (!errors.length && Object.keys(routing).length === 0) errors.push(`No "${PREP_MATERIAL}" rows found.`);
+  return { routing, errors };
 }
