@@ -310,3 +310,23 @@ export function exportPackaging(rows: PackagingExportRow[]) {
   const body = rows.map((r) => [r.supplySource, r.component, r.qty, r.unit, r.orderQty ?? r.qty, r.orderUnit || r.unit, r.packingWeek, r.packingDate, r.orderDate, r.skus]);
   writeBook("Packaging", [head, ...body], [14, 22, 12, 9, 13, 10, 13, 17, 12, 22], "awp-c-layer-packaging.xlsx");
 }
+
+export interface PackagingOrderExportRow {
+  supplySource: string;
+  component: string;
+  qty: number;
+  unit: string;
+  orderDate: string;
+  status: string;
+  fromWeek: string;
+  toWeek: string;
+  need: number;
+  stockAfter: number;
+}
+
+/** Planned packaging orders (per the order rules), one row per order. */
+export function exportPackagingOrders(rows: PackagingOrderExportRow[]) {
+  const head = ["Supplied By", "Component", "Order Quantity", "Unit", "Order By", "Status", "Covers From", "Covers To", "Need In Period", "Stock After"];
+  const body = rows.map((r) => [r.supplySource, r.component, r.qty, r.unit, r.orderDate, r.status, r.fromWeek, r.toWeek, r.need, r.stockAfter]);
+  writeBook("Packaging Orders", [head, ...body], [14, 22, 14, 8, 12, 10, 12, 12, 14, 12], "awp-c-layer-packaging-orders.xlsx");
+}

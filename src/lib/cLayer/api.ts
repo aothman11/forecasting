@@ -6,6 +6,7 @@ import type {
   LayerBreedStandardRow,
   LayerFarm,
   LayerFeedStage,
+  LayerPackagingPolicy,
   LayerPlacement,
   LayerPrepOperation,
   LayerSettings,
@@ -46,10 +47,11 @@ export interface CLayerData {
   skus: LayerSku[];
   prepOperations: LayerPrepOperation[];
   packaging: LayerSkuPackaging[];
+  packagingPolicies: LayerPackagingPolicy[];
 }
 
 async function loadAll(): Promise<CLayerData> {
-  const [b, f, p, s, st, fs, sk, pr, pk] = await Promise.all([
+  const [b, f, p, s, st, fs, sk, pr, pk, pp] = await Promise.all([
     cLayerApi<{ breeds: LayerBreed[] }>("GET", "/breeds"),
     cLayerApi<{ farms: LayerFarm[] }>("GET", "/farms"),
     cLayerApi<{ placements: LayerPlacement[] }>("GET", "/placements"),
@@ -59,6 +61,7 @@ async function loadAll(): Promise<CLayerData> {
     cLayerApi<{ skus: LayerSku[] }>("GET", "/skus"),
     cLayerApi<{ operations: LayerPrepOperation[] }>("GET", "/prep-routing"),
     cLayerApi<{ packaging: LayerSkuPackaging[] }>("GET", "/sku-packaging"),
+    cLayerApi<{ policies: LayerPackagingPolicy[] }>("GET", "/packaging-policy"),
   ]);
   return {
     breeds: b.breeds,
@@ -70,6 +73,7 @@ async function loadAll(): Promise<CLayerData> {
     skus: sk.skus,
     prepOperations: pr.operations,
     packaging: pk.packaging,
+    packagingPolicies: pp.policies,
   };
 }
 

@@ -8,6 +8,7 @@ import type {
   LayerPrepOperation,
   LayerSettingsInput,
   LayerSku,
+  LayerPackagingPolicy,
   LayerSkuPackagingInput,
   LayerSkuUpdate,
   PrepGroup,
@@ -396,6 +397,26 @@ export function validateSkuPackaging(input: unknown): Validation<LayerSkuPackagi
     if ((orderUnit === null) !== (perOrderUnit === null)) errors.push(`${label}: set both the order unit and how much one holds, or leave both empty.`);
     if (!(isFiniteNumber(o.qtyPerPack) && o.qtyPerPack > 0)) errors.push(`${label}: quantity per pack must be a number greater than 0.`);
     return { skuMaterialNo, component, materialNo, qtyPerPack: o.qtyPerPack as number, unit, orderUnit, perOrderUnit: perOrderUnit as number | null };
+  });
+  return errors.length ? { ok: false, errors } : { ok: true, value: rows };
+}
+
+/** Packaging order policies, one per component name; every field may be empty. */
+export function validatePackagingPolicies(input: unknown): Validation<LayerPackagingPolicy[]> {
+  if (!Array.isArray(input)) return { ok: false, errors: ["Policies must be a list."] };
+  const errors: string[] = [];
+  const seen = new Set<string>();
+  const rows = input.map((raw, i) => {
+    const o = isObject(raw) ? raw : {};
+    const component = requiredText(o.component, `Row ${i + 1} component`, 60, errors);
+    if (seen.has(component)) errors.push(`"${component}" appears more than once.`);
+    seen.add(component);
+    const orderEveryWeeks = optionalIntRange(o.orderEveryWeeks, `${component}: order every (weeks)`, 1, 52, errors);
+    const orderMultiple = o.orderMultiple ?? null;
+    if (orderMultiple !== null && !(isFiniteNumber(orderMultiple) && orderMultiple > 0)) errors.push(`${component}: order multiple must be empty or greater than 0.`);
+    const safetyWeeks = o.safetyWeeks ?? null;
+    if (safetyWeeks !== null && !(isFiniteNumber(safetyWeeks) && safetyWeeks >= 0 && safetyWeeks <= 52)) errors.push(`${component}: safety stock must be empty or 0–52 weeks.`);
+    return { component, orderEveryWeeks, orderMultiple: orderMultiple as number | null, safetyWeeks: safetyWeeks as number | null };
   });
   return errors.length ? { ok: false, errors } : { ok: true, value: rows };
 }

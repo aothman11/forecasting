@@ -21,6 +21,7 @@ import {
 import type { CLayerViewProps } from "../CLayerPage";
 import { PrepTimeline } from "../PrepTimeline";
 import { PackagingCard } from "../PackagingCard";
+import { PackagingPolicyCard } from "../PackagingPolicyCard";
 import { Card, Notice, btn, btnDanger, btnMuted, btnPrimary, btnText, fmtDec, input, label } from "../ui";
 
 type Msg = { tone: "ok" | "error" | "warn"; lines: string[] } | null;
@@ -55,6 +56,7 @@ export function StandardsSettingsView({ data, reload, canWriteMaster }: CLayerVi
       <FeedStagesCard key={JSON.stringify(data.feedStages)} stages={data.feedStages} reload={reload} canEdit={canWriteMaster} />
       <SkusCard key={JSON.stringify(data.skus)} skus={data.skus} reload={reload} canEdit={canWriteMaster} />
       <PackagingCard key={JSON.stringify(data.packaging)} skus={data.skus} packaging={data.packaging} reload={reload} canEdit={canWriteMaster} />
+      <PackagingPolicyCard key={JSON.stringify([data.packaging, data.packagingPolicies])} packaging={data.packaging} policies={data.packagingPolicies} reload={reload} canEdit={canWriteMaster} />
       <PrepRoutingCard operations={data.prepOperations} farms={data.farms} reload={reload} canEdit={canWriteMaster} />
     </div>
   );

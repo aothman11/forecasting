@@ -15,6 +15,7 @@ import type {
   LayerPlacementInput,
   LayerPrepOperation,
   LayerSettings,
+  LayerPackagingPolicy,
   LayerSkuPackaging,
   LayerSkuPackagingInput,
   PrepGroup,
@@ -184,6 +185,14 @@ export function ensureCLayerSchema(): Promise<void> {
     `;
     await db`ALTER TABLE layer_sku_packaging ADD COLUMN IF NOT EXISTS order_unit TEXT`;
     await db`ALTER TABLE layer_sku_packaging ADD COLUMN IF NOT EXISTS per_order_unit NUMERIC CHECK (per_order_unit IS NULL OR per_order_unit > 0)`;
+    await db`
+      CREATE TABLE IF NOT EXISTS layer_packaging_policy (
+        component         TEXT PRIMARY KEY,
+        order_every_weeks INTEGER CHECK (order_every_weeks IS NULL OR order_every_weeks BETWEEN 1 AND 52),
+        order_multiple    NUMERIC CHECK (order_multiple IS NULL OR order_multiple > 0),
+        safety_weeks      NUMERIC CHECK (safety_weeks IS NULL OR safety_weeks BETWEEN 0 AND 52)
+      )
+    `;
     await seedV2();
     await seedGuideStandards();
     await seedPhaseAges();
@@ -975,6 +984,32 @@ export async function replaceFeedStages(stages: LayerFeedStageInput[]): Promise<
       (s) => tx`
         INSERT INTO layer_feed_stages (id, name, phase, from_week, to_week, material_no, sort_order)
         VALUES (${s.id ?? crypto.randomUUID()}, ${s.name}, ${s.phase}, ${s.fromWeek}, ${s.toWeek}, ${s.materialNo}, ${s.sortOrder})
+      `,
+    ),
+  ]);
+}
+
+// ── Packaging order policy ────────────────────────────────────────────────────
+
+export async function listPackagingPolicies(): Promise<LayerPackagingPolicy[]> {
+  const rows = await getClient()`SELECT * FROM layer_packaging_policy ORDER BY component`;
+  return (rows as Row[]).map((r) => ({
+    component: String(r.component),
+    orderEveryWeeks: numOrNull(r.order_every_weeks),
+    orderMultiple: numOrNull(r.order_multiple),
+    safetyWeeks: numOrNull(r.safety_weeks),
+  }));
+}
+
+/** Replaces all order policies; a component without a row is ordered every week in whole units. */
+export async function replacePackagingPolicies(policies: LayerPackagingPolicy[]): Promise<void> {
+  const db = getClient();
+  await db.transaction((tx) => [
+    tx`DELETE FROM layer_packaging_policy`,
+    ...policies.map(
+      (p) => tx`
+        INSERT INTO layer_packaging_policy (component, order_every_weeks, order_multiple, safety_weeks)
+        VALUES (${p.component}, ${p.orderEveryWeeks}, ${p.orderMultiple}, ${p.safetyWeeks})
       `,
     ),
   ]);

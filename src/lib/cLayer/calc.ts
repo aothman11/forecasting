@@ -4,6 +4,7 @@
 import { addDays, format, getISOWeek, getISOWeekYear, parseISO } from "date-fns";
 import type {
   LayerBreedStandardRow,
+  LayerPackagingPolicy,
   LayerSkuPackaging,
   LayerFeedStage,
   LayerPlacement,
@@ -1160,4 +1161,72 @@ export function packagingPlan(
     qty: Math.ceil(l.qty - 1e-9),
     orderQty: l.orderUnit && l.perOrderUnit ? Math.round((l.qty / l.perOrderUnit) * 100) / 100 : null,
   }));
+}
+
+/** One packaging order: covers a run of weeks, sized by the component's order policy. */
+export interface PackagingOrder {
+  component: string;
+  /** Unit the quantity is in: the order unit when set (e.g. ROL), otherwise the BOM unit. */
+  unit: string;
+  /** Order by: first covered week's Monday − lead days; null when the lead time is not set. */
+  orderDate: string | null;
+  /** Monday of the first and last week this order covers. */
+  fromWeek: string;
+  toWeek: string;
+  /** Need in the covered weeks, in the unit above (before rounding and safety stock). */
+  need: number;
+  /** Quantity to order, rounded up to the order multiple (or a whole unit). */
+  qty: number;
+  /** Projected stock after the covered weeks (rounding surplus + safety stock). */
+  stockAfter: number;
+}
+
+/**
+ * Turns weekly packaging needs into orders per component. One order every N weeks covers those N
+ * weeks; the first order also builds the safety stock (safety weeks × average weekly need). Stock
+ * left from rounding up carries into the next order, so rounding to pallets does not pile up.
+ */
+export function packagingOrders(
+  lines: Pick<PackagingLine, "weekStart" | "component" | "unit" | "qty" | "orderUnit" | "perOrderUnit">[],
+  policies: LayerPackagingPolicy[],
+  leadDays: number | null,
+): PackagingOrder[] {
+  const policy = new Map(policies.map((p) => [p.component, p]));
+  const byComponent = new Map<string, { unit: string; weeks: Map<string, number> }>();
+  for (const l of lines) {
+    const inOrderUnit = l.orderUnit && l.perOrderUnit ? l.qty / l.perOrderUnit : l.qty;
+    const unit = l.orderUnit && l.perOrderUnit ? l.orderUnit : l.unit;
+    const g = byComponent.get(l.component) ?? { unit, weeks: new Map<string, number>() };
+    g.weeks.set(l.weekStart, (g.weeks.get(l.weekStart) ?? 0) + inOrderUnit);
+    byComponent.set(l.component, g);
+  }
+  const orders: PackagingOrder[] = [];
+  for (const [component, { unit, weeks }] of byComponent) {
+    const p = policy.get(component);
+    const every = p?.orderEveryWeeks ?? 1;
+    const multiple = p?.orderMultiple ?? 1;
+    const all = weekRange([...weeks.keys()].sort()[0], [...weeks.keys()].sort().at(-1)!);
+    const avg = all.reduce((s, w) => s + (weeks.get(w) ?? 0), 0) / all.length;
+    const safety = (p?.safetyWeeks ?? 0) * avg;
+    let stock = 0;
+    for (let i = 0; i < all.length; i += every) {
+      const covered = all.slice(i, i + every);
+      const need = covered.reduce((s, w) => s + (weeks.get(w) ?? 0), 0);
+      const short = need + safety - stock;
+      const qty = short > 1e-9 ? Math.ceil(short / multiple - 1e-9) * multiple : 0;
+      stock += qty - need;
+      if (qty <= 0) continue;
+      orders.push({
+        component,
+        unit,
+        orderDate: leadDays === null ? null : format(addDays(parseISO(covered[0]), -leadDays), "yyyy-MM-dd"),
+        fromWeek: covered[0],
+        toWeek: covered.at(-1)!,
+        need: Math.round(need * 100) / 100,
+        qty: Math.round(qty * 1000) / 1000,
+        stockAfter: Math.round(stock * 100) / 100,
+      });
+    }
+  }
+  return orders.sort((a, b) => a.fromWeek.localeCompare(b.fromWeek) || a.component.localeCompare(b.component));
 }

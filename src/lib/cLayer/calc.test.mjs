@@ -12,6 +12,7 @@ import {
   prepPhases,
   feedStoPlan,
   packagingPlan,
+  packagingOrders,
   prepPlansByPlant,
   prepStepOn,
   prepWindow,
@@ -597,5 +598,33 @@ describe("packaging order units", () => {
     assert.equal(at("400600120002").qty, 31); // 30.33 m → 31 m
     close(at("400600120002").orderQty, 0.03, "tape rolls");
     assert.equal(at("400100020276").orderQty, null);
+  });
+});
+
+describe("packaging orders", () => {
+  const wk = (i) => addWeeksIso("2026-11-02", i);
+  // 4 weeks × 100 PC of trays, and 0.3 ROL of stickers per week.
+  const lines = [0, 1, 2, 3].flatMap((i) => [
+    { weekStart: wk(i), component: "Tray", unit: "PC", qty: 100, orderUnit: null, perOrderUnit: null },
+    { weekStart: wk(i), component: "Sticker", unit: "PC", qty: 300, orderUnit: "ROL", perOrderUnit: 1000 },
+  ]);
+
+  test("no policy: one order per week in whole units (rolls rounded up, surplus carried)", () => {
+    const o = packagingOrders(lines, [], 7);
+    assert.equal(o.filter((x) => x.component === "Tray").length, 4);
+    const st = o.filter((x) => x.component === "Sticker");
+    // 0.3 ROL/week: order 1 ROL in week 1, stock covers weeks 2–3, next order in week 4
+    assert.deepEqual(st.map((x) => [x.fromWeek, x.qty]), [[wk(0), 1], [wk(3), 1]]);
+    assert.equal(st[0].orderDate, "2026-10-26");
+    assert.equal(st[0].unit, "ROL");
+  });
+
+  test("order every 2 weeks, pallet multiple, safety stock on the first order", () => {
+    const o = packagingOrders(lines, [{ component: "Tray", orderEveryWeeks: 2, orderMultiple: 150, safetyWeeks: 1 }], null);
+    const tr = o.filter((x) => x.component === "Tray");
+    // first: need 200 + safety 100 = 300 → 300; second: need 200, stock 100 → short 200 → 300 (2 pallets)
+    assert.deepEqual(tr.map((x) => [x.fromWeek, x.toWeek, x.qty]), [[wk(0), wk(1), 300], [wk(2), wk(3), 300]]);
+    assert.equal(tr[1].stockAfter, 200);
+    assert.equal(tr[0].orderDate, null);
   });
 });

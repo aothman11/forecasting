@@ -171,6 +171,20 @@ export interface LayerSkuPackaging {
 
 export type LayerSkuPackagingInput = Omit<LayerSkuPackaging, "sortOrder">;
 
+/**
+ * How a packaging component (by name, shared by every SKU that uses it) is ordered. All empty =
+ * order every week, whole units, no safety stock.
+ */
+export interface LayerPackagingPolicy {
+  component: string;
+  /** One order covers this many weeks; null = every week. */
+  orderEveryWeeks: number | null;
+  /** Order quantity rounds up to a multiple of this, in the order unit (e.g. a pallet); null = whole units. */
+  orderMultiple: number | null;
+  /** Stock kept on top of the need, in weeks of average use; null = none. */
+  safetyWeeks: number | null;
+}
+
 export type LayerSkuUpdate = Pick<LayerSku, "materialNo" | "piecesPerPack" | "traysPerPack" | "eggsPerTray" | "packMixPct">;
 
 export type LayerFeedStageInput = Omit<LayerFeedStage, "id"> & { id?: string };
