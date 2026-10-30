@@ -40,9 +40,9 @@ export function PrepTimeline({ group, operations, farmCodes }: { group: PrepGrou
   const header = (
     <div className="flex flex-wrap items-baseline justify-between gap-2">
       <div className="flex items-baseline gap-2">
-        <span className="text-sm font-semibold text-brand-green-dark">Task list {group}</span>
+        <span className="text-sm font-semibold text-brand-green-dark">{plant === "1260" ? "Rearing" : "Laying"} farms routing</span>
         <span className="text-xs text-neutral-500">
-          Plant {plant} · {LAYER_PLANTS[plant]} · used for {farmCodes.length ? `farms ${farmCodes.join(", ")}` : "every farm in this plant"}
+          SAP task list {group} · plant {plant} {LAYER_PLANTS[plant]} · {farmCodes.length ? `farms ${farmCodes.join(", ")}` : "every farm in this plant"}
         </span>
       </div>
       {total > 0 && (

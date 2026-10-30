@@ -598,6 +598,15 @@ function PrepRoutingCard({ operations, farms, reload, canEdit }: { operations: L
   const [msg, setMsg] = useState<Msg>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const groups = Object.keys(PREP_GROUP_PLANT) as (keyof typeof PREP_GROUP_PLANT)[];
+  const daysOf = (g: string) => operations.filter((o) => o.group === g).reduce((m, o) => Math.max(m, o.day), 0);
+  // Every active farm, rearing first, with the task list of its plant.
+  const prepFarms = farms
+    .filter((f) => f.active && f.plant)
+    .sort((a, b) => b.plant!.localeCompare(a.plant!) || a.code.localeCompare(b.code))
+    .map((farm) => {
+      const group = groups.find((g) => PREP_GROUP_PLANT[g] === farm.plant)!;
+      return { farm, group, days: daysOf(group) };
+    });
 
   const upload = async (file: File) => {
     setMsg(null);
@@ -621,7 +630,7 @@ function PrepRoutingCard({ operations, farms, reload, canEdit }: { operations: L
   return (
     <Card
       title={`House preparation · ${PREP_MATERIAL}`}
-      subtitle="After a flock leaves a farm, the house is prepared before the next flock: task list LR01 on every rearing farm (1260) from the transfer week, task list LL01 on every laying farm (1250) from the depletion week. Each operation is one day; the farm is free from the Monday after the last day."
+      subtitle="After a flock leaves a farm, the farm is prepared before the next flock. Every rearing farm (1260) uses SAP task list LR01 from the transfer week; every laying farm (1250) uses task list LL01 from the depletion week. Each operation is one day; the farm is free from the Monday after the last day."
       actions={
         <div className="flex gap-2">
           <button className={btn} onClick={() => exportPrepRouting(operations)}>Download Excel</button>
@@ -640,6 +649,37 @@ function PrepRoutingCard({ operations, farms, reload, canEdit }: { operations: L
           Upload the SAP task-list export (columns Material Number, Group, Operation short text, e.g. PRE001-Rodent control). The day is the number in the operation code. Uploading replaces only the groups in the file.
         </p>
       )}
+      <div className="overflow-x-auto mb-4">
+        <table className="data-grid text-sm">
+          <thead>
+            <tr>
+              <th className="text-left">Farm</th>
+              <th className="text-left">Plant</th>
+              <th className="text-right">Houses</th>
+              <th className="text-left">Preparation starts</th>
+              <th className="text-left">Routing</th>
+              <th className="text-right">Duration</th>
+            </tr>
+          </thead>
+          <tbody>
+            {prepFarms.map(({ farm, group, days }) => (
+              <tr key={farm.id}>
+                <td><span className="font-medium">{farm.code}</span> <span className="text-xs text-neutral-500">{farm.name}</span></td>
+                <td className="whitespace-nowrap">{farm.plant} · {farm.plant === "1260" ? "Rearing" : "Laying"}</td>
+                <td className="text-right tabular-nums">{farm.houses ?? <span className="text-brand-alert">not set</span>}</td>
+                <td className="whitespace-nowrap text-neutral-600">{farm.plant === "1260" ? "Transfer week" : "Depletion week"}</td>
+                <td className="whitespace-nowrap">Task list {group}</td>
+                <td className="text-right tabular-nums whitespace-nowrap">
+                  {days ? `${days} days · ${fmtDec(days / 7, 1)} wk` : <span className="text-brand-alert">no routing</span>}
+                </td>
+              </tr>
+            ))}
+            {prepFarms.length === 0 && (
+              <tr><td colSpan={6} className="text-neutral-500">No active farms yet — add them in Layer farms above.</td></tr>
+            )}
+          </tbody>
+        </table>
+      </div>
       <div className="flex flex-col gap-4">
         {groups.map((g) => (
           <PrepTimeline
