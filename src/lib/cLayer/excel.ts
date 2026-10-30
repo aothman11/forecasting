@@ -277,15 +277,16 @@ export interface FeedStoExportRow {
   deliveryWeek: string;
   deliveryDate: string;
   stoDate: string;
+  status: string;
   trucks: number | null;
   flocks: string;
 }
 
 /** Planned feed STOs, one row per delivery week × farm × feed material (quantity in TO). */
 export function exportFeedSto(rows: FeedStoExportRow[]) {
-  const head = ["Supplying Plant", "Receiving Plant", "Farm", "Material", "Feed Stage", "Quantity", "Unit", "Delivery Week", "Delivery Date", "STO Create Date", "Trucks", "Flocks"];
-  const body = rows.map((r) => [r.supplyPlant, r.receivingPlant, r.farmCode, r.materialNo, r.feedStage, r.tons, "TO", r.deliveryWeek, r.deliveryDate, r.stoDate, r.trucks, r.flocks]);
-  writeBook("Feed STO", [head, ...body], [15, 15, 10, 14, 16, 10, 6, 13, 13, 15, 8, 16], "awp-c-layer-feed-sto.xlsx");
+  const head = ["Supplying Plant", "Receiving Plant", "Farm", "Material", "Feed Stage", "Quantity", "Unit", "Delivery Week", "Delivery Date", "STO Create Date", "Status", "Trucks", "Flocks"];
+  const body = rows.map((r) => [r.supplyPlant, r.receivingPlant, r.farmCode, r.materialNo, r.feedStage, r.tons, "TO", r.deliveryWeek, r.deliveryDate, r.stoDate, r.status, r.trucks, r.flocks]);
+  writeBook("Feed STO", [head, ...body], [15, 15, 10, 14, 16, 10, 6, 13, 13, 15, 10, 8, 16], "awp-c-layer-feed-sto.xlsx");
 }
 
 // ── Packaging ─────────────────────────────────────────────────────────────────

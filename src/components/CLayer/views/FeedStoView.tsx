@@ -5,7 +5,7 @@ import { Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAx
 import { feedStoPlan, isoWeekLabel, type FeedStoLine } from "@/lib/cLayer/calc";
 import { exportFeedSto } from "@/lib/cLayer/excel";
 import type { CLayerViewProps } from "../CLayerPage";
-import { Card, FilterBar, KpiRow, Notice, RangeControls, btn, defaultRange, emptyFilter, fmtDec, rangeBounds } from "../ui";
+import { Card, FilterBar, KpiRow, Notice, RangeControls, btn, defaultRange, emptyFilter, fmtDec, rangeBounds, todayIso } from "../ui";
 
 const FARM_COLORS = ["#047836", "#C49A1A", "#2f7fb5", "#7a4fb0", "#d24918", "#5b8f6f", "#8a6d1e", "#4a5d73"];
 
@@ -53,6 +53,10 @@ export function FeedStoView({ data, projections }: CLayerViewProps) {
   const firstWeekTons = lines.filter((l) => l.weekStart === firstWeek).reduce((s, l) => s + l.tons, 0);
   const noMaterial = [...new Set(lines.filter((l) => !l.materialNo).map((l) => l.feedStage))];
   const siloTight = lines.filter((l) => l.siloCoverDays !== null && l.siloCoverDays < 2);
+  // Overdue: the STO should already have been created (its date is before today).
+  const today = todayIso();
+  const isOverdue = (l: FeedStoLine) => l.stoDate !== null && l.stoDate < today;
+  const overdue = lines.filter(isOverdue);
 
   const farmsInPlan = [...new Set(lines.map((l) => l.farmId))].sort((a, b) => (farmById.get(a)?.code ?? "").localeCompare(farmById.get(b)?.code ?? ""));
   const weeks = [...new Set(lines.map((l) => l.weekStart))];
@@ -66,6 +70,7 @@ export function FeedStoView({ data, projections }: CLayerViewProps) {
   const notices = [
     ...(supplyPlant ? [] : ["Missing setting: Feed STO supplying plant (feed mill)."]),
     ...(settings.feedStoLeadDays === null ? ["Missing setting: Feed STO lead time — STO dates stay blank."] : []),
+    ...(overdue.length ? [`${overdue.length} STO line(s) are overdue — their STO date has passed (first: ${overdue[0].isoWeek}). Create them now.`] : []),
     ...(noMaterial.length ? [`No SAP feed material on stage(s): ${noMaterial.join(", ")} — enter the feed codes under Standards & Settings → Feed stages.`] : []),
     ...plan.gaps.map((g) =>
       g.reason === "noFeedIntake"
@@ -86,6 +91,7 @@ export function FeedStoView({ data, projections }: CLayerViewProps) {
         deliveryWeek: l.isoWeek,
         deliveryDate: l.weekStart,
         stoDate: l.stoDate ?? "",
+        status: isOverdue(l) ? "Overdue" : "",
         trucks: l.trucks,
         flocks: l.placementIds.map(flockLabel).join(", "),
       })),
@@ -111,7 +117,7 @@ export function FeedStoView({ data, projections }: CLayerViewProps) {
         items={[
           { label: "Feed in range", value: `${fmtDec(total, 1)} t`, sub: `${weeks.length} weeks`, tone: "green" },
           { label: "First week", value: `${fmtDec(firstWeekTons, 1)} t`, sub: firstWeek ? isoWeekLabel(firstWeek) : undefined, tone: "gold" },
-          { label: "STO lines", value: String(lines.length), sub: `from plant ${supplyPlant || "?"}` },
+          { label: "Overdue STOs", value: String(overdue.length), sub: `of ${lines.length} lines from plant ${supplyPlant || "?"}`, tone: overdue.length ? "alert" : "neutral" },
           { label: "Silo cover < 2 days", value: String(siloTight.length), sub: "lines", tone: siloTight.length ? "alert" : "neutral" },
         ]}
       />
@@ -157,8 +163,11 @@ export function FeedStoView({ data, projections }: CLayerViewProps) {
               </thead>
               <tbody>
                 {lines.map((l) => (
-                  <tr key={`${l.weekStart}|${l.farmId}|${l.feedStage}`}>
-                    <td className="whitespace-nowrap tabular-nums">{l.stoDate ?? "—"}</td>
+                  <tr key={`${l.weekStart}|${l.farmId}|${l.feedStage}`} className={isOverdue(l) ? "bg-red-50" : undefined}>
+                    <td className="whitespace-nowrap tabular-nums">
+                      {l.stoDate ?? "—"}
+                      {isOverdue(l) && <span className="ml-2 rounded bg-brand-alert px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white">Overdue</span>}
+                    </td>
                     <td className="whitespace-nowrap">{l.isoWeek}</td>
                     <td className="whitespace-nowrap">{supplyPlant || "?"} → {l.plant}</td>
                     <td className="font-medium">{farmById.get(l.farmId)?.code ?? "?"}</td>
