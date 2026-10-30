@@ -26,7 +26,7 @@ type Msg = { tone: "ok" | "error" | "warn"; lines: string[] } | null;
 
 type EditableSettingKey = keyof LayerSettingsInput;
 
-const SETTING_FIELDS: { key: EditableSettingKey; label: string; unit: string; step: number }[] = [
+const SETTING_FIELDS: { key: EditableSettingKey; label: string; unit: string; step: number; text?: boolean }[] = [
   { key: "prToPoDays", label: "PR → PO lead time", unit: "days", step: 1 },
   { key: "poToDeliveryDays", label: "PO → DOC delivery lead time", unit: "days", step: 1 },
   { key: "defaultTransferAge", label: "Default transfer age (1260 → 1250)", unit: "age wk", step: 1 },
@@ -36,6 +36,9 @@ const SETTING_FIELDS: { key: EditableSettingKey; label: string; unit: string; st
   { key: "gradeCPct", label: "Graded → 90002 Grade C", unit: "%", step: 0.1 },
   { key: "preLayFromAge", label: "Pre-lay order from (Pullet 14WK → Laying Pullet 19WK)", unit: "age wk", step: 1 },
   { key: "assetFromAge", label: "Laying / asset from (eggs counted)", unit: "age wk", step: 1 },
+  { key: "feedSupplyPlant", label: "Feed STO supplying plant (feed mill)", unit: "plant", step: 0, text: true },
+  { key: "feedStoLeadDays", label: "Feed STO created before delivery", unit: "days", step: 1 },
+  { key: "feedTruckTons", label: "Feed truck size (empty = no rounding)", unit: "t", step: 0.5 },
 ];
 
 export function StandardsSettingsView({ data, reload, canWriteMaster }: CLayerViewProps) {
@@ -65,7 +68,8 @@ function SettingsCard({ data, reload, canEdit }: { data: CLayerViewProps["data"]
     setSaving(true);
     setMsg(null);
     try {
-      const body = Object.fromEntries(keys.map((k) => [k, draft[k].trim() === "" ? null : Number(draft[k])]));
+      const isText = new Set(SETTING_FIELDS.filter((f) => f.text).map((f) => f.key));
+      const body = Object.fromEntries(keys.map((k) => [k, draft[k].trim() === "" ? null : isText.has(k) ? draft[k].trim() : Number(draft[k])]));
       await cLayerApi("PUT", "/settings", body);
       setMsg({ tone: "ok", lines: ["Settings saved."] });
       reload();
@@ -83,12 +87,12 @@ function SettingsCard({ data, reload, canEdit }: { data: CLayerViewProps["data"]
       actions={canEdit && <button className={btnPrimary} onClick={save} disabled={saving}>{saving ? "Saving…" : "Save settings"}</button>}
     >
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        {SETTING_FIELDS.map(({ key: k, label: text, unit, step }) => (
+        {SETTING_FIELDS.map(({ key: k, label: text, unit, step, text: isText }) => (
           <label key={k} className="flex flex-col gap-1">
             <span className={label}>{text}</span>
             {canEdit ? (
               <div className="flex items-center gap-2">
-                <input type="number" min={0} step={step} className={`${input} w-28`} value={draft[k]} placeholder="not set" onChange={(e) => setDraft({ ...draft, [k]: e.target.value })} />
+                <input type={isText ? "text" : "number"} min={0} step={step || undefined} className={`${input} w-28`} value={draft[k]} placeholder="not set" onChange={(e) => setDraft({ ...draft, [k]: e.target.value })} />
                 <span className="text-xs text-neutral-500 whitespace-nowrap">{unit}</span>
               </div>
             ) : (
@@ -289,7 +293,7 @@ function BreedsCard({ data, reload, canEdit }: { data: CLayerViewProps["data"]; 
                 <div className="overflow-auto max-h-[420px] border border-[var(--border-subtle)] rounded-lg">
                   <table className="data-grid text-xs">
                     <thead>
-                      <tr><th className="text-right">Age wk</th><th className="text-left">Phase</th><th className="text-right">Mortality %</th><th className="text-right">Hen-day %</th><th className="text-right">Egg weight (g)</th></tr>
+                      <tr><th className="text-right">Age wk</th><th className="text-left">Phase</th><th className="text-right">Mortality %</th><th className="text-right">Hen-day %</th><th className="text-right">Egg weight (g)</th><th className="text-right">Feed g/bird/day</th></tr>
                     </thead>
                     <tbody>
                       {rows.map((r) => {
@@ -301,6 +305,7 @@ function BreedsCard({ data, reload, canEdit }: { data: CLayerViewProps["data"]; 
                             <td className="text-right tabular-nums">{fmtDec(r.mortalityPct, 2)}</td>
                             <td className="text-right tabular-nums">{fmtDec(r.henDayPct, 1)}</td>
                             <td className="text-right tabular-nums">{r.eggWeightG === null ? "—" : fmtDec(r.eggWeightG, 1)}</td>
+                            <td className="text-right tabular-nums">{r.feedGPerDay === null ? "—" : fmtDec(r.feedGPerDay, 1)}</td>
                           </tr>
                         );
                       })}
@@ -320,7 +325,7 @@ function BreedsCard({ data, reload, canEdit }: { data: CLayerViewProps["data"]; 
 }
 
 function FarmsCard({ farms, reload, canEdit }: { farms: LayerFarm[]; reload: () => void; canEdit: boolean }) {
-  const [draft, setDraft] = useState<{ id?: string; code: string; name: string; plant: LayerPlant | ""; houses: string } | null>(null);
+  const [draft, setDraft] = useState<{ id?: string; code: string; name: string; plant: LayerPlant | ""; houses: string; silo: string } | null>(null);
   const [confirmId, setConfirmId] = useState<string | null>(null);
   const [msg, setMsg] = useState<Msg>(null);
 
@@ -344,6 +349,7 @@ function FarmsCard({ farms, reload, canEdit }: { farms: LayerFarm[]; reload: () 
       name: draft.name,
       plant: draft.plant,
       houses: draft.houses.trim() === "" ? null : Number(draft.houses),
+      siloCapacityT: draft.silo.trim() === "" ? null : Number(draft.silo),
     };
     const done = await run(
       () => (draft.id ? cLayerApi("PATCH", `/farms/${draft.id}`, body) : cLayerApi("POST", "/farms", body)),
@@ -356,7 +362,7 @@ function FarmsCard({ farms, reload, canEdit }: { farms: LayerFarm[]; reload: () 
     <Card
       title="Layer farms"
       subtitle="Separate from the broiler farm master. Rearing farms are plant 1260, laying farms plant 1250."
-      actions={canEdit && !draft && <button className={btnPrimary} onClick={() => setDraft({ code: "", name: "", plant: "", houses: "" })}>+ Add farm</button>}
+      actions={canEdit && !draft && <button className={btnPrimary} onClick={() => setDraft({ code: "", name: "", plant: "", houses: "", silo: "" })}>+ Add farm</button>}
     >
       {draft && (
         <div className="flex flex-wrap items-end gap-3 mb-4">
@@ -370,6 +376,7 @@ function FarmsCard({ farms, reload, canEdit }: { farms: LayerFarm[]; reload: () 
             </select>
           </label>
           <label className="flex flex-col gap-1"><span className={label}>Houses</span><input type="number" min={1} step={1} className={`${input} w-24`} value={draft.houses} placeholder="optional" onChange={(e) => setDraft({ ...draft, houses: e.target.value })} /></label>
+          <label className="flex flex-col gap-1"><span className={label}>Feed silo (t)</span><input type="number" min={0} step={1} className={`${input} w-24`} value={draft.silo} placeholder="optional" onChange={(e) => setDraft({ ...draft, silo: e.target.value })} /></label>
           <button className={btnPrimary} onClick={save}>{draft.id ? "Save" : "Add farm"}</button>
           <button className={btn} onClick={() => setDraft(null)}>Cancel</button>
         </div>
@@ -378,7 +385,7 @@ function FarmsCard({ farms, reload, canEdit }: { farms: LayerFarm[]; reload: () 
         <p className="text-sm text-neutral-500 py-4">No layer farms yet.</p>
       ) : (
         <table className="data-grid text-sm">
-          <thead><tr><th className="text-left">Code</th><th className="text-left">Name</th><th className="text-left">Plant</th><th className="text-right">Houses</th><th className="text-left">Status</th>{canEdit && <th />}</tr></thead>
+          <thead><tr><th className="text-left">Code</th><th className="text-left">Name</th><th className="text-left">Plant</th><th className="text-right">Houses</th><th className="text-right">Feed silo (t)</th><th className="text-left">Status</th>{canEdit && <th />}</tr></thead>
           <tbody>
             {farms.map((f) => (
               <tr key={f.id}>
@@ -386,6 +393,7 @@ function FarmsCard({ farms, reload, canEdit }: { farms: LayerFarm[]; reload: () 
                 <td>{f.name}</td>
                 <td>{f.plant ? `${f.plant} · ${f.plant === "1260" ? "Rearing" : "Laying"}` : <span className="text-brand-alert">not set</span>}</td>
                 <td className="text-right tabular-nums">{f.houses ?? "—"}</td>
+                <td className="text-right tabular-nums">{f.siloCapacityT ?? "—"}</td>
                 <td>{f.active ? "Active" : <span className="text-neutral-400">Inactive</span>}</td>
                 {canEdit && (
                   <td className="text-right whitespace-nowrap">
@@ -397,7 +405,7 @@ function FarmsCard({ farms, reload, canEdit }: { farms: LayerFarm[]; reload: () 
                       </>
                     ) : (
                       <>
-                        <button className={btnText} onClick={() => setDraft({ id: f.id, code: f.code, name: f.name, plant: f.plant ?? "", houses: f.houses === null ? "" : String(f.houses) })}>Edit</button>
+                        <button className={btnText} onClick={() => setDraft({ id: f.id, code: f.code, name: f.name, plant: f.plant ?? "", houses: f.houses === null ? "" : String(f.houses), silo: f.siloCapacityT === null ? "" : String(f.siloCapacityT) })}>Edit</button>
                         <button className={btnText} onClick={() => run(() => cLayerApi("PATCH", `/farms/${f.id}`, { active: !f.active }), f.active ? "Farm deactivated." : "Farm activated.")}>
                           {f.active ? "Deactivate" : "Activate"}
                         </button>

@@ -56,6 +56,8 @@ export interface LayerBreedStandardRow {
   mortalityPct: number;
   henDayPct: number;
   eggWeightG: number | null;
+  /** Feed intake g/bird/day; null = not given. */
+  feedGPerDay: number | null;
 }
 
 export interface LayerFarm {
@@ -65,6 +67,8 @@ export interface LayerFarm {
   /** null only for rows created before plants were introduced. */
   plant: LayerPlant | null;
   houses: number | null;
+  /** Feed silo capacity in tons (sample value until AWP enters the real one). */
+  siloCapacityT: number | null;
   active: boolean;
   createdAt: string;
   updatedAt: string;
@@ -111,6 +115,10 @@ export interface LayerSettings {
    */
   preLayFromAge: number | null;
   assetFromAge: number | null;
+  /** Feed STOs: supplying plant (feed mill), days the STO is created before delivery, tons per truck (null = no rounding). */
+  feedSupplyPlant: string | null;
+  feedStoLeadDays: number | null;
+  feedTruckTons: number | null;
   updatedBy: string | null;
   updatedAt: string | null;
 }
@@ -177,5 +185,6 @@ export interface LayerFarmInput {
   name: string;
   plant: LayerPlant;
   houses: number | null;
+  siloCapacityT: number | null;
   active: boolean;
 }

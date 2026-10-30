@@ -13,6 +13,7 @@ import { PurchaseScheduleView } from "./views/PurchaseScheduleView";
 import { BirdInventoryView } from "./views/BirdInventoryView";
 import { TransferPlanView } from "./views/TransferPlanView";
 import { FarmAvailabilityView } from "./views/FarmAvailabilityView";
+import { FeedStoView } from "./views/FeedStoView";
 import { EggOutputView } from "./views/EggOutputView";
 import { DepletionView } from "./views/DepletionView";
 import { KpiView } from "./views/KpiView";
@@ -24,6 +25,7 @@ const TABS: { key: CLayerView; label: string; needs: CLayerAction }[] = [
   { key: "inventory",  label: "Bird Inventory",        needs: "read_data" },
   { key: "transfer",   label: "Transfer Plan",         needs: "read_data" },
   { key: "availability", label: "Farm Availability",   needs: "read_data" },
+  { key: "feed",       label: "Feed STOs",             needs: "read_data" },
   { key: "eggs",       label: "Egg Output",            needs: "view_egg_output" },
   { key: "spent",      label: "Depletion",             needs: "read_data" },
   { key: "kpis",       label: "KPIs",                  needs: "read_data" },
@@ -106,6 +108,7 @@ export function CLayerPage() {
           {view === "inventory" && <BirdInventoryView {...shared} />}
           {view === "transfer" && <TransferPlanView {...shared} />}
           {view === "availability" && <FarmAvailabilityView {...shared} />}
+          {view === "feed" && <FeedStoView {...shared} />}
           {view === "spent" && <DepletionView {...shared} />}
           {view === "kpis" && <KpiView {...shared} />}
           {view === "settings" && <StandardsSettingsView {...shared} />}

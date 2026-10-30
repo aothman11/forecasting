@@ -2,6 +2,7 @@ import "server-only";
 import { getClient } from "@/lib/db";
 import { GUIDE_STANDARDS } from "./guideStandards";
 import { DEFAULT_PREP_ROUTING } from "./prepRoutingDefaults";
+import { FEED_INTAKE_STANDARDS } from "./feedStandards";
 import type {
   LayerBreed,
   LayerBreedInput,
@@ -124,6 +125,12 @@ export function ensureCLayerSchema(): Promise<void> {
     await db`ALTER TABLE layer_settings ADD COLUMN IF NOT EXISTS laying_pullet_from_age INTEGER DEFAULT 19 CHECK (laying_pullet_from_age IS NULL OR laying_pullet_from_age BETWEEN 2 AND 100)`;
     await db`ALTER TABLE layer_settings ADD COLUMN IF NOT EXISTS asset_from_age INTEGER DEFAULT 21 CHECK (asset_from_age IS NULL OR asset_from_age BETWEEN 2 AND 100)`;
     // Phases given by AWP (2026-10-30), plan age weeks: rearing 1–15, pre-lay 16–20 (laying farm), laying 21+.
+    // Feed STO planning (2026-10-30): feed mill 1120, STO one week before delivery, silo per farm.
+    await db`ALTER TABLE layer_breed_standards ADD COLUMN IF NOT EXISTS feed_g_per_day NUMERIC CHECK (feed_g_per_day IS NULL OR feed_g_per_day BETWEEN 0 AND 300)`;
+    await db`ALTER TABLE layer_farms ADD COLUMN IF NOT EXISTS silo_capacity_t NUMERIC CHECK (silo_capacity_t IS NULL OR silo_capacity_t > 0)`;
+    await db`ALTER TABLE layer_settings ADD COLUMN IF NOT EXISTS feed_supply_plant TEXT DEFAULT '1120'`;
+    await db`ALTER TABLE layer_settings ADD COLUMN IF NOT EXISTS feed_sto_lead_days INTEGER DEFAULT 7 CHECK (feed_sto_lead_days IS NULL OR feed_sto_lead_days BETWEEN 0 AND 60)`;
+    await db`ALTER TABLE layer_settings ADD COLUMN IF NOT EXISTS feed_truck_tons NUMERIC CHECK (feed_truck_tons IS NULL OR feed_truck_tons > 0)`;
     await db`ALTER TABLE layer_settings ADD COLUMN IF NOT EXISTS pre_lay_from_age INTEGER DEFAULT 16 CHECK (pre_lay_from_age IS NULL OR pre_lay_from_age BETWEEN 2 AND 100)`;
     await db`
       CREATE TABLE IF NOT EXISTS layer_feed_stages (
@@ -166,6 +173,7 @@ export function ensureCLayerSchema(): Promise<void> {
     await seedExampleSettings();
     await seedAwpFarms();
     await seedAwpFarmHouses();
+    await seedFeedIntake();
     await seedPrepRouting();
   })().catch((err) => {
     schemaPromise = null;
@@ -368,6 +376,32 @@ async function seedAwpFarmHouses(): Promise<void> {
 }
 
 /**
+ * Feed intake from the breeder guides (seed_version 7 → 8) into standard rows of the three guide breeds
+ * that have no feed intake yet, and sample silo capacities (rearing 40 t, laying 120 t) on farms without
+ * one — placeholders until AWP enters the real silo sizes.
+ */
+async function seedFeedIntake(): Promise<void> {
+  const db = getClient();
+  await db.transaction((tx) => [
+    ...Object.entries(FEED_INTAKE_STANDARDS).map(([breedName, grams]) => {
+      const json = JSON.stringify(grams.map((g, i) => ({ a: i + 1, g })));
+      return tx`
+        UPDATE layer_breed_standards s SET feed_g_per_day = r.g
+        FROM layer_breeds b, jsonb_to_recordset(${json}::jsonb) AS r(a integer, g numeric)
+        WHERE b.id = s.breed_id AND b.name = ${breedName} AND s.age_week = r.a AND s.feed_g_per_day IS NULL
+          AND EXISTS (SELECT 1 FROM layer_settings WHERE id = 1 AND seed_version = 7)
+      `;
+    }),
+    tx`
+      UPDATE layer_farms SET silo_capacity_t = CASE WHEN plant = '1260' THEN 40 ELSE 120 END, updated_at = now()
+      WHERE silo_capacity_t IS NULL AND plant IN ('1260', '1250')
+        AND EXISTS (SELECT 1 FROM layer_settings WHERE id = 1 AND seed_version = 7)
+    `,
+    tx`UPDATE layer_settings SET seed_version = 8 WHERE id = 1 AND seed_version = 7`,
+  ]);
+}
+
+/**
  * Seeds the "Cage House Prepared" routing (SAP export 2026-10-30) into any group that has no
  * operations yet, so a routing an Admin uploaded later is never replaced.
  */
@@ -418,6 +452,7 @@ function toFarm(r: Row): LayerFarm {
     name: String(r.name),
     plant: r.plant === "1260" || r.plant === "1250" ? r.plant : null,
     houses: numOrNull(r.houses),
+    siloCapacityT: numOrNull(r.silo_capacity_t),
     active: Boolean(r.active),
     createdAt: iso(r.created_at),
     updatedAt: iso(r.updated_at),
@@ -430,6 +465,7 @@ function toStandard(r: Row): LayerBreedStandardRow {
     mortalityPct: Number(r.mortality_pct),
     henDayPct: Number(r.hen_day_pct),
     eggWeightG: numOrNull(r.egg_weight_g),
+    feedGPerDay: numOrNull(r.feed_g_per_day),
   };
 }
 
@@ -465,6 +501,9 @@ function toSettings(r: Row | undefined): LayerSettings {
     gradeCPct: numOrNull(r?.grade_c_pct),
     preLayFromAge: numOrNull(r?.pre_lay_from_age),
     assetFromAge: numOrNull(r?.asset_from_age),
+    feedSupplyPlant: r?.feed_supply_plant ? String(r.feed_supply_plant) : null,
+    feedStoLeadDays: numOrNull(r?.feed_sto_lead_days),
+    feedTruckTons: numOrNull(r?.feed_truck_tons),
     updatedBy: r?.updated_by ? String(r.updated_by) : null,
     updatedAt: r?.updated_at ? iso(r.updated_at) : null,
   };
@@ -553,15 +592,19 @@ export async function getAllStandards(): Promise<Record<string, LayerBreedStanda
   return out;
 }
 
-/** Replaces a breed's whole standard table in one transaction (all rows or none). */
+/**
+ * Replaces a breed's whole standard table in one transaction (all rows or none). A row uploaded without
+ * feed intake keeps the feed intake the week had, so a file without the feed column does not erase it.
+ */
 export async function replaceStandards(breedId: string, rows: LayerBreedStandardRow[]): Promise<void> {
   const db = getClient();
+  const oldFeed = new Map((await getStandards(breedId)).map((r) => [r.ageWeek, r.feedGPerDay]));
   await db.transaction((tx) => [
     tx`DELETE FROM layer_breed_standards WHERE breed_id = ${breedId}`,
     ...rows.map(
       (r) => tx`
-        INSERT INTO layer_breed_standards (breed_id, age_week, mortality_pct, hen_day_pct, egg_weight_g)
-        VALUES (${breedId}, ${r.ageWeek}, ${r.mortalityPct}, ${r.henDayPct}, ${r.eggWeightG})
+        INSERT INTO layer_breed_standards (breed_id, age_week, mortality_pct, hen_day_pct, egg_weight_g, feed_g_per_day)
+        VALUES (${breedId}, ${r.ageWeek}, ${r.mortalityPct}, ${r.henDayPct}, ${r.eggWeightG}, ${r.feedGPerDay ?? oldFeed.get(r.ageWeek) ?? null})
       `,
     ),
     tx`UPDATE layer_breeds SET updated_at = now() WHERE id = ${breedId}`,
@@ -583,8 +626,8 @@ export async function getFarm(id: string): Promise<LayerFarm | null> {
 
 export async function createFarm(input: LayerFarmInput): Promise<LayerFarm> {
   const rows = await getClient()`
-    INSERT INTO layer_farms (id, code, name, plant, houses, active)
-    VALUES (${crypto.randomUUID()}, ${input.code}, ${input.name}, ${input.plant}, ${input.houses}, ${input.active})
+    INSERT INTO layer_farms (id, code, name, plant, houses, silo_capacity_t, active)
+    VALUES (${crypto.randomUUID()}, ${input.code}, ${input.name}, ${input.plant}, ${input.houses}, ${input.siloCapacityT}, ${input.active})
     RETURNING *
   `;
   return toFarm((rows as Row[])[0]);
@@ -594,7 +637,7 @@ export async function updateFarm(id: string, input: LayerFarmInput): Promise<Lay
   const rows = await getClient()`
     UPDATE layer_farms
     SET code = ${input.code}, name = ${input.name}, plant = ${input.plant}, houses = ${input.houses},
-        active = ${input.active}, updated_at = now()
+        silo_capacity_t = ${input.siloCapacityT}, active = ${input.active}, updated_at = now()
     WHERE id = ${id} RETURNING *
   `;
   const r = (rows as Row[])[0];
@@ -808,6 +851,9 @@ export async function updateSettings(input: LayerSettingsInput, user: string): P
       grade_c_pct           = ${input.gradeCPct},
       pre_lay_from_age      = ${input.preLayFromAge},
       asset_from_age        = ${input.assetFromAge},
+      feed_supply_plant     = ${input.feedSupplyPlant},
+      feed_sto_lead_days    = ${input.feedStoLeadDays},
+      feed_truck_tons       = ${input.feedTruckTons},
       updated_by            = ${user},
       updated_at            = now()
     WHERE id = 1 RETURNING *

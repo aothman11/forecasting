@@ -9,6 +9,7 @@ import {
   materialStageFor,
   nextMondayOnOrAfter,
   prepPhases,
+  feedStoPlan,
   prepPlansByPlant,
   prepStepOn,
   prepWindow,
@@ -489,5 +490,53 @@ describe("preparation phases", () => {
   test("different operations on the same day share one phase", () => {
     const p = prepPhases([{ opCode: "PRE066", text: "Rest period", day: 66 }, { opCode: "PRE067", text: "Lab", day: 67 }, { opCode: "PRE067", text: "Rest period - Last Day", day: 67 }]);
     assert.deepEqual(p.map((x) => [x.text, x.fromDay, x.toDay]), [["Rest period", 66, 66], ["Lab · Rest period - Last Day", 67, 67]]);
+  });
+});
+
+describe("feed STO plan", () => {
+  // 1000 chicks, no mortality, 100 g/bird/day from week 1 → 0.7 t per week.
+  const s = { B1: flat(100) };
+  const feed = { B1: Array.from({ length: 100 }, (_, i) => ({ ageWeek: i + 1, feedGPerDay: 100 })) };
+  const stages = DOC_FEED_STAGES.map((x, i) => ({ ...x, materialNo: i === 0 ? "F-START" : "" }));
+  const c = ctx({ feedStages: DOC_FEED_STAGES });
+  const plan = (flocks, over = {}) =>
+    feedStoPlan(projectAll(flocks, s, c), feed, { feedStages: stages, leadDays: 7, truckTons: null, siloByFarm: {}, ...over });
+
+  test("weekly tons = birds × g/day × 7, on the farm the flock is on, STO one week earlier", () => {
+    const { lines, gaps } = plan([flock()]);
+    assert.equal(gaps.length, 0);
+    const first = lines[0];
+    assert.equal(first.weekStart, "2026-11-02");
+    assert.equal(first.stoDate, "2026-10-26");
+    assert.equal(first.farmId, "R1");
+    assert.equal(first.plant, "1260");
+    assert.equal(first.materialNo, "F-START");
+    close(first.tons, 0.7, "tons");
+    const p = projectFlock(flock(), s.B1, c);
+    assert.equal(lines.find((l) => l.weekStart === p.transferWeekStart).farmId, "L1");
+  });
+
+  test("two flocks on one farm, same feed stage, share one STO line", () => {
+    const { lines } = plan([flock({ id: "a" }), flock({ id: "b" })]);
+    const wk1 = lines.filter((l) => l.weekStart === "2026-11-02");
+    assert.equal(wk1.length, 1);
+    close(wk1[0].tons, 1.4, "tons");
+    assert.deepEqual(wk1[0].placementIds, ["a", "b"]);
+  });
+
+  test("trucks round up; silo gives deliveries per week and cover days", () => {
+    const { lines } = plan([flock({ chicks: 10000 })], { truckTons: 3, siloByFarm: { R1: 4 } });
+    const l = lines[0]; // 7 t this week
+    assert.equal(l.trucks, 3);
+    assert.equal(l.siloDeliveries, 2);
+    assert.equal(l.siloCoverDays, 4);
+  });
+
+  test("missing feed intake is reported as a gap, not planned", () => {
+    const partial = { B1: feed.B1.map((r) => (r.ageWeek === 3 ? { ...r, feedGPerDay: null } : r)) };
+    const r = feedStoPlan(projectAll([flock()], s, c), partial, { feedStages: stages, leadDays: null, truckTons: null, siloByFarm: {} });
+    assert.deepEqual(r.gaps, [{ placementId: "f1", reason: "noFeedIntake", ageWeeks: [3] }]);
+    assert.equal(r.lines.some((l) => l.weekStart === "2026-11-16"), false);
+    assert.equal(r.lines[0].stoDate, null);
   });
 });

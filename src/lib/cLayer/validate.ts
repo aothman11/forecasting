@@ -104,9 +104,11 @@ export function validateFarmInput(body: unknown): Validation<LayerFarmInput> {
   const name = requiredText(body.name, "name", MAX_NAME, errors);
   if (body.plant !== "1260" && body.plant !== "1250") errors.push("plant must be 1260 (rearing) or 1250 (laying).");
   const houses = optionalPositiveInt(body.houses, "houses", errors);
+  const siloCapacityT = body.siloCapacityT ?? null;
+  if (siloCapacityT !== null && !(isFiniteNumber(siloCapacityT) && siloCapacityT > 0)) errors.push("silo capacity must be empty or a number of tons greater than 0.");
   const active = optionalBoolean(body.active, "active", true, errors);
   if (errors.length) return { ok: false, errors };
-  return { ok: true, value: { code, name, plant: body.plant as "1260" | "1250", houses, active } };
+  return { ok: true, value: { code, name, plant: body.plant as "1260" | "1250", houses, siloCapacityT: siloCapacityT as number | null, active } };
 }
 
 export function validatePlacementInput(body: unknown): Validation<LayerPlacementInput> {
@@ -186,7 +188,13 @@ export function validateSettingsInput(body: unknown): Validation<LayerSettingsIn
     gradeCPct,
     preLayFromAge: null,
     assetFromAge: null,
+    feedSupplyPlant: optionalText(body.feedSupplyPlant, "feedSupplyPlant", 10, errors) || null,
+    feedStoLeadDays: optionalIntRange(body.feedStoLeadDays, "feedStoLeadDays", 0, 60, errors),
+    feedTruckTons: null,
   };
+  const truck = body.feedTruckTons ?? null;
+  if (truck !== null && !(isFiniteNumber(truck) && truck > 0)) errors.push("feedTruckTons must be empty or a number of tons greater than 0.");
+  else value.feedTruckTons = truck as number | null;
   value.preLayFromAge = optionalIntRange(body.preLayFromAge, "preLayFromAge", 2, MAX_STANDARD_AGE_WEEK, errors);
   value.assetFromAge = optionalIntRange(body.assetFromAge, "assetFromAge", 2, MAX_STANDARD_AGE_WEEK, errors);
   if (value.preLayFromAge !== null && value.assetFromAge !== null && value.preLayFromAge >= value.assetFromAge) {
@@ -218,6 +226,10 @@ export function validateStandardRows(input: unknown): Validation<LayerBreedStand
     }
     const { ageWeek, mortalityPct, henDayPct } = raw;
     const eggWeightG = raw.eggWeightG ?? null;
+    const feedGPerDay = raw.feedGPerDay ?? null;
+    if (feedGPerDay !== null && !(isFiniteNumber(feedGPerDay) && feedGPerDay >= 0 && feedGPerDay <= 300)) {
+      errors.push(`${label}: feed intake must be empty or between 0 and 300 g/bird/day.`);
+    }
 
     if (!isIntInRange(ageWeek, 1, MAX_STANDARD_AGE_WEEK)) {
       errors.push(`${label}: age week must be a whole number from 1 to ${MAX_STANDARD_AGE_WEEK}.`);
@@ -235,6 +247,7 @@ export function validateStandardRows(input: unknown): Validation<LayerBreedStand
       mortalityPct: mortalityPct as number,
       henDayPct: henDayPct as number,
       eggWeightG: eggWeightG as number | null,
+      feedGPerDay: feedGPerDay as number | null,
     });
   });
 

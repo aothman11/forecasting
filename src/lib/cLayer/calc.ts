@@ -969,3 +969,119 @@ export function prepPhases(ops: Pick<LayerPrepOperation, "opCode" | "text" | "da
   }
   return phases;
 }
+
+// ── Feed STO planning ─────────────────────────────────────────────────────────
+
+/** One weekly feed requirement = one planned STO line: feed mill → farm, one feed material, one week. */
+export interface FeedStoLine {
+  /** Monday of the consumption / delivery week. */
+  weekStart: string;
+  isoWeek: string;
+  /** Date the STO is to be created (delivery Monday − lead days); null when the lead time is not set. */
+  stoDate: string | null;
+  farmId: string;
+  plant: LayerPlant;
+  feedStage: string;
+  /** "" when the feed stage has no SAP material yet. */
+  materialNo: string;
+  tons: number;
+  avgBirds: number;
+  placementIds: string[];
+  /** Full trucks needed; null when no truck size is set. */
+  trucks: number | null;
+  /** Deliveries the silo needs this week (tons ÷ silo); null when the farm has no silo capacity. */
+  siloDeliveries: number | null;
+  /** Days of feed one full silo holds at this week's intake; null when the farm has no silo capacity. */
+  siloCoverDays: number | null;
+}
+
+export interface FeedGap {
+  placementId: string;
+  reason: "noFeedIntake" | "noFeedStage";
+  ageWeeks: number[];
+}
+
+export interface FeedPlanResult {
+  lines: FeedStoLine[];
+  /** Weeks a flock's feed could not be planned: no feed intake in the standard, or no feed stage. */
+  gaps: FeedGap[];
+}
+
+export interface FeedPlanContext {
+  feedStages: Pick<LayerFeedStage, "name" | "materialNo">[];
+  leadDays: number | null;
+  truckTons: number | null;
+  siloByFarm: Record<string, number | null>;
+}
+
+/**
+ * Weekly feed per farm and feed material: average live birds × feed g/bird/day (breed standard at
+ * that age) × 7. Feed goes to the farm the flock is on that week (rearing farm before transfer,
+ * laying farm after); an empty farm needs none. Weeks without a feed stage or a feed standard are
+ * skipped and reported.
+ */
+export function feedStoPlan(
+  projections: FlockProjection[],
+  standards: Record<string, Pick<LayerBreedStandardRow, "ageWeek" | "feedGPerDay">[]>,
+  ctx: FeedPlanContext,
+  range?: { from: string; to: string },
+): FeedPlanResult {
+  const material = new Map(ctx.feedStages.map((s) => [s.name, s.materialNo]));
+  const byKey = new Map<string, FeedStoLine>();
+  const gaps = new Map<string, FeedGap>();
+  const gap = (placementId: string, reason: FeedGap["reason"], age: number) => {
+    const k = `${placementId}|${reason}`;
+    (gaps.get(k) ?? gaps.set(k, { placementId, reason, ageWeeks: [] }).get(k)!).ageWeeks.push(age);
+  };
+  for (const p of projections) {
+    const feed = new Map((standards[p.breedId] ?? []).map((r) => [r.ageWeek, r.feedGPerDay]));
+    for (const w of p.weeks) {
+      if (range && (w.weekStart < range.from || w.weekStart > range.to)) continue;
+      if (!w.farmId || !w.plant || w.avgBirds <= 0) continue;
+      const g = feed.get(w.ageWeek);
+      if (g === null || g === undefined) {
+        gap(p.placementId, "noFeedIntake", w.ageWeek);
+        continue;
+      }
+      if (!w.feedStage) {
+        gap(p.placementId, "noFeedStage", w.ageWeek);
+        continue;
+      }
+      const key = `${w.weekStart}|${w.farmId}|${w.feedStage}`;
+      const line = byKey.get(key) ?? {
+        weekStart: w.weekStart,
+        isoWeek: w.isoWeek,
+        stoDate: ctx.leadDays === null ? null : format(addDays(parseISO(w.weekStart), -ctx.leadDays), "yyyy-MM-dd"),
+        farmId: w.farmId,
+        plant: w.plant,
+        feedStage: w.feedStage,
+        materialNo: material.get(w.feedStage) ?? "",
+        tons: 0,
+        avgBirds: 0,
+        placementIds: [],
+        trucks: null,
+        siloDeliveries: null,
+        siloCoverDays: null,
+      };
+      line.tons += (w.avgBirds * g * 7) / 1_000_000;
+      line.avgBirds += w.avgBirds;
+      if (!line.placementIds.includes(p.placementId)) line.placementIds.push(p.placementId);
+      byKey.set(key, line);
+    }
+  }
+  const lines = [...byKey.values()].sort((a, b) => a.weekStart.localeCompare(b.weekStart) || a.farmId.localeCompare(b.farmId) || a.feedStage.localeCompare(b.feedStage));
+  // Silo figures use the farm's whole weekly feed (all materials share the farm's silo capacity).
+  const farmWeekTons = new Map<string, number>();
+  for (const l of lines) farmWeekTons.set(`${l.weekStart}|${l.farmId}`, (farmWeekTons.get(`${l.weekStart}|${l.farmId}`) ?? 0) + l.tons);
+  for (const l of lines) {
+    l.tons = Math.round(l.tons * 1000) / 1000;
+    if (ctx.truckTons) l.trucks = Math.ceil(l.tons / ctx.truckTons - 1e-9);
+    const silo = ctx.siloByFarm[l.farmId] ?? null;
+    const weekTons = farmWeekTons.get(`${l.weekStart}|${l.farmId}`)!;
+    if (silo) {
+      l.siloDeliveries = Math.ceil(weekTons / silo - 1e-9);
+      l.siloCoverDays = weekTons > 0 ? Math.round((silo / (weekTons / 7)) * 10) / 10 : null;
+    }
+  }
+  return { lines, gaps: [...gaps.values()] };
+}

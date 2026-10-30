@@ -27,7 +27,7 @@ import type { BomRecord } from "./bomTypes";
 import type { BreedingCycleView, BreedingScenario } from "./breedingCycleTypes";
 import type { SalesPlanCartonRow } from "./processingPlanTypes";
 
-export type CLayerView = "placements" | "purchase" | "inventory" | "transfer" | "availability" | "eggs" | "spent" | "kpis" | "settings";
+export type CLayerView = "placements" | "purchase" | "inventory" | "transfer" | "availability" | "feed" | "eggs" | "spent" | "kpis" | "settings";
 import { DEFAULT_DEMAND_PRODUCTS, DEFAULT_FARMS, DEFAULT_MONTHLY_PLAN_CONFIG, DEFAULT_PARAMETERS } from "./defaults";
 import { ensurePlacementDaysHorizon, isFridayDate, quickFillPlacementDays } from "./calculations";
 import { deriveFamilyAllocation } from "./deriveFamilyAllocation";

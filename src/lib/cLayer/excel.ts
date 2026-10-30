@@ -18,7 +18,7 @@ const PLACEMENT_HEADERS = [
   "Notes",
 ] as const;
 
-const STANDARD_HEADERS = ["Age Week", "Mortality %", "Hen-Day %", "Egg Weight (g)"] as const;
+const STANDARD_HEADERS = ["Age Week", "Mortality %", "Hen-Day %", "Egg Weight (g)", "Feed (g/bird/day)"] as const;
 
 const norm = (s: unknown) => String(s ?? "").trim().toLowerCase().replace(/[^a-z0-9%]/g, "");
 
@@ -167,10 +167,10 @@ export function parsePlacementsFile(
 /** A breed's standard table; with no rows yet it is a blank template with age weeks 1–100. */
 export function exportStandards(breedName: string, rows: LayerBreedStandardRow[]) {
   const body = rows.length
-    ? rows.map((r) => [r.ageWeek, r.mortalityPct, r.henDayPct, r.eggWeightG])
-    : Array.from({ length: 100 }, (_, i) => [i + 1, null, null, null]);
+    ? rows.map((r) => [r.ageWeek, r.mortalityPct, r.henDayPct, r.eggWeightG, r.feedGPerDay])
+    : Array.from({ length: 100 }, (_, i) => [i + 1, null, null, null, null]);
   const safe = breedName.replace(/[^a-z0-9-]+/gi, "-").toLowerCase();
-  writeBook("Weekly Standard", [[...STANDARD_HEADERS], ...body], [10, 13, 12, 15], `awp-c-layer-standard-${safe}.xlsx`);
+  writeBook("Weekly Standard", [[...STANDARD_HEADERS], ...body], [10, 13, 12, 15, 17], `awp-c-layer-standard-${safe}.xlsx`);
 }
 
 /**
@@ -216,6 +216,7 @@ export function parseStandardsFile(buffer: ArrayBuffer): { rows: unknown[]; erro
       mortalityPct,
       henDayPct,
       eggWeightG: read(r, "Egg Weight (g)", false),
+      feedGPerDay: read(r, "Feed (g/bird/day)", false),
     });
   }
   return { rows, errors: rows.length ? [] : ["No filled rows found under the headers."] };
@@ -262,4 +263,27 @@ export function parsePrepRoutingFile(buffer: ArrayBuffer): { routing: Record<str
   });
   if (!errors.length && Object.keys(routing).length === 0) errors.push(`No "${PREP_MATERIAL}" rows found.`);
   return { routing, errors };
+}
+
+// ── Feed STOs ─────────────────────────────────────────────────────────────────
+
+export interface FeedStoExportRow {
+  supplyPlant: string;
+  receivingPlant: string;
+  farmCode: string;
+  materialNo: string;
+  feedStage: string;
+  tons: number;
+  deliveryWeek: string;
+  deliveryDate: string;
+  stoDate: string;
+  trucks: number | null;
+  flocks: string;
+}
+
+/** Planned feed STOs, one row per delivery week × farm × feed material (quantity in TO). */
+export function exportFeedSto(rows: FeedStoExportRow[]) {
+  const head = ["Supplying Plant", "Receiving Plant", "Farm", "Material", "Feed Stage", "Quantity", "Unit", "Delivery Week", "Delivery Date", "STO Create Date", "Trucks", "Flocks"];
+  const body = rows.map((r) => [r.supplyPlant, r.receivingPlant, r.farmCode, r.materialNo, r.feedStage, r.tons, "TO", r.deliveryWeek, r.deliveryDate, r.stoDate, r.trucks, r.flocks]);
+  writeBook("Feed STO", [head, ...body], [15, 15, 10, 14, 16, 10, 6, 13, 13, 15, 8, 16], "awp-c-layer-feed-sto.xlsx");
 }
