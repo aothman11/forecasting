@@ -204,6 +204,7 @@ export function ensureCLayerSchema(): Promise<void> {
     await seedSkuPackaging();
     await seedSkuPackagingBoms();
     await seedSamplePackagingPolicies();
+    await seedSamplePackagingSupply();
     await seedPrepRouting();
   })().catch((err) => {
     schemaPromise = null;
@@ -535,6 +536,20 @@ async function seedSamplePackagingPolicies(): Promise<void> {
     `,
     tx`UPDATE layer_settings SET seed_version = 11 WHERE id = 1 AND seed_version = 10`,
   ]);
+}
+
+/**
+ * SAMPLE packaging supplier and lead time (seed_version 11 → 12), only where still empty:
+ * "Sample vendor (replace)", ordered 14 days before the packing week.
+ */
+async function seedSamplePackagingSupply(): Promise<void> {
+  await getClient()`
+    UPDATE layer_settings SET
+      packaging_supply_source = COALESCE(packaging_supply_source, 'Sample vendor (replace)'),
+      packaging_lead_days     = COALESCE(packaging_lead_days, 14),
+      seed_version            = 12
+    WHERE id = 1 AND seed_version = 11
+  `;
 }
 
 /**
