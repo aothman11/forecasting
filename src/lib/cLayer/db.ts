@@ -165,6 +165,7 @@ export function ensureCLayerSchema(): Promise<void> {
     await seedExampleFlock();
     await seedExampleSettings();
     await seedAwpFarms();
+    await seedAwpFarmHouses();
     await seedPrepRouting();
   })().catch((err) => {
     schemaPromise = null;
@@ -346,6 +347,23 @@ async function seedAwpFarms(): Promise<void> {
         AND EXISTS (SELECT 1 FROM layer_settings WHERE id = 1 AND seed_version = 5)
     `,
     tx`UPDATE layer_settings SET seed_version = 6 WHERE id = 1 AND seed_version = 5`,
+  ]);
+}
+
+/**
+ * Farms LR01–LL02 created by hand before seedAwpFarms kept no house count (seed_version 6 → 7):
+ * fills 6 houses for LR01/LR02 and 18 for LL01/LL02 where houses is still empty. Names are kept.
+ */
+async function seedAwpFarmHouses(): Promise<void> {
+  const db = getClient();
+  await db.transaction((tx) => [
+    tx`
+      UPDATE layer_farms f SET houses = v.houses, updated_at = now()
+      FROM (VALUES ('LR01', 6), ('LR02', 6), ('LL01', 18), ('LL02', 18)) AS v(code, houses)
+      WHERE f.code = v.code AND f.houses IS NULL
+        AND EXISTS (SELECT 1 FROM layer_settings WHERE id = 1 AND seed_version = 6)
+    `,
+    tx`UPDATE layer_settings SET seed_version = 7 WHERE id = 1 AND seed_version = 6`,
   ]);
 }
 
