@@ -26,7 +26,6 @@ export function PackagingView({ data, projections }: CLayerViewProps) {
     ...(settings.rejectPct === null || settings.gradeTablePct === null ? ["Grading is not set (reject % and 90001 / 90002 split) — packs and packaging cannot be planned."] : []),
     ...(skus.some((s) => s.packMixPct === null) ? ["The SKU pack mix is not complete — SKUs without a pack mix get no packaging."] : []),
     ...(packaging.length === 0 ? ["No packaging components yet — add them under Standards & Settings → Packaging per SKU."] : []),
-    ...(packaging.some((p) => !p.materialNo) ? ["Some components have no SAP material code yet — they are listed by name."] : []),
     ...(settings.packagingLeadDays === null ? ["Missing setting: Packaging lead time — order dates stay blank."] : []),
   ];
 
@@ -34,7 +33,6 @@ export function PackagingView({ data, projections }: CLayerViewProps) {
     exportPackaging(
       lines.map((l) => ({
         supplySource: settings.packagingSupplySource ?? "",
-        materialNo: l.materialNo,
         component: l.component,
         qty: l.qty,
         unit: l.unit,
@@ -71,7 +69,7 @@ export function PackagingView({ data, projections }: CLayerViewProps) {
             <table className="data-grid text-xs">
               <thead>
                 <tr>
-                  <th className="text-left sticky left-0 bg-brand-green-tint">Material</th>
+                  <th className="text-left sticky left-0 bg-brand-green-tint">Component</th>
                   <th className="text-left">Unit</th>
                   {weeks.map((w) => (
                     <th key={w} className="text-right" title={orderDate.get(w) ? `Order by ${orderDate.get(w)}` : undefined}>
@@ -92,8 +90,7 @@ export function PackagingView({ data, projections }: CLayerViewProps) {
                   return (
                     <tr key={k}>
                       <td className="sticky left-0 bg-white whitespace-nowrap">
-                        <span className="font-medium">{it.materialNo || <span className="text-brand-alert">no code</span>}</span>
-                        <span className="text-[10px] text-neutral-500"> · {it.component}</span>
+                        <span className="font-medium">{it.component}</span>
                       </td>
                       <td className="whitespace-nowrap" title={inOrderUnit ? `1 ${it.orderUnit} = ${it.perOrderUnit} ${it.unit}` : undefined}>
                         {inOrderUnit ? <>{it.orderUnit} <span className="text-[10px] text-neutral-500">({fmtInt(it.perOrderUnit!)} {it.unit})</span></> : it.unit}

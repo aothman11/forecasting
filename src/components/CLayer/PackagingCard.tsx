@@ -8,7 +8,7 @@ import { Card, Notice, btnDanger, btnPrimary, btnText, input } from "./ui";
 type Row = { component: string; materialNo: string; qtyPerPack: string; unit: string; orderUnit: string; perOrderUnit: string };
 type Msg = { tone: "ok" | "error"; lines: string[] } | null;
 
-/** Packaging components per packed SKU; AWP enters the SAP material codes here. */
+/** Packaging components per packed SKU, identified by name (no material codes). */
 export function PackagingCard({ skus, packaging, reload, canEdit }: { skus: LayerSku[]; packaging: LayerSkuPackaging[]; reload: () => void; canEdit: boolean }) {
   const [rows, setRows] = useState<Record<string, Row[]>>(() =>
     Object.fromEntries(
@@ -28,7 +28,6 @@ export function PackagingCard({ skus, packaging, reload, canEdit }: { skus: Laye
     ),
   );
   const [msg, setMsg] = useState<Msg>(null);
-  const missing = Object.values(rows).flat().filter((r) => !r.materialNo.trim()).length;
 
   const set = (sku: string, i: number, patch: Partial<Row>) =>
     setRows({ ...rows, [sku]: rows[sku].map((r, j) => (j === i ? { ...r, ...patch } : r)) });
@@ -66,7 +65,6 @@ export function PackagingCard({ skus, packaging, reload, canEdit }: { skus: Laye
       actions={canEdit && <button className={btnPrimary} onClick={save}>Save packaging</button>}
     >
       {msg && <Notice tone={msg.tone} lines={msg.lines} />}
-      {missing > 0 && <p className="text-[11px] text-brand-alert mb-2">{missing} component(s) have no material code yet.</p>}
       <div className="grid gap-4 2xl:grid-cols-2">
         {skus.map((s) => (
           <div key={s.materialNo} className="rounded-lg border border-[var(--border-subtle)] p-3 min-w-0">
@@ -82,7 +80,6 @@ export function PackagingCard({ skus, packaging, reload, canEdit }: { skus: Laye
                 <thead>
                   <tr>
                     <th className="text-left">Component</th>
-                    <th className="text-left">Material no.</th>
                     <th className="text-right">Qty / pack</th>
                     <th className="text-left">BOM unit</th>
                     <th className="text-left" title="Unit it is bought in, e.g. ROL — leave empty if bought in the BOM unit">Order unit</th>
@@ -96,7 +93,6 @@ export function PackagingCard({ skus, packaging, reload, canEdit }: { skus: Laye
                       {canEdit ? (
                         <>
                           <td><input className={`${input} w-full min-w-36`} value={r.component} onChange={(e) => set(s.materialNo, i, { component: e.target.value })} /></td>
-                          <td><input className={`${input} w-28`} value={r.materialNo} placeholder="enter code" onChange={(e) => set(s.materialNo, i, { materialNo: e.target.value })} /></td>
                           <td className="text-right"><input type="number" min={0} step="any" className={`${input} w-20 text-right`} value={r.qtyPerPack} onChange={(e) => set(s.materialNo, i, { qtyPerPack: e.target.value })} /></td>
                           <td><input className={`${input} w-16`} value={r.unit} onChange={(e) => set(s.materialNo, i, { unit: e.target.value })} /></td>
                           <td><input className={`${input} w-16`} value={r.orderUnit} placeholder="—" onChange={(e) => set(s.materialNo, i, { orderUnit: e.target.value })} /></td>
@@ -106,7 +102,6 @@ export function PackagingCard({ skus, packaging, reload, canEdit }: { skus: Laye
                       ) : (
                         <>
                           <td>{r.component}</td>
-                          <td>{r.materialNo || <span className="text-brand-alert">not set</span>}</td>
                           <td className="text-right tabular-nums">{r.qtyPerPack}</td>
                           <td>{r.unit}</td>
                           <td>{r.orderUnit || "—"}</td>
@@ -116,7 +111,7 @@ export function PackagingCard({ skus, packaging, reload, canEdit }: { skus: Laye
                     </tr>
                   ))}
                   {rows[s.materialNo].length === 0 && (
-                    <tr><td colSpan={canEdit ? 7 : 6} className="text-neutral-500">No packaging yet.</td></tr>
+                    <tr><td colSpan={canEdit ? 6 : 5} className="text-neutral-500">No packaging yet.</td></tr>
                   )}
                 </tbody>
               </table>
