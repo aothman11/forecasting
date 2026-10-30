@@ -287,3 +287,24 @@ export function exportFeedSto(rows: FeedStoExportRow[]) {
   const body = rows.map((r) => [r.supplyPlant, r.receivingPlant, r.farmCode, r.materialNo, r.feedStage, r.tons, "TO", r.deliveryWeek, r.deliveryDate, r.stoDate, r.trucks, r.flocks]);
   writeBook("Feed STO", [head, ...body], [15, 15, 10, 14, 16, 10, 6, 13, 13, 15, 8, 16], "awp-c-layer-feed-sto.xlsx");
 }
+
+// ── Packaging ─────────────────────────────────────────────────────────────────
+
+export interface PackagingExportRow {
+  supplySource: string;
+  materialNo: string;
+  component: string;
+  qty: number;
+  unit: string;
+  packingWeek: string;
+  packingDate: string;
+  orderDate: string;
+  skus: string;
+}
+
+/** Packaging needed per packing week and material, with the order date from the lead time. */
+export function exportPackaging(rows: PackagingExportRow[]) {
+  const head = ["Supplied By", "Material", "Component", "Quantity", "Unit", "Packing Week", "Packing Week Start", "Order By", "Used In SKUs"];
+  const body = rows.map((r) => [r.supplySource, r.materialNo, r.component, r.qty, r.unit, r.packingWeek, r.packingDate, r.orderDate, r.skus]);
+  writeBook("Packaging", [head, ...body], [14, 14, 22, 10, 6, 13, 17, 12, 22], "awp-c-layer-packaging.xlsx");
+}

@@ -20,6 +20,7 @@ import {
 } from "@/lib/cLayer/types";
 import type { CLayerViewProps } from "../CLayerPage";
 import { PrepTimeline } from "../PrepTimeline";
+import { PackagingCard } from "../PackagingCard";
 import { Card, Notice, btn, btnDanger, btnMuted, btnPrimary, btnText, fmtDec, input, label } from "../ui";
 
 type Msg = { tone: "ok" | "error" | "warn"; lines: string[] } | null;
@@ -39,6 +40,8 @@ const SETTING_FIELDS: { key: EditableSettingKey; label: string; unit: string; st
   { key: "feedSupplyPlant", label: "Feed STO supplying plant (feed mill)", unit: "plant", step: 0, text: true },
   { key: "feedStoLeadDays", label: "Feed STO created before delivery", unit: "days", step: 1 },
   { key: "feedTruckTons", label: "Feed truck size (empty = no rounding)", unit: "t", step: 0.5 },
+  { key: "packagingSupplySource", label: "Packaging supplied by (vendor or plant)", unit: "", step: 0, text: true },
+  { key: "packagingLeadDays", label: "Packaging ordered before packing week", unit: "days", step: 1 },
 ];
 
 export function StandardsSettingsView({ data, reload, canWriteMaster }: CLayerViewProps) {
@@ -51,6 +54,7 @@ export function StandardsSettingsView({ data, reload, canWriteMaster }: CLayerVi
       <FarmsCard farms={data.farms} reload={reload} canEdit={canWriteMaster} />
       <FeedStagesCard key={JSON.stringify(data.feedStages)} stages={data.feedStages} reload={reload} canEdit={canWriteMaster} />
       <SkusCard key={JSON.stringify(data.skus)} skus={data.skus} reload={reload} canEdit={canWriteMaster} />
+      <PackagingCard key={JSON.stringify(data.packaging)} skus={data.skus} packaging={data.packaging} reload={reload} canEdit={canWriteMaster} />
       <PrepRoutingCard operations={data.prepOperations} farms={data.farms} reload={reload} canEdit={canWriteMaster} />
     </div>
   );

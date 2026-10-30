@@ -119,6 +119,9 @@ export interface LayerSettings {
   feedSupplyPlant: string | null;
   feedStoLeadDays: number | null;
   feedTruckTons: number | null;
+  /** Packaging: who supplies it (vendor or plant) and how many days before the packing week it is ordered. */
+  packagingSupplySource: string | null;
+  packagingLeadDays: number | null;
   updatedBy: string | null;
   updatedAt: string | null;
 }
@@ -151,6 +154,18 @@ export interface LayerSku {
   packMixPct: number | null;
   sortOrder: number;
 }
+
+/** One packaging component of a packed SKU (e.g. 10 egg trays per 300-piece pack). "" = code not entered yet. */
+export interface LayerSkuPackaging {
+  skuMaterialNo: string;
+  component: string;
+  materialNo: string;
+  qtyPerPack: number;
+  unit: string;
+  sortOrder: number;
+}
+
+export type LayerSkuPackagingInput = Omit<LayerSkuPackaging, "sortOrder">;
 
 export type LayerSkuUpdate = Pick<LayerSku, "materialNo" | "piecesPerPack" | "traysPerPack" | "eggsPerTray" | "packMixPct">;
 

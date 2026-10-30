@@ -15,6 +15,8 @@ import type {
   LayerPlacementInput,
   LayerPrepOperation,
   LayerSettings,
+  LayerSkuPackaging,
+  LayerSkuPackagingInput,
   PrepGroup,
   LayerSettingsInput,
   LayerSku,
@@ -131,6 +133,9 @@ export function ensureCLayerSchema(): Promise<void> {
     await db`ALTER TABLE layer_settings ADD COLUMN IF NOT EXISTS feed_supply_plant TEXT DEFAULT '1120'`;
     await db`ALTER TABLE layer_settings ADD COLUMN IF NOT EXISTS feed_sto_lead_days INTEGER DEFAULT 7 CHECK (feed_sto_lead_days IS NULL OR feed_sto_lead_days BETWEEN 0 AND 60)`;
     await db`ALTER TABLE layer_settings ADD COLUMN IF NOT EXISTS feed_truck_tons NUMERIC CHECK (feed_truck_tons IS NULL OR feed_truck_tons > 0)`;
+    // Packaging per packed SKU (2026-10-30): components with SAP codes entered by AWP in the app.
+    await db`ALTER TABLE layer_settings ADD COLUMN IF NOT EXISTS packaging_supply_source TEXT`;
+    await db`ALTER TABLE layer_settings ADD COLUMN IF NOT EXISTS packaging_lead_days INTEGER CHECK (packaging_lead_days IS NULL OR packaging_lead_days BETWEEN 0 AND 180)`;
     await db`ALTER TABLE layer_settings ADD COLUMN IF NOT EXISTS pre_lay_from_age INTEGER DEFAULT 16 CHECK (pre_lay_from_age IS NULL OR pre_lay_from_age BETWEEN 2 AND 100)`;
     await db`
       CREATE TABLE IF NOT EXISTS layer_feed_stages (
@@ -166,6 +171,17 @@ export function ensureCLayerSchema(): Promise<void> {
         PRIMARY KEY (group_code, seq)
       )
     `;
+    await db`
+      CREATE TABLE IF NOT EXISTS layer_sku_packaging (
+        sku_material_no TEXT NOT NULL REFERENCES layer_skus(material_no) ON DELETE CASCADE,
+        sort_order      INTEGER NOT NULL,
+        component       TEXT NOT NULL,
+        material_no     TEXT NOT NULL DEFAULT '',
+        qty_per_pack    NUMERIC NOT NULL CHECK (qty_per_pack > 0),
+        unit            TEXT NOT NULL DEFAULT 'PC',
+        PRIMARY KEY (sku_material_no, sort_order)
+      )
+    `;
     await seedV2();
     await seedGuideStandards();
     await seedPhaseAges();
@@ -174,6 +190,7 @@ export function ensureCLayerSchema(): Promise<void> {
     await seedAwpFarms();
     await seedAwpFarmHouses();
     await seedFeedIntake();
+    await seedSkuPackaging();
     await seedPrepRouting();
   })().catch((err) => {
     schemaPromise = null;
@@ -402,6 +419,28 @@ async function seedFeedIntake(): Promise<void> {
 }
 
 /**
+ * Starter packaging per SKU (seed_version 8 → 9): egg trays named by eggs per tray (trays per pack), one outer carton and one
+ * label, all with empty material codes for AWP to fill in. Only SKUs that have no packaging yet.
+ */
+async function seedSkuPackaging(): Promise<void> {
+  const db = getClient();
+  await db.transaction((tx) => [
+    tx`
+      INSERT INTO layer_sku_packaging (sku_material_no, sort_order, component, material_no, qty_per_pack, unit)
+      SELECT s.material_no, c.ord,
+             CASE WHEN c.ord = 0 THEN 'Egg tray (' || s.eggs_per_tray || ' eggs)' ELSE c.component END,
+             '', CASE WHEN c.ord = 0 THEN s.trays_per_pack ELSE 1 END, 'PC'
+      FROM layer_skus s
+      CROSS JOIN (VALUES (0, 'Egg tray'), (1, 'Outer carton'), (2, 'Label')) AS c(ord, component)
+      WHERE NOT EXISTS (SELECT 1 FROM layer_sku_packaging p WHERE p.sku_material_no = s.material_no)
+        AND EXISTS (SELECT 1 FROM layer_settings WHERE id = 1 AND seed_version = 8)
+      ON CONFLICT DO NOTHING
+    `,
+    tx`UPDATE layer_settings SET seed_version = 9 WHERE id = 1 AND seed_version = 8`,
+  ]);
+}
+
+/**
  * Seeds the "Cage House Prepared" routing (SAP export 2026-10-30) into any group that has no
  * operations yet, so a routing an Admin uploaded later is never replaced.
  */
@@ -504,6 +543,8 @@ function toSettings(r: Row | undefined): LayerSettings {
     feedSupplyPlant: r?.feed_supply_plant ? String(r.feed_supply_plant) : null,
     feedStoLeadDays: numOrNull(r?.feed_sto_lead_days),
     feedTruckTons: numOrNull(r?.feed_truck_tons),
+    packagingSupplySource: r?.packaging_supply_source ? String(r.packaging_supply_source) : null,
+    packagingLeadDays: numOrNull(r?.packaging_lead_days),
     updatedBy: r?.updated_by ? String(r.updated_by) : null,
     updatedAt: r?.updated_at ? iso(r.updated_at) : null,
   };
@@ -854,6 +895,8 @@ export async function updateSettings(input: LayerSettingsInput, user: string): P
       feed_supply_plant     = ${input.feedSupplyPlant},
       feed_sto_lead_days    = ${input.feedStoLeadDays},
       feed_truck_tons       = ${input.feedTruckTons},
+      packaging_supply_source = ${input.packagingSupplySource},
+      packaging_lead_days   = ${input.packagingLeadDays},
       updated_by            = ${user},
       updated_at            = now()
     WHERE id = 1 RETURNING *
@@ -877,6 +920,34 @@ export async function replaceFeedStages(stages: LayerFeedStageInput[]): Promise<
       (s) => tx`
         INSERT INTO layer_feed_stages (id, name, phase, from_week, to_week, material_no, sort_order)
         VALUES (${s.id ?? crypto.randomUUID()}, ${s.name}, ${s.phase}, ${s.fromWeek}, ${s.toWeek}, ${s.materialNo}, ${s.sortOrder})
+      `,
+    ),
+  ]);
+}
+
+// ── SKU packaging ─────────────────────────────────────────────────────────────
+
+export async function listSkuPackaging(): Promise<LayerSkuPackaging[]> {
+  const rows = await getClient()`SELECT * FROM layer_sku_packaging ORDER BY sku_material_no, sort_order`;
+  return (rows as Row[]).map((r) => ({
+    skuMaterialNo: String(r.sku_material_no),
+    component: String(r.component),
+    materialNo: String(r.material_no ?? ""),
+    qtyPerPack: Number(r.qty_per_pack),
+    unit: String(r.unit),
+    sortOrder: Number(r.sort_order),
+  }));
+}
+
+/** Replaces the packaging of every SKU in the list in one transaction; SKUs not listed are kept. */
+export async function replaceSkuPackaging(rows: LayerSkuPackagingInput[], skuMaterialNos: string[]): Promise<void> {
+  const db = getClient();
+  await db.transaction((tx) => [
+    ...skuMaterialNos.map((sku) => tx`DELETE FROM layer_sku_packaging WHERE sku_material_no = ${sku}`),
+    ...rows.map(
+      (r, i) => tx`
+        INSERT INTO layer_sku_packaging (sku_material_no, sort_order, component, material_no, qty_per_pack, unit)
+        VALUES (${r.skuMaterialNo}, ${i}, ${r.component}, ${r.materialNo}, ${r.qtyPerPack}, ${r.unit})
       `,
     ),
   ]);

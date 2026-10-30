@@ -4,6 +4,7 @@
 import { addDays, format, getISOWeek, getISOWeekYear, parseISO } from "date-fns";
 import type {
   LayerBreedStandardRow,
+  LayerSkuPackaging,
   LayerFeedStage,
   LayerPlacement,
   LayerPlant,
@@ -1084,4 +1085,67 @@ export function feedStoPlan(
     }
   }
   return { lines, gaps: [...gaps.values()] };
+}
+
+// ── Packaging planning ────────────────────────────────────────────────────────
+
+/** Weekly need of one packaging material across all SKUs that use it. */
+export interface PackagingLine {
+  weekStart: string;
+  isoWeek: string;
+  /** Packing week Monday − lead days; null when the lead time is not set. */
+  orderDate: string | null;
+  /** "" when the code is not entered yet (rows are then grouped by component name). */
+  materialNo: string;
+  component: string;
+  unit: string;
+  qty: number;
+  /** Packs of each SKU this week that use the material. */
+  bySku: Record<string, number>;
+}
+
+/**
+ * Packaging per week: eggs of all flocks → graded 90001 / 90002 → packs per SKU (pack mix) →
+ * × quantity per pack of each packaging component. Same material code across SKUs is one line;
+ * components without a code are grouped by name and unit. Returns no lines while grading or the
+ * pack mix is incomplete (packs cannot be known).
+ */
+export function packagingPlan(
+  projections: FlockProjection[],
+  grading: GradingSettings,
+  skus: Pick<LayerSku, "materialNo" | "grade" | "piecesPerPack" | "packMixPct">[],
+  bom: Pick<LayerSkuPackaging, "skuMaterialNo" | "component" | "materialNo" | "qtyPerPack" | "unit">[],
+  leadDays: number | null,
+  range?: { from: string; to: string },
+): PackagingLine[] {
+  const eggsByWeek = new Map<string, number>();
+  for (const p of projections) {
+    for (const w of p.weeks) {
+      if (w.eggs <= 0 || (range && (w.weekStart < range.from || w.weekStart > range.to))) continue;
+      eggsByWeek.set(w.weekStart, (eggsByWeek.get(w.weekStart) ?? 0) + w.eggs);
+    }
+  }
+  const out = new Map<string, PackagingLine>();
+  for (const [weekStart, eggs] of [...eggsByWeek].sort(([a], [b]) => a.localeCompare(b))) {
+    for (const sku of packSkus(gradeEggs(eggs, grading), skus)) {
+      if (sku.packs === null || sku.packs <= 0) continue;
+      for (const c of bom.filter((b) => b.skuMaterialNo === sku.materialNo)) {
+        const key = `${weekStart}|${c.materialNo || `~${c.component}|${c.unit}`}`;
+        const line = out.get(key) ?? {
+          weekStart,
+          isoWeek: isoWeekLabel(weekStart),
+          orderDate: leadDays === null ? null : format(addDays(parseISO(weekStart), -leadDays), "yyyy-MM-dd"),
+          materialNo: c.materialNo,
+          component: c.component,
+          unit: c.unit,
+          qty: 0,
+          bySku: {},
+        };
+        line.qty += sku.packs * c.qtyPerPack;
+        line.bySku[sku.materialNo] = (line.bySku[sku.materialNo] ?? 0) + sku.packs;
+        out.set(key, line);
+      }
+    }
+  }
+  return [...out.values()].map((l) => ({ ...l, qty: Math.ceil(l.qty - 1e-9) }));
 }

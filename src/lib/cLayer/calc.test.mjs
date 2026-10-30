@@ -1,6 +1,7 @@
 // Run with: npm test   (Node's built-in runner; Node 22.18+ loads the .ts module directly)
 import { test, describe } from "node:test";
 import assert from "node:assert/strict";
+import { addDays, format, parseISO } from "date-fns";
 import {
   addWeeksIso,
   assignFlockNumbers,
@@ -10,6 +11,7 @@ import {
   nextMondayOnOrAfter,
   prepPhases,
   feedStoPlan,
+  packagingPlan,
   prepPlansByPlant,
   prepStepOn,
   prepWindow,
@@ -538,5 +540,39 @@ describe("feed STO plan", () => {
     assert.deepEqual(r.gaps, [{ placementId: "f1", reason: "noFeedIntake", ageWeeks: [3] }]);
     assert.equal(r.lines.some((l) => l.weekStart === "2026-11-16"), false);
     assert.equal(r.lines[0].stoDate, null);
+  });
+});
+
+describe("packaging plan", () => {
+  // 1000 hens laying 100% from week 18 → 7000 eggs per week, no rejects, all table grade.
+  const s = { B1: flat(100, 18, 100) };
+  const proj = projectAll([flock()], s, ctx());
+  const grading = { rejectPct: 0, gradeTablePct: 100, gradeCPct: 0 };
+  const skus = [
+    { materialNo: "S300", grade: "table", piecesPerPack: 300, packMixPct: 50 },
+    { materialNo: "S250", grade: "table", piecesPerPack: 250, packMixPct: 50 },
+    { materialNo: "GC", grade: "grade_c", piecesPerPack: 360, packMixPct: 100 },
+  ];
+  const bom = [
+    { skuMaterialNo: "S300", component: "Egg tray (30 eggs)", materialNo: "", qtyPerPack: 10, unit: "PC" },
+    { skuMaterialNo: "S250", component: "Egg tray (30 eggs)", materialNo: "", qtyPerPack: 25, unit: "PC" },
+    { skuMaterialNo: "S300", component: "Outer carton", materialNo: "C1", qtyPerPack: 1, unit: "PC" },
+  ];
+
+  test("packs × quantity per pack; shared components add up across SKUs; order lead time", () => {
+    const lines = packagingPlan(proj, grading, skus, bom, 14);
+    const wk = lines[0].weekStart;
+    const tray = lines.find((l) => l.weekStart === wk && l.component.startsWith("Egg tray"));
+    // 3500 eggs → 11.67 packs of S300 (116.7 trays) + 14 packs of S250 (350 trays) = 466.7 → 467
+    assert.equal(tray.qty, 467);
+    close(tray.bySku.S300, 3500 / 300, "S300 packs");
+    const carton = lines.find((l) => l.weekStart === wk && l.materialNo === "C1");
+    assert.equal(carton.qty, 12);
+    assert.equal(tray.orderDate, format(addDays(parseISO(wk), -14), "yyyy-MM-dd"));
+    assert.equal(lines.some((l) => l.bySku.GC), false, "no Grade C eggs → no Grade C packaging");
+  });
+
+  test("no lines while grading is incomplete", () => {
+    assert.equal(packagingPlan(proj, { rejectPct: null, gradeTablePct: 100, gradeCPct: 0 }, skus, bom, null).length, 0);
   });
 });

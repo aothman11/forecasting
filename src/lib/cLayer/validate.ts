@@ -8,6 +8,7 @@ import type {
   LayerPrepOperation,
   LayerSettingsInput,
   LayerSku,
+  LayerSkuPackagingInput,
   LayerSkuUpdate,
   PrepGroup,
 } from "./types";
@@ -191,6 +192,8 @@ export function validateSettingsInput(body: unknown): Validation<LayerSettingsIn
     feedSupplyPlant: optionalText(body.feedSupplyPlant, "feedSupplyPlant", 10, errors) || null,
     feedStoLeadDays: optionalIntRange(body.feedStoLeadDays, "feedStoLeadDays", 0, 60, errors),
     feedTruckTons: null,
+    packagingSupplySource: optionalText(body.packagingSupplySource, "packagingSupplySource", 40, errors) || null,
+    packagingLeadDays: optionalIntRange(body.packagingLeadDays, "packagingLeadDays", 0, 180, errors),
   };
   const truck = body.feedTruckTons ?? null;
   if (truck !== null && !(isFiniteNumber(truck) && truck > 0)) errors.push("feedTruckTons must be empty or a number of tons greater than 0.");
@@ -374,4 +377,21 @@ export function validatePrepRouting(input: unknown): Validation<Partial<Record<P
   }
   if (!errors.length && Object.keys(out).length === 0) errors.push("No routing groups given.");
   return errors.length ? { ok: false, errors } : { ok: true, value: out };
+}
+
+/** Packaging rows: { skuMaterialNo, component, materialNo, qtyPerPack, unit }[]; material codes may be empty. */
+export function validateSkuPackaging(input: unknown): Validation<LayerSkuPackagingInput[]> {
+  if (!Array.isArray(input)) return { ok: false, errors: ["Packaging must be a list of rows."] };
+  const errors: string[] = [];
+  const rows = input.map((raw, i) => {
+    const label = `Row ${i + 1}`;
+    const o = isObject(raw) ? raw : {};
+    const skuMaterialNo = requiredText(o.skuMaterialNo, `${label} SKU`, 20, errors);
+    const component = requiredText(o.component, `${label} component`, 60, errors);
+    const materialNo = optionalText(o.materialNo, `${label} material no.`, 20, errors);
+    const unit = optionalText(o.unit, `${label} unit`, 10, errors) || "PC";
+    if (!(isFiniteNumber(o.qtyPerPack) && o.qtyPerPack > 0)) errors.push(`${label}: quantity per pack must be a number greater than 0.`);
+    return { skuMaterialNo, component, materialNo, qtyPerPack: o.qtyPerPack as number, unit };
+  });
+  return errors.length ? { ok: false, errors } : { ok: true, value: rows };
 }
