@@ -576,3 +576,26 @@ describe("packaging plan", () => {
     assert.equal(packagingPlan(proj, { rejectPct: null, gradeTablePct: 100, gradeCPct: 0 }, skus, bom, null).length, 0);
   });
 });
+
+describe("packaging order units", () => {
+  const s = { B1: flat(100, 18, 100) };
+  const proj = projectAll([flock()], s, ctx()); // 7000 eggs per laying week
+  const grading = { rejectPct: 0, gradeTablePct: 100, gradeCPct: 0 };
+  const skus = [{ materialNo: "8210132", grade: "table", piecesPerPack: 300, packMixPct: 100 }];
+  const bom = [
+    { skuMaterialNo: "8210132", component: "Thermal sticker", materialNo: "400600160161", qtyPerPack: 1, unit: "PC", orderUnit: "ROL", perOrderUnit: 1000 },
+    { skuMaterialNo: "8210132", component: "Tape", materialNo: "400600120002", qtyPerPack: 1.3, unit: "M", orderUnit: "ROL", perOrderUnit: 1000 },
+    { skuMaterialNo: "8210132", component: "Carton", materialNo: "400100020276", qtyPerPack: 1, unit: "PC", orderUnit: null, perOrderUnit: null },
+  ];
+
+  test("BOM quantity in the BOM unit, order quantity in rolls", () => {
+    const lines = packagingPlan(proj, grading, skus, bom, null);
+    const wk = lines[0].weekStart; // 7000 / 300 = 23.33 packs
+    const at = (m) => lines.find((l) => l.weekStart === wk && l.materialNo === m);
+    assert.equal(at("400600160161").qty, 24);
+    close(at("400600160161").orderQty, 0.02, "sticker rolls");
+    assert.equal(at("400600120002").qty, 31); // 30.33 m → 31 m
+    close(at("400600120002").orderQty, 0.03, "tape rolls");
+    assert.equal(at("400100020276").orderQty, null);
+  });
+});

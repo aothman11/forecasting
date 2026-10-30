@@ -161,7 +161,11 @@ export interface LayerSkuPackaging {
   component: string;
   materialNo: string;
   qtyPerPack: number;
+  /** BOM unit, as in the SAP BOM (PC, M, …). */
   unit: string;
+  /** Unit it is bought in (e.g. ROL) and how many BOM units one order unit holds (1000 stickers); null = bought in the BOM unit. */
+  orderUnit: string | null;
+  perOrderUnit: number | null;
   sortOrder: number;
 }
 

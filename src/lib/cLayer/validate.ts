@@ -390,8 +390,12 @@ export function validateSkuPackaging(input: unknown): Validation<LayerSkuPackagi
     const component = requiredText(o.component, `${label} component`, 60, errors);
     const materialNo = optionalText(o.materialNo, `${label} material no.`, 20, errors);
     const unit = optionalText(o.unit, `${label} unit`, 10, errors) || "PC";
+    const orderUnit = optionalText(o.orderUnit, `${label} order unit`, 10, errors) || null;
+    const perOrderUnit = o.perOrderUnit ?? null;
+    if (perOrderUnit !== null && !(isFiniteNumber(perOrderUnit) && perOrderUnit > 0)) errors.push(`${label}: quantity per order unit must be empty or a number greater than 0.`);
+    if ((orderUnit === null) !== (perOrderUnit === null)) errors.push(`${label}: set both the order unit and how much one holds, or leave both empty.`);
     if (!(isFiniteNumber(o.qtyPerPack) && o.qtyPerPack > 0)) errors.push(`${label}: quantity per pack must be a number greater than 0.`);
-    return { skuMaterialNo, component, materialNo, qtyPerPack: o.qtyPerPack as number, unit };
+    return { skuMaterialNo, component, materialNo, qtyPerPack: o.qtyPerPack as number, unit, orderUnit, perOrderUnit: perOrderUnit as number | null };
   });
   return errors.length ? { ok: false, errors } : { ok: true, value: rows };
 }

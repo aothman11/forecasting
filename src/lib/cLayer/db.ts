@@ -182,6 +182,8 @@ export function ensureCLayerSchema(): Promise<void> {
         PRIMARY KEY (sku_material_no, sort_order)
       )
     `;
+    await db`ALTER TABLE layer_sku_packaging ADD COLUMN IF NOT EXISTS order_unit TEXT`;
+    await db`ALTER TABLE layer_sku_packaging ADD COLUMN IF NOT EXISTS per_order_unit NUMERIC CHECK (per_order_unit IS NULL OR per_order_unit > 0)`;
     await seedV2();
     await seedGuideStandards();
     await seedPhaseAges();
@@ -191,6 +193,7 @@ export function ensureCLayerSchema(): Promise<void> {
     await seedAwpFarmHouses();
     await seedFeedIntake();
     await seedSkuPackaging();
+    await seedSkuPackagingBoms();
     await seedPrepRouting();
   })().catch((err) => {
     schemaPromise = null;
@@ -428,15 +431,67 @@ async function seedSkuPackaging(): Promise<void> {
     tx`
       INSERT INTO layer_sku_packaging (sku_material_no, sort_order, component, material_no, qty_per_pack, unit)
       SELECT s.material_no, c.ord,
-             CASE WHEN c.ord = 0 THEN 'Egg tray (' || s.eggs_per_tray || ' eggs)' ELSE c.component END,
+             CASE WHEN c.ord = 0 THEN 'Tray ' || s.eggs_per_tray ELSE c.component END,
              '', CASE WHEN c.ord = 0 THEN s.trays_per_pack ELSE 1 END, 'PC'
       FROM layer_skus s
-      CROSS JOIN (VALUES (0, 'Egg tray'), (1, 'Outer carton'), (2, 'Label')) AS c(ord, component)
+      CROSS JOIN (VALUES (0, 'Tray'), (1, 'Carton'), (2, 'Label')) AS c(ord, component)
       WHERE NOT EXISTS (SELECT 1 FROM layer_sku_packaging p WHERE p.sku_material_no = s.material_no)
         AND EXISTS (SELECT 1 FROM layer_settings WHERE id = 1 AND seed_version = 8)
       ON CONFLICT DO NOTHING
     `,
     tx`UPDATE layer_settings SET seed_version = 9 WHERE id = 1 AND seed_version = 8`,
+  ]);
+}
+
+type BomRow = [component: string, qtyPerPack: number, unit: string, orderUnit: string | null, perOrderUnit: number | null];
+
+const TAPE: BomRow = ['Tape 2"', 1.3, "M", "ROL", 1000];
+const STICKER: BomRow = ["Sticker 80×160", 1, "PC", "ROL", 1000];
+
+/**
+ * Packaging lines of the SAP BOMs (plant 1250, alt. BOM 1) given by AWP on 2026-10-30. The egg item
+ * (90001 / 90002) is left out: it is the eggs, not packaging. Material codes are left empty for AWP to
+ * enter in the app; a component used by several SKUs (tape, sticker, 20 lbs tray) has one name so the
+ * Packaging tab adds it up. 8210133 has the same BOM as 8210132.
+ */
+const SKU_BOMS: Record<string, BomRow[]> = {
+  // white egg small s.pack 300pc, 10T×30pc
+  "8210132": [["Carton printed-d", 1, "PC", null, null], ["Tray top 30", 10, "PC", null, null], ["Tray bottom 30", 10, "PC", null, null], TAPE, STICKER],
+  // white egg ML s.pack 300pc, 10T×30pc
+  "8210133": [["Carton printed-d", 1, "PC", null, null], ["Tray top 30", 10, "PC", null, null], ["Tray bottom 30", 10, "PC", null, null], TAPE, STICKER],
+  // white egg XL s.pack 250pc, 25T×10pc
+  "8220303": [["Carton printed-a", 1, "PC", null, null], ["Tray XL 10", 25, "PC", null, null], [TAPE[0], 1.58, "M", "ROL", 1000], STICKER, ["Tray 20 lbs", 2, "PC", null, null]],
+  // white egg G.C 360pc, 12T×30pc
+  "8220301": [["Tray 20 lbs", 14, "PC", null, null], [TAPE[0], 1.58, "M", "ROL", 1000], STICKER, ["Carton brown plain", 1, "PC", null, null]],
+};
+
+/**
+ * Replaces the starter packaging with the SAP BOMs above (seed_version 9 → 10), per SKU and only while
+ * none of the SKU's rows has a code yet, so packaging an Admin already entered is kept.
+ */
+async function seedSkuPackagingBoms(): Promise<void> {
+  const db = getClient();
+  await db.transaction((tx) => [
+    ...Object.entries(SKU_BOMS).flatMap(([sku, rows]) => {
+      const json = JSON.stringify(rows.map(([c, q, u, ou, per], i) => ({ o: i, c, q, u, ou, per })));
+      return [
+        tx`
+          DELETE FROM layer_sku_packaging
+          WHERE sku_material_no = ${sku}
+            AND NOT EXISTS (SELECT 1 FROM layer_sku_packaging WHERE sku_material_no = ${sku} AND material_no <> '')
+            AND EXISTS (SELECT 1 FROM layer_settings WHERE id = 1 AND seed_version = 9)
+        `,
+        tx`
+          INSERT INTO layer_sku_packaging (sku_material_no, sort_order, component, material_no, qty_per_pack, unit, order_unit, per_order_unit)
+          SELECT ${sku}, r.o, r.c, '', r.q, r.u, r.ou, r.per
+          FROM jsonb_to_recordset(${json}::jsonb) AS r(o integer, c text, q numeric, u text, ou text, per numeric)
+          WHERE EXISTS (SELECT 1 FROM layer_skus WHERE material_no = ${sku})
+            AND NOT EXISTS (SELECT 1 FROM layer_sku_packaging WHERE sku_material_no = ${sku})
+            AND EXISTS (SELECT 1 FROM layer_settings WHERE id = 1 AND seed_version = 9)
+        `,
+      ];
+    }),
+    tx`UPDATE layer_settings SET seed_version = 10 WHERE id = 1 AND seed_version = 9`,
   ]);
 }
 
@@ -935,6 +990,8 @@ export async function listSkuPackaging(): Promise<LayerSkuPackaging[]> {
     materialNo: String(r.material_no ?? ""),
     qtyPerPack: Number(r.qty_per_pack),
     unit: String(r.unit),
+    orderUnit: r.order_unit ? String(r.order_unit) : null,
+    perOrderUnit: r.per_order_unit === null || r.per_order_unit === undefined ? null : Number(r.per_order_unit),
     sortOrder: Number(r.sort_order),
   }));
 }
@@ -946,8 +1003,8 @@ export async function replaceSkuPackaging(rows: LayerSkuPackagingInput[], skuMat
     ...skuMaterialNos.map((sku) => tx`DELETE FROM layer_sku_packaging WHERE sku_material_no = ${sku}`),
     ...rows.map(
       (r, i) => tx`
-        INSERT INTO layer_sku_packaging (sku_material_no, sort_order, component, material_no, qty_per_pack, unit)
-        VALUES (${r.skuMaterialNo}, ${i}, ${r.component}, ${r.materialNo}, ${r.qtyPerPack}, ${r.unit})
+        INSERT INTO layer_sku_packaging (sku_material_no, sort_order, component, material_no, qty_per_pack, unit, order_unit, per_order_unit)
+        VALUES (${r.skuMaterialNo}, ${i}, ${r.component}, ${r.materialNo}, ${r.qtyPerPack}, ${r.unit}, ${r.orderUnit}, ${r.perOrderUnit})
       `,
     ),
   ]);

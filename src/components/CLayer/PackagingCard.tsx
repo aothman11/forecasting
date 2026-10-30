@@ -5,7 +5,7 @@ import { cLayerApi, errorLines } from "@/lib/cLayer/api";
 import type { LayerSku, LayerSkuPackaging } from "@/lib/cLayer/types";
 import { Card, Notice, btnDanger, btnPrimary, btnText, input } from "./ui";
 
-type Row = { component: string; materialNo: string; qtyPerPack: string; unit: string };
+type Row = { component: string; materialNo: string; qtyPerPack: string; unit: string; orderUnit: string; perOrderUnit: string };
 type Msg = { tone: "ok" | "error"; lines: string[] } | null;
 
 /** Packaging components per packed SKU; AWP enters the SAP material codes here. */
@@ -16,7 +16,14 @@ export function PackagingCard({ skus, packaging, reload, canEdit }: { skus: Laye
         s.materialNo,
         packaging
           .filter((p) => p.skuMaterialNo === s.materialNo)
-          .map((p) => ({ component: p.component, materialNo: p.materialNo, qtyPerPack: String(p.qtyPerPack), unit: p.unit })),
+          .map((p) => ({
+            component: p.component,
+            materialNo: p.materialNo,
+            qtyPerPack: String(p.qtyPerPack),
+            unit: p.unit,
+            orderUnit: p.orderUnit ?? "",
+            perOrderUnit: p.perOrderUnit === null ? "" : String(p.perOrderUnit),
+          })),
       ]),
     ),
   );
@@ -25,7 +32,7 @@ export function PackagingCard({ skus, packaging, reload, canEdit }: { skus: Laye
 
   const set = (sku: string, i: number, patch: Partial<Row>) =>
     setRows({ ...rows, [sku]: rows[sku].map((r, j) => (j === i ? { ...r, ...patch } : r)) });
-  const add = (sku: string) => setRows({ ...rows, [sku]: [...rows[sku], { component: "", materialNo: "", qtyPerPack: "1", unit: "PC" }] });
+  const add = (sku: string) => setRows({ ...rows, [sku]: [...rows[sku], { component: "", materialNo: "", qtyPerPack: "1", unit: "PC", orderUnit: "", perOrderUnit: "" }] });
   const remove = (sku: string, i: number) => setRows({ ...rows, [sku]: rows[sku].filter((_, j) => j !== i) });
 
   const save = async () => {
@@ -40,6 +47,8 @@ export function PackagingCard({ skus, packaging, reload, canEdit }: { skus: Laye
             materialNo: r.materialNo.trim(),
             qtyPerPack: Number(r.qtyPerPack),
             unit: r.unit.trim() || "PC",
+            orderUnit: r.orderUnit.trim() || null,
+            perOrderUnit: r.perOrderUnit.trim() === "" ? null : Number(r.perOrderUnit),
           })),
         ),
       });
@@ -52,8 +61,8 @@ export function PackagingCard({ skus, packaging, reload, canEdit }: { skus: Laye
 
   return (
     <Card
-      title="Packaging per SKU · final products"
-      subtitle="Components needed for one pack of each SKU. Weekly packaging = planned packs × quantity per pack (Packaging tab). Enter the SAP material code of each component."
+      title="Packaging per SKU"
+      subtitle="Per pack, as in the SAP BOM. Order unit: e.g. ROL = 1000."
       actions={canEdit && <button className={btnPrimary} onClick={save}>Save packaging</button>}
     >
       {msg && <Notice tone={msg.tone} lines={msg.lines} />}
@@ -75,7 +84,9 @@ export function PackagingCard({ skus, packaging, reload, canEdit }: { skus: Laye
                     <th className="text-left">Component</th>
                     <th className="text-left">Material no.</th>
                     <th className="text-right">Qty / pack</th>
-                    <th className="text-left">Unit</th>
+                    <th className="text-left">BOM unit</th>
+                    <th className="text-left" title="Unit it is bought in, e.g. ROL — leave empty if bought in the BOM unit">Order unit</th>
+                    <th className="text-right" title="How many BOM units one order unit holds, e.g. 1000 stickers per roll">Per order unit</th>
                     {canEdit && <th />}
                   </tr>
                 </thead>
@@ -88,6 +99,8 @@ export function PackagingCard({ skus, packaging, reload, canEdit }: { skus: Laye
                           <td><input className={`${input} w-28`} value={r.materialNo} placeholder="enter code" onChange={(e) => set(s.materialNo, i, { materialNo: e.target.value })} /></td>
                           <td className="text-right"><input type="number" min={0} step="any" className={`${input} w-20 text-right`} value={r.qtyPerPack} onChange={(e) => set(s.materialNo, i, { qtyPerPack: e.target.value })} /></td>
                           <td><input className={`${input} w-16`} value={r.unit} onChange={(e) => set(s.materialNo, i, { unit: e.target.value })} /></td>
+                          <td><input className={`${input} w-16`} value={r.orderUnit} placeholder="—" onChange={(e) => set(s.materialNo, i, { orderUnit: e.target.value })} /></td>
+                          <td className="text-right"><input type="number" min={0} step="any" className={`${input} w-20 text-right`} value={r.perOrderUnit} placeholder="—" onChange={(e) => set(s.materialNo, i, { perOrderUnit: e.target.value })} /></td>
                           <td><button className={btnDanger} onClick={() => remove(s.materialNo, i)}>Remove</button></td>
                         </>
                       ) : (
@@ -96,12 +109,14 @@ export function PackagingCard({ skus, packaging, reload, canEdit }: { skus: Laye
                           <td>{r.materialNo || <span className="text-brand-alert">not set</span>}</td>
                           <td className="text-right tabular-nums">{r.qtyPerPack}</td>
                           <td>{r.unit}</td>
+                          <td>{r.orderUnit || "—"}</td>
+                          <td className="text-right tabular-nums">{r.perOrderUnit || "—"}</td>
                         </>
                       )}
                     </tr>
                   ))}
                   {rows[s.materialNo].length === 0 && (
-                    <tr><td colSpan={canEdit ? 5 : 4} className="text-neutral-500">No packaging yet.</td></tr>
+                    <tr><td colSpan={canEdit ? 7 : 6} className="text-neutral-500">No packaging yet.</td></tr>
                   )}
                 </tbody>
               </table>

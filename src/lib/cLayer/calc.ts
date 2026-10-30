@@ -1098,8 +1098,13 @@ export interface PackagingLine {
   /** "" when the code is not entered yet (rows are then grouped by component name). */
   materialNo: string;
   component: string;
+  /** BOM unit and the quantity consumed (rounded up to a whole BOM unit). */
   unit: string;
   qty: number;
+  /** Unit it is bought in and the quantity in that unit (not rounded: whole rolls are rounded over the period); null = bought in the BOM unit. */
+  orderUnit: string | null;
+  perOrderUnit: number | null;
+  orderQty: number | null;
   /** Packs of each SKU this week that use the material. */
   bySku: Record<string, number>;
 }
@@ -1114,7 +1119,7 @@ export function packagingPlan(
   projections: FlockProjection[],
   grading: GradingSettings,
   skus: Pick<LayerSku, "materialNo" | "grade" | "piecesPerPack" | "packMixPct">[],
-  bom: Pick<LayerSkuPackaging, "skuMaterialNo" | "component" | "materialNo" | "qtyPerPack" | "unit">[],
+  bom: Pick<LayerSkuPackaging, "skuMaterialNo" | "component" | "materialNo" | "qtyPerPack" | "unit" | "orderUnit" | "perOrderUnit">[],
   leadDays: number | null,
   range?: { from: string; to: string },
 ): PackagingLine[] {
@@ -1139,6 +1144,9 @@ export function packagingPlan(
           component: c.component,
           unit: c.unit,
           qty: 0,
+          orderUnit: c.orderUnit,
+          perOrderUnit: c.perOrderUnit,
+          orderQty: null,
           bySku: {},
         };
         line.qty += sku.packs * c.qtyPerPack;
@@ -1147,5 +1155,9 @@ export function packagingPlan(
       }
     }
   }
-  return [...out.values()].map((l) => ({ ...l, qty: Math.ceil(l.qty - 1e-9) }));
+  return [...out.values()].map((l) => ({
+    ...l,
+    qty: Math.ceil(l.qty - 1e-9),
+    orderQty: l.orderUnit && l.perOrderUnit ? Math.round((l.qty / l.perOrderUnit) * 100) / 100 : null,
+  }));
 }
