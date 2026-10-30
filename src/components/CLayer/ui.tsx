@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  MATERIAL_STAGE_FLOW,
   MATERIAL_STAGE_LABELS,
   addWeeksIso,
   isoWeekLabel,
@@ -138,17 +139,24 @@ export function weekTooltip(
 
 export type BreedMaterials = Pick<LayerBreed, "docMaterialNo" | "pullet14MaterialNo" | "layingPullet19MaterialNo" | "eggMaterialNo">;
 
-const STAGE_FIELD: Record<MaterialStage, keyof BreedMaterials> = {
-  doc: "docMaterialNo",
-  pullet14: "pullet14MaterialNo",
-  layingPullet19: "layingPullet19MaterialNo",
-  asset: "eggMaterialNo",
+const MATERIAL_NAMES: Record<keyof BreedMaterials, string> = {
+  docMaterialNo: "DOC",
+  pullet14MaterialNo: "Pullet 14WK",
+  layingPullet19MaterialNo: "Laying Pullet 19WK",
+  eggMaterialNo: "Eggs",
 };
 
-/** "Pullet 14WK 1234567" — or "(no code)" while the breed's material number is not entered yet. */
+/**
+ * "Pre-lay order: Pullet 14WK 123 → Laying Pullet 19WK 456" — the material the phase's order consumes
+ * and produces, with "(no code)" while a breed's material number is not entered yet.
+ */
 export function materialLabel(stage: MaterialStage, breed?: BreedMaterials): string {
-  const code = breed?.[STAGE_FIELD[stage]];
-  return `${MATERIAL_STAGE_LABELS[stage]} ${code || "(no code)"}`;
+  const flow = MATERIAL_STAGE_FLOW[stage];
+  const part = (field: string) => {
+    const key = field as keyof BreedMaterials;
+    return `${MATERIAL_NAMES[key]} ${breed?.[key] || "(no code)"}`;
+  };
+  return `${MATERIAL_STAGE_LABELS[stage]}: ${flow.consumes ? `${part(flow.consumes)} → ` : ""}${part(flow.produces)}`;
 }
 
 export interface RangeState {

@@ -84,29 +84,37 @@ export function feedStageFor(ageWeek: number, stages: Pick<LayerFeedStage, "name
   return stages.find((s) => docWeek >= s.fromWeek && docWeek <= s.toWeek)?.name ?? null;
 }
 
-/** SAP material stage of a flock: DOC → Pullet 14WK → Laying Pullet 19WK → asset (takes the breed's egg material). */
-export type MaterialStage = "doc" | "pullet14" | "layingPullet19" | "asset";
+/**
+ * Production-order phase of a flock (AWP, plan age weeks): rearing order 1–15 consumes DOC and
+ * produces Pullet 14WK; pre-lay order 16–20 (laying farm) consumes Pullet 14WK and produces Laying
+ * Pullet 19WK; from 21 the flock is an asset producing the breed's egg material.
+ */
+export type MaterialStage = "rearing" | "preLay" | "laying";
 
 export const MATERIAL_STAGE_LABELS: Record<MaterialStage, string> = {
-  doc: "DOC",
-  pullet14: "Pullet 14WK",
-  layingPullet19: "Laying Pullet 19WK",
-  asset: "Asset (eggs)",
+  rearing: "Rearing order",
+  preLay: "Pre-lay order",
+  laying: "Laying (asset)",
+};
+
+/** Materials each phase consumes and produces, by breed field. */
+export const MATERIAL_STAGE_FLOW: Record<MaterialStage, { consumes: string | null; produces: string }> = {
+  rearing: { consumes: "docMaterialNo", produces: "pullet14MaterialNo" },
+  preLay: { consumes: "pullet14MaterialNo", produces: "layingPullet19MaterialNo" },
+  laying: { consumes: null, produces: "eggMaterialNo" },
 };
 
 export interface MaterialStageAges {
-  pulletFromAge: number | null;
-  layingPulletFromAge: number | null;
+  preLayFromAge: number | null;
   assetFromAge: number | null;
 }
 
-/** Stage for an age week; null when the switch ages are not all set. */
+/** Phase for an age week; null when the phase ages are not both set. */
 export function materialStageFor(ageWeek: number, s: MaterialStageAges): MaterialStage | null {
-  if (s.pulletFromAge === null || s.layingPulletFromAge === null || s.assetFromAge === null) return null;
-  if (ageWeek >= s.assetFromAge) return "asset";
-  if (ageWeek >= s.layingPulletFromAge) return "layingPullet19";
-  if (ageWeek >= s.pulletFromAge) return "pullet14";
-  return "doc";
+  if (s.preLayFromAge === null || s.assetFromAge === null) return null;
+  if (ageWeek >= s.assetFromAge) return "laying";
+  if (ageWeek >= s.preLayFromAge) return "preLay";
+  return "rearing";
 }
 
 /** First age week with hen-day % above 0; null when the standard never lays. */
@@ -181,7 +189,7 @@ export interface FlockProjection {
   transferWeekStart: string | null;
   transferBirds: number | null;
   firstLayAgeWeek: number | null;
-  /** Live birds at the start of the first week with hen-day % > 0. */
+  /** Live birds at the start of the first week whose eggs are counted (hen-day % > 0 and, when set, from the asset week). */
   hensAtPointOfLay: number | null;
   /** birds_end(depletion age); they leave in the week after depletion. */
   spentHens: number | null;
@@ -248,6 +256,8 @@ export function projectFlock(flock: FlockInput, standards: LayerBreedStandardRow
 
   const firstLay = firstLayAgeWeek(standards);
   const henDayBase = ctx.henDayBase ?? HEN_DAY_BASE;
+  // Eggs count only once the flock is an asset (AWP, 2026-10-29); eggs the breed curve shows earlier are not planned.
+  const assetFrom = ctx.materialStageAges?.assetFromAge ?? null;
   const lastAge = depletion ?? maxAge;
   const weeks: FlockWeek[] = [];
   let birds = flock.chicks;
@@ -278,7 +288,7 @@ export function projectFlock(flock: FlockInput, standards: LayerBreedStandardRow
       birdsStart,
       birdsEnd,
       avgBirds,
-      eggs: (henDayBase === "opening" ? birdsStart : avgBirds) * (std.henDayPct / 100) * 7,
+      eggs: assetFrom !== null && age < assetFrom ? 0 : (henDayBase === "opening" ? birdsStart : avgBirds) * (std.henDayPct / 100) * 7,
     });
     birds = birdsEnd;
   }
@@ -300,7 +310,8 @@ export function projectFlock(flock: FlockInput, standards: LayerBreedStandardRow
     transferWeekStart: projectedTransfer ? weeks[transfer! - 1].weekStart : null,
     transferBirds: projectedTransfer ? weeks[transfer! - 2].birdsEnd : null,
     firstLayAgeWeek: firstLay,
-    hensAtPointOfLay: firstLay !== null && firstLay <= weeks.length ? weeks[firstLay - 1].birdsStart : null,
+    // Point of lay = first week whose eggs are counted (first hen-day > 0, or the asset week if later).
+    hensAtPointOfLay: weeks.find((w) => w.eggs > 0)?.birdsStart ?? null,
     spentHens: depleted ? last.birdsEnd : null,
     depletionWeekStart: depleted ? addWeeksIso(last.weekStart, 1) : null,
     eggsTo80,

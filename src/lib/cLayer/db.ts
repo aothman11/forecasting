@@ -1,5 +1,6 @@
 import "server-only";
 import { getClient } from "@/lib/db";
+import { GUIDE_STANDARDS } from "./guideStandards";
 import type {
   LayerBreed,
   LayerBreedInput,
@@ -115,10 +116,12 @@ export function ensureCLayerSchema(): Promise<void> {
     await db`ALTER TABLE layer_settings ADD COLUMN IF NOT EXISTS grade_table_pct NUMERIC CHECK (grade_table_pct IS NULL OR grade_table_pct BETWEEN 0 AND 100)`;
     await db`ALTER TABLE layer_settings ADD COLUMN IF NOT EXISTS grade_c_pct NUMERIC CHECK (grade_c_pct IS NULL OR grade_c_pct BETWEEN 0 AND 100)`;
     await db`ALTER TABLE layer_settings ADD COLUMN IF NOT EXISTS seed_version INTEGER NOT NULL DEFAULT 0`;
-    // Material stage switch ages given by AWP (2026-10-29): DOC until 14, pullet until 19, asset from 20.
+    // pullet_from_age / laying_pullet_from_age belong to the superseded 4-stage model; kept, unused.
     await db`ALTER TABLE layer_settings ADD COLUMN IF NOT EXISTS pullet_from_age INTEGER DEFAULT 14 CHECK (pullet_from_age IS NULL OR pullet_from_age BETWEEN 2 AND 100)`;
     await db`ALTER TABLE layer_settings ADD COLUMN IF NOT EXISTS laying_pullet_from_age INTEGER DEFAULT 19 CHECK (laying_pullet_from_age IS NULL OR laying_pullet_from_age BETWEEN 2 AND 100)`;
-    await db`ALTER TABLE layer_settings ADD COLUMN IF NOT EXISTS asset_from_age INTEGER DEFAULT 20 CHECK (asset_from_age IS NULL OR asset_from_age BETWEEN 2 AND 100)`;
+    await db`ALTER TABLE layer_settings ADD COLUMN IF NOT EXISTS asset_from_age INTEGER DEFAULT 21 CHECK (asset_from_age IS NULL OR asset_from_age BETWEEN 2 AND 100)`;
+    // Phases given by AWP (2026-10-30), plan age weeks: rearing 1–15, pre-lay 16–20 (laying farm), laying 21+.
+    await db`ALTER TABLE layer_settings ADD COLUMN IF NOT EXISTS pre_lay_from_age INTEGER DEFAULT 16 CHECK (pre_lay_from_age IS NULL OR pre_lay_from_age BETWEEN 2 AND 100)`;
     await db`
       CREATE TABLE IF NOT EXISTS layer_feed_stages (
         id           TEXT PRIMARY KEY,
@@ -144,6 +147,9 @@ export function ensureCLayerSchema(): Promise<void> {
       )
     `;
     await seedV2();
+    await seedGuideStandards();
+    await seedPhaseAges();
+    await seedExampleFlock();
   })().catch((err) => {
     schemaPromise = null;
     throw err;
@@ -194,6 +200,78 @@ async function seedV2(): Promise<void> {
       ON CONFLICT (material_no) DO NOTHING
     `,
     tx`UPDATE layer_settings SET default_transfer_age = 17, seed_version = 1 WHERE id = 1 AND seed_version = 0`,
+  ]);
+}
+
+/**
+ * Seeds the breeder-guide weekly standards once per database (seed_version 1 → 2), and only into
+ * the seeded breeds that still have no standard, so a standard an Admin uploaded is never replaced.
+ */
+async function seedGuideStandards(): Promise<void> {
+  const db = getClient();
+  await db.transaction((tx) => [
+    ...Object.entries(GUIDE_STANDARDS).map(([breedName, rows]) => {
+      const json = JSON.stringify(rows.map(([a, m, h, e]) => ({ a, m, h, e })));
+      return tx`
+        INSERT INTO layer_breed_standards (breed_id, age_week, mortality_pct, hen_day_pct, egg_weight_g)
+        SELECT b.id, r.a, r.m, r.h, r.e
+        FROM layer_breeds b
+        CROSS JOIN jsonb_to_recordset(${json}::jsonb) AS r(a integer, m numeric, h numeric, e numeric)
+        WHERE b.name = ${breedName}
+          AND EXISTS (SELECT 1 FROM layer_settings WHERE id = 1 AND seed_version = 1)
+          AND NOT EXISTS (SELECT 1 FROM layer_breed_standards s WHERE s.breed_id = b.id)
+        ON CONFLICT (breed_id, age_week) DO NOTHING
+      `;
+    }),
+    tx`UPDATE layer_settings SET seed_version = 2 WHERE id = 1 AND seed_version = 1`,
+  ]);
+}
+
+/**
+ * One-time move to AWP's phases (seed_version 2 → 3): asset from age 21 (was 20) and the default
+ * transfer at the start of pre-lay, age 16 (was 17). Only values still at the old defaults change.
+ */
+async function seedPhaseAges(): Promise<void> {
+  await getClient()`
+    UPDATE layer_settings SET
+      asset_from_age       = CASE WHEN asset_from_age = 20 THEN 21 ELSE asset_from_age END,
+      default_transfer_age = CASE WHEN default_transfer_age = 17 THEN 16 ELSE default_transfer_age END,
+      seed_version         = 3
+    WHERE id = 1 AND seed_version = 2
+  `;
+}
+
+/**
+ * TEMPORARY demo requested by AWP (2026-10-30): one example flock (no. 900) on two example farms so
+ * planners can walk the workflow in production. Runs once (seed_version 3 → 4), so it never returns
+ * after an Admin deletes it. Remove this function once the example has been deleted.
+ */
+async function seedExampleFlock(): Promise<void> {
+  const db = getClient();
+  const note = "EXAMPLE — delete when done";
+  await db.transaction((tx) => [
+    tx`
+      INSERT INTO layer_farms (id, code, name, plant, houses)
+      SELECT v.id, v.code, v.name, v.plant, 6
+      FROM (VALUES ('example-rearing-farm', 'EXAMPLE-R1', 'Example rearing farm (delete when done)', '1260'),
+                   ('example-laying-farm',  'EXAMPLE-L1', 'Example laying farm (delete when done)',  '1250')) AS v(id, code, name, plant)
+      WHERE EXISTS (SELECT 1 FROM layer_settings WHERE id = 1 AND seed_version = 3)
+      ON CONFLICT DO NOTHING
+    `,
+    tx`
+      INSERT INTO layer_placements
+        (id, flock_no, placement_week_start, chicks, breed_id, rearing_farm_id, rearing_houses,
+         laying_farm_id, laying_houses, transfer_age_week, depletion_age_week, notes, created_by, updated_by)
+      SELECT 'example-flock-900', 900, DATE '2026-07-06', 30000, b.id, 'example-rearing-farm', 6,
+             'example-laying-farm', 6, NULL, 90, ${note}, 'System (example)', 'System (example)'
+      FROM layer_breeds b
+      WHERE b.name = 'Hy-Line White'
+        AND EXISTS (SELECT 1 FROM layer_settings WHERE id = 1 AND seed_version = 3)
+        AND EXISTS (SELECT 1 FROM layer_farms WHERE id = 'example-rearing-farm')
+        AND EXISTS (SELECT 1 FROM layer_farms WHERE id = 'example-laying-farm')
+      ON CONFLICT DO NOTHING
+    `,
+    tx`UPDATE layer_settings SET seed_version = 4 WHERE id = 1 AND seed_version = 3`,
   ]);
 }
 
@@ -273,8 +351,7 @@ function toSettings(r: Row | undefined): LayerSettings {
     rejectPct: numOrNull(r?.reject_pct),
     gradeTablePct: numOrNull(r?.grade_table_pct),
     gradeCPct: numOrNull(r?.grade_c_pct),
-    pulletFromAge: numOrNull(r?.pullet_from_age),
-    layingPulletFromAge: numOrNull(r?.laying_pullet_from_age),
+    preLayFromAge: numOrNull(r?.pre_lay_from_age),
     assetFromAge: numOrNull(r?.asset_from_age),
     updatedBy: r?.updated_by ? String(r.updated_by) : null,
     updatedAt: r?.updated_at ? iso(r.updated_at) : null,
@@ -617,8 +694,7 @@ export async function updateSettings(input: LayerSettingsInput, user: string): P
       reject_pct            = ${input.rejectPct},
       grade_table_pct       = ${input.gradeTablePct},
       grade_c_pct           = ${input.gradeCPct},
-      pullet_from_age       = ${input.pulletFromAge},
-      laying_pullet_from_age = ${input.layingPulletFromAge},
+      pre_lay_from_age      = ${input.preLayFromAge},
       asset_from_age        = ${input.assetFromAge},
       updated_by            = ${user},
       updated_at            = now()

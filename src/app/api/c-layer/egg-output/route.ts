@@ -32,6 +32,7 @@ export async function GET() {
     const projections = projectAll(placements, standards, {
       defaultTransferAge: settings.defaultTransferAge,
       defaultDepletionAge: settings.defaultDepletionAge,
+      materialStageAges: settings,
     });
     const materialByBreed = Object.fromEntries(breeds.map((b) => [b.id, b.eggMaterialNo]));
     const unprojected = projections.filter((p) => p.weeks.length === 0).length;

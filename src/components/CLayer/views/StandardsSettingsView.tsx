@@ -30,9 +30,8 @@ const SETTING_FIELDS: { key: EditableSettingKey; label: string; unit: string; st
   { key: "rejectPct", label: "Reject % at grading", unit: "%", step: 0.1 },
   { key: "gradeTablePct", label: "Graded → 90001 table egg", unit: "%", step: 0.1 },
   { key: "gradeCPct", label: "Graded → 90002 Grade C", unit: "%", step: 0.1 },
-  { key: "pulletFromAge", label: "Material: Pullet 14WK from", unit: "age wk", step: 1 },
-  { key: "layingPulletFromAge", label: "Material: Laying Pullet 19WK from", unit: "age wk", step: 1 },
-  { key: "assetFromAge", label: "Asset (egg material) from", unit: "age wk", step: 1 },
+  { key: "preLayFromAge", label: "Pre-lay order from (Pullet 14WK → Laying Pullet 19WK)", unit: "age wk", step: 1 },
+  { key: "assetFromAge", label: "Laying / asset from (eggs counted)", unit: "age wk", step: 1 },
 ];
 
 export function StandardsSettingsView({ data, reload, canWriteMaster }: CLayerViewProps) {
@@ -188,7 +187,7 @@ function BreedsCard({ data, reload, canEdit }: { data: CLayerViewProps["data"]; 
                             <input className={`${input} w-full`} value={renaming.name} autoFocus onChange={(e) => setRenaming({ ...renaming, name: e.target.value })} />
                             <div className="flex flex-col gap-1.5 mt-1">
                               {BREED_MATERIAL_FIELDS.map((f) => (
-                                <label key={f.key} className="grid grid-cols-[minmax(0,9rem)_minmax(0,1fr)] items-center gap-2">
+                                <label key={f.key} className="flex flex-col gap-0.5">
                                   <span className="text-[10px] font-semibold uppercase tracking-wider text-neutral-500 leading-tight">{f.label}</span>
                                   <input
                                     className={`${input} w-full min-w-0 tabular-nums`}

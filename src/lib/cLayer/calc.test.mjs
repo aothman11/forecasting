@@ -323,30 +323,41 @@ describe("multiple flocks in the same calendar week", () => {
   });
 });
 
-describe("SAP material stages", () => {
-  const ages = { pulletFromAge: 14, layingPulletFromAge: 19, assetFromAge: 20 };
+describe("production-order phases", () => {
+  const ages = { preLayFromAge: 16, assetFromAge: 21 };
 
-  test("DOC until 14, pullet until 19, laying pullet in 19, asset from 20", () => {
-    assert.equal(materialStageFor(1, ages), "doc");
-    assert.equal(materialStageFor(13, ages), "doc");
-    assert.equal(materialStageFor(14, ages), "pullet14");
-    assert.equal(materialStageFor(18, ages), "pullet14");
-    assert.equal(materialStageFor(19, ages), "layingPullet19");
-    assert.equal(materialStageFor(20, ages), "asset");
-    assert.equal(materialStageFor(100, ages), "asset");
+  test("rearing order 1–15, pre-lay order 16–20, laying (asset) from 21", () => {
+    assert.equal(materialStageFor(1, ages), "rearing");
+    assert.equal(materialStageFor(15, ages), "rearing");
+    assert.equal(materialStageFor(16, ages), "preLay");
+    assert.equal(materialStageFor(20, ages), "preLay");
+    assert.equal(materialStageFor(21, ages), "laying");
+    assert.equal(materialStageFor(100, ages), "laying");
+  });
+
+  test("eggs count only from the asset week; point of lay moves with it", () => {
+    const s = flat(100, 18, 50);
+    const p = projectFlock(flock(), s, ctx({ materialStageAges: ages }));
+    assert.equal(p.weeks[17].eggs, 0, "week 18 laid but still in the pre-lay order");
+    assert.equal(p.weeks[19].eggs, 0, "week 20 laid but still in the pre-lay order");
+    close(p.weeks[20].eggs, 1000 * 0.5 * 7, "week 21 counts");
+    assert.equal(p.firstLayAgeWeek, 18, "breed standard still starts lay at 18");
+    close(p.hensAtPointOfLay, p.weeks[20].birdsStart, "hens at point of lay = asset week");
+    const without = projectFlock(flock(), s, ctx());
+    close(without.weeks[17].eggs, 1000 * 0.5 * 7, "without stage ages, week 18 counts");
   });
 
   test("no stage when an age is not set", () => {
-    assert.equal(materialStageFor(20, { ...ages, assetFromAge: null }), null);
+    assert.equal(materialStageFor(20, { ...ages, preLayFromAge: null }), null);
   });
 
-  test("projected weeks and weekly totals carry the stage", () => {
+  test("projected weeks and weekly totals carry the phase", () => {
     const p = projectFlock(flock(), flat(100), ctx({ materialStageAges: ages }));
-    assert.equal(p.weeks[12].materialStage, "doc");
-    assert.equal(p.weeks[18].materialStage, "layingPullet19");
-    const t = weeklyTotals([p]).find((w) => w.weekStart === ageWeekToCalendarWeek("2026-11-02", 15));
-    close(t.birdsByStage.pullet14, 1000, "pullet birds");
-    assert.equal(t.flocks[0].materialStage, "pullet14");
+    assert.equal(p.weeks[14].materialStage, "rearing");
+    assert.equal(p.weeks[15].materialStage, "preLay");
+    const t = weeklyTotals([p]).find((w) => w.weekStart === ageWeekToCalendarWeek("2026-11-02", 18));
+    close(t.birdsByStage.preLay, 1000, "pre-lay birds");
+    assert.equal(t.flocks[0].materialStage, "preLay");
   });
 });
 

@@ -54,7 +54,7 @@ export function BirdInventoryView({ data, projections }: CLayerViewProps) {
     ["Total live birds", total, "font-semibold"],
     ...(weeks.some((w) => Object.keys(w.birdsByStage).length)
       ? (Object.keys(MATERIAL_STAGE_LABELS) as MaterialStage[]).map(
-          (s) => [`Material · ${MATERIAL_STAGE_LABELS[s]}`, (w: CalendarWeekTotals) => w.birdsByStage[s] ?? 0, "text-neutral-600"] as [string, (w: CalendarWeekTotals) => number, string],
+          (s) => [MATERIAL_STAGE_LABELS[s], (w: CalendarWeekTotals) => w.birdsByStage[s] ?? 0, "text-neutral-600"] as [string, (w: CalendarWeekTotals) => number, string],
         )
       : []),
     ["Transfer 1260 → 1250", (w) => w.transferBirds, "text-neutral-500"],

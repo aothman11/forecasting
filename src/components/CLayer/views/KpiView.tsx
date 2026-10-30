@@ -23,7 +23,7 @@ export function KpiView({ data, projections }: CLayerViewProps) {
         tone="info"
         lines={[
           `Eggs per hen housed at ${KPI_AGE_WEEK} weeks = total eggs up to age week ${KPI_AGE_WEEK} ÷ hens at point of lay. The business process document labels it "%", but the formula gives eggs per hen, so it is shown as eggs per hen.`,
-          "Hens at point of lay = live birds at the start of the first week with hen-day % above 0.",
+          `Eggs count only once the flock is an asset (from age week ${data.settings.assetFromAge ?? "—"}). Hens at point of lay = live birds at the start of the first counted laying week.`,
           "Net eggs = eggs minus rejects (reject % setting). The document does not define net eggs — confirm this definition.",
         ]}
       />
