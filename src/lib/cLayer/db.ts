@@ -150,6 +150,7 @@ export function ensureCLayerSchema(): Promise<void> {
     await seedGuideStandards();
     await seedPhaseAges();
     await seedExampleFlock();
+    await seedExampleSettings();
   })().catch((err) => {
     schemaPromise = null;
     throw err;
@@ -272,6 +273,37 @@ async function seedExampleFlock(): Promise<void> {
       ON CONFLICT DO NOTHING
     `,
     tx`UPDATE layer_settings SET seed_version = 4 WHERE id = 1 AND seed_version = 3`,
+  ]);
+}
+
+/**
+ * TEMPORARY demo requested by AWP (2026-10-30): example settings so every output is visible during
+ * the walkthrough. Runs once (seed_version 4 → 5) and fills only values that are still empty, so
+ * nothing an Admin already entered is replaced. Remove this function together with the example flock.
+ */
+async function seedExampleSettings(): Promise<void> {
+  const db = getClient();
+  await db.transaction((tx) => [
+    tx`
+      UPDATE layer_settings SET
+        pr_to_po_days         = COALESCE(pr_to_po_days, 14),
+        po_to_delivery_days   = COALESCE(po_to_delivery_days, 56),
+        default_depletion_age = COALESCE(default_depletion_age, 90),
+        reject_pct            = COALESCE(reject_pct, 3),
+        grade_table_pct       = CASE WHEN grade_table_pct IS NULL AND grade_c_pct IS NULL THEN 94 ELSE grade_table_pct END,
+        grade_c_pct           = CASE WHEN grade_table_pct IS NULL AND grade_c_pct IS NULL THEN 6 ELSE grade_c_pct END,
+        updated_by            = COALESCE(updated_by, 'System (example)'),
+        updated_at            = COALESCE(updated_at, now())
+      WHERE id = 1 AND seed_version = 4
+    `,
+    tx`
+      UPDATE layer_skus s SET pack_mix_pct = v.mix
+      FROM (VALUES ('8210132', 30::numeric), ('8210133', 50::numeric), ('8220303', 20::numeric)) AS v(mat, mix)
+      WHERE s.material_no = v.mat
+        AND EXISTS (SELECT 1 FROM layer_settings WHERE id = 1 AND seed_version = 4)
+        AND NOT EXISTS (SELECT 1 FROM layer_skus WHERE grade = 'table' AND pack_mix_pct IS NOT NULL)
+    `,
+    tx`UPDATE layer_settings SET seed_version = 5 WHERE id = 1 AND seed_version = 4`,
   ]);
 }
 
