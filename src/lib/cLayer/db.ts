@@ -203,6 +203,7 @@ export function ensureCLayerSchema(): Promise<void> {
     await seedFeedIntake();
     await seedSkuPackaging();
     await seedSkuPackagingBoms();
+    await seedSamplePackagingPolicies();
     await seedPrepRouting();
   })().catch((err) => {
     schemaPromise = null;
@@ -501,6 +502,38 @@ async function seedSkuPackagingBoms(): Promise<void> {
       ];
     }),
     tx`UPDATE layer_settings SET seed_version = 10 WHERE id = 1 AND seed_version = 9`,
+  ]);
+}
+
+/**
+ * SAMPLE packaging order rules (seed_version 10 → 11), placeholders until AWP enters its own: trays
+ * every 4 weeks in pallets of 5000, cartons every 4 weeks in bundles of 50, tape and stickers every
+ * 8 weeks in cartons of 6 rolls. Only components that exist in the BOMs and have no rule yet.
+ */
+async function seedSamplePackagingPolicies(): Promise<void> {
+  const db = getClient();
+  const samples: [string, number, number, number][] = [
+    ["Tray top 30", 4, 5000, 1],
+    ["Tray bottom 30", 4, 5000, 1],
+    ["Tray XL 10", 4, 5000, 1],
+    ["Tray 20 lbs", 4, 5000, 1],
+    ["Carton printed-d", 4, 50, 1],
+    ["Carton printed-a", 4, 50, 1],
+    ["Carton brown plain", 4, 50, 1],
+    ['Tape 2"', 8, 6, 2],
+    ["Sticker 80×160", 8, 6, 2],
+  ];
+  const json = JSON.stringify(samples.map(([c, e, m, s]) => ({ c, e, m, s })));
+  await db.transaction((tx) => [
+    tx`
+      INSERT INTO layer_packaging_policy (component, order_every_weeks, order_multiple, safety_weeks)
+      SELECT r.c, r.e, r.m, r.s
+      FROM jsonb_to_recordset(${json}::jsonb) AS r(c text, e integer, m numeric, s numeric)
+      WHERE EXISTS (SELECT 1 FROM layer_sku_packaging p WHERE p.component = r.c)
+        AND EXISTS (SELECT 1 FROM layer_settings WHERE id = 1 AND seed_version = 10)
+      ON CONFLICT (component) DO NOTHING
+    `,
+    tx`UPDATE layer_settings SET seed_version = 11 WHERE id = 1 AND seed_version = 10`,
   ]);
 }
 

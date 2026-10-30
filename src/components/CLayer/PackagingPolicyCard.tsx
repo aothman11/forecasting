@@ -55,7 +55,7 @@ export function PackagingPolicyCard({ packaging, policies, reload, canEdit }: {
   return (
     <Card
       title="Packaging order rules"
-      subtitle="Empty = every week, whole units, no safety stock."
+      subtitle="Sample values to start with — replace them with your own. Empty = every week, whole units, no safety stock."
       actions={canEdit && <button className={btnPrimary} onClick={save}>Save order rules</button>}
     >
       {msg && <Notice tone={msg.tone} lines={msg.lines} />}
