@@ -31,7 +31,7 @@ const days = (p: PrepPhase) => p.toDay - p.fromDay + 1;
 const dayRange = (p: PrepPhase) => (p.fromDay === p.toDay ? `Day ${p.fromDay}` : `Days ${p.fromDay}–${p.toDay}`);
 const codeRange = (p: PrepPhase) => (p.opCodes.length > 1 ? `${p.opCodes[0]} – ${p.opCodes.at(-1)}` : p.opCodes[0]);
 
-export function PrepTimeline({ group, operations }: { group: PrepGroup; operations: LayerPrepOperation[] }) {
+export function PrepTimeline({ group, operations, farmCodes }: { group: PrepGroup; operations: LayerPrepOperation[]; farmCodes: string[] }) {
   const [showOps, setShowOps] = useState(false);
   const plant = PREP_GROUP_PLANT[group];
   const phases = prepPhases(operations);
@@ -40,8 +40,10 @@ export function PrepTimeline({ group, operations }: { group: PrepGroup; operatio
   const header = (
     <div className="flex flex-wrap items-baseline justify-between gap-2">
       <div className="flex items-baseline gap-2">
-        <span className="text-sm font-semibold text-brand-green-dark">{group}</span>
-        <span className="text-xs text-neutral-500">Plant {plant} · {LAYER_PLANTS[plant]}</span>
+        <span className="text-sm font-semibold text-brand-green-dark">Task list {group}</span>
+        <span className="text-xs text-neutral-500">
+          Plant {plant} · {LAYER_PLANTS[plant]} · used for {farmCodes.length ? `farms ${farmCodes.join(", ")}` : "every farm in this plant"}
+        </span>
       </div>
       {total > 0 && (
         <span className="text-xs text-neutral-600">

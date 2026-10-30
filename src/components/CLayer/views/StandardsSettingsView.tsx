@@ -48,7 +48,7 @@ export function StandardsSettingsView({ data, reload, canWriteMaster }: CLayerVi
       <FarmsCard farms={data.farms} reload={reload} canEdit={canWriteMaster} />
       <FeedStagesCard key={JSON.stringify(data.feedStages)} stages={data.feedStages} reload={reload} canEdit={canWriteMaster} />
       <SkusCard key={JSON.stringify(data.skus)} skus={data.skus} reload={reload} canEdit={canWriteMaster} />
-      <PrepRoutingCard operations={data.prepOperations} reload={reload} canEdit={canWriteMaster} />
+      <PrepRoutingCard operations={data.prepOperations} farms={data.farms} reload={reload} canEdit={canWriteMaster} />
     </div>
   );
 }
@@ -594,7 +594,7 @@ function SkusCard({ skus, reload, canEdit }: { skus: LayerSku[]; reload: () => v
   );
 }
 
-function PrepRoutingCard({ operations, reload, canEdit }: { operations: LayerPrepOperation[]; reload: () => void; canEdit: boolean }) {
+function PrepRoutingCard({ operations, farms, reload, canEdit }: { operations: LayerPrepOperation[]; farms: LayerFarm[]; reload: () => void; canEdit: boolean }) {
   const [msg, setMsg] = useState<Msg>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const groups = Object.keys(PREP_GROUP_PLANT) as (keyof typeof PREP_GROUP_PLANT)[];
@@ -621,7 +621,7 @@ function PrepRoutingCard({ operations, reload, canEdit }: { operations: LayerPre
   return (
     <Card
       title={`House preparation · ${PREP_MATERIAL}`}
-      subtitle="After a flock leaves a farm, the house is prepared before the next flock: LR01 on rearing farms (1260) from the transfer week, LL01 on laying farms (1250) from the depletion week. Each operation is one day; the farm is free from the Monday after the last day."
+      subtitle="After a flock leaves a farm, the house is prepared before the next flock: task list LR01 on every rearing farm (1260) from the transfer week, task list LL01 on every laying farm (1250) from the depletion week. Each operation is one day; the farm is free from the Monday after the last day."
       actions={
         <div className="flex gap-2">
           <button className={btn} onClick={() => exportPrepRouting(operations)}>Download Excel</button>
@@ -642,7 +642,12 @@ function PrepRoutingCard({ operations, reload, canEdit }: { operations: LayerPre
       )}
       <div className="flex flex-col gap-4">
         {groups.map((g) => (
-          <PrepTimeline key={g} group={g} operations={operations.filter((o) => o.group === g)} />
+          <PrepTimeline
+            key={g}
+            group={g}
+            operations={operations.filter((o) => o.group === g)}
+            farmCodes={farms.filter((f) => f.active && f.plant === PREP_GROUP_PLANT[g]).map((f) => f.code).sort()}
+          />
         ))}
       </div>
     </Card>

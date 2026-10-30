@@ -164,6 +164,7 @@ export function ensureCLayerSchema(): Promise<void> {
     await seedPhaseAges();
     await seedExampleFlock();
     await seedExampleSettings();
+    await seedAwpFarms();
     await seedPrepRouting();
   })().catch((err) => {
     schemaPromise = null;
@@ -318,6 +319,33 @@ async function seedExampleSettings(): Promise<void> {
         AND NOT EXISTS (SELECT 1 FROM layer_skus WHERE grade = 'table' AND pack_mix_pct IS NOT NULL)
     `,
     tx`UPDATE layer_settings SET seed_version = 5 WHERE id = 1 AND seed_version = 4`,
+  ]);
+}
+
+/**
+ * AWP's commercial-layer farms (seed_version 5 → 6): rearing LR01, LR02 with 6 houses each in 1260,
+ * laying LL01, LL02 with 18 houses each in 1250. A code that already exists is left as it is. The
+ * example laying farm gets the real laying-farm size (18) if it still has the seeded 6.
+ */
+async function seedAwpFarms(): Promise<void> {
+  const db = getClient();
+  await db.transaction((tx) => [
+    tx`
+      INSERT INTO layer_farms (id, code, name, plant, houses)
+      SELECT gen_random_uuid()::text, v.code, v.name, v.plant, v.houses
+      FROM (VALUES ('LR01', 'Rearing farm LR01', '1260', 6),
+                   ('LR02', 'Rearing farm LR02', '1260', 6),
+                   ('LL01', 'Laying farm LL01',  '1250', 18),
+                   ('LL02', 'Laying farm LL02',  '1250', 18)) AS v(code, name, plant, houses)
+      WHERE EXISTS (SELECT 1 FROM layer_settings WHERE id = 1 AND seed_version = 5)
+      ON CONFLICT (code) DO NOTHING
+    `,
+    tx`
+      UPDATE layer_farms SET houses = 18, updated_at = now()
+      WHERE id = 'example-laying-farm' AND houses = 6
+        AND EXISTS (SELECT 1 FROM layer_settings WHERE id = 1 AND seed_version = 5)
+    `,
+    tx`UPDATE layer_settings SET seed_version = 6 WHERE id = 1 AND seed_version = 5`,
   ]);
 }
 
